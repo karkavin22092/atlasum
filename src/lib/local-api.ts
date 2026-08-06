@@ -10,6 +10,7 @@ import type {
   Profile,
   ProfileStats,
   Question,
+  QuestionType,
   SequenceQuestion,
   SubmissionResponse,
 } from "@shared/types";
@@ -48,6 +49,19 @@ type LocalDatabase = {
   profiles: Record<string, StoredProfile>;
   overrides: Record<string, Question>;
   deletedQuestionIds: string[];
+};
+
+type LeaderboardEntry = {
+  rank: number;
+  id: string;
+  name: string;
+  xp: number;
+  level: number;
+  streak: number;
+  bestStreak: number;
+  attempts: number;
+  accuracy: number;
+  lastActiveAt: string | null;
 };
 
 const STORAGE_KEY = "design-tests-database-v3";
@@ -266,6 +280,28 @@ const buildLeaderboard = (database: LocalDatabase) => {
   })).sort((left, right) => right.xp - left.xp).map((entry, index) => ({ ...entry, rank: index + 1 }));
 };
 
+const syncLeaderboard = async (localEntries: LeaderboardEntry[]): Promise<LeaderboardEntry[]> => {
+  if (typeof window === "undefined") return localEntries;
+  try {
+    const response = await fetch("/.netlify/functions/leaderboard", {
+      method: localEntries.length ? "POST" : "GET",
+      headers: { "Content-Type": "application/json" },
+      body: localEntries.length ? JSON.stringify({ entries: localEntries }) : undefined,
+    });
+    if (!response.ok) throw new Error("Shared leaderboard is unavailable");
+    return await response.json() as LeaderboardEntry[];
+  } catch {
+    return localEntries;
+  }
+};
+
+const hasAnswer = (answer: unknown) => {
+  if (answer === undefined || answer === null) return false;
+  if (typeof answer === "string") return answer.trim().length > 0;
+  if (Array.isArray(answer)) return answer.length > 0;
+  return true;
+};
+
 const updateReview = (profile: StoredProfile, question: Question, isCorrect: boolean) => {
   const current = profile.reviews[question.id] ?? {
     timesAnswered: 0, correctCount: 0, lastAnsweredAt: null, nextReviewAt: null, intervalDays: 0, easeFactor: 2.5, mastery: 0,
@@ -298,11 +334,12 @@ export const localApi = {
       };
     });
     writeDatabase(database);
+    const leaderboard = await syncLeaderboard(buildLeaderboard(database));
     return {
       ...dashboardMeta,
       profile,
       stats: getStats(profile),
-      leaderboard: buildLeaderboard(database),
+      leaderboard,
       activity: Object.entries(profile.activity).sort(([left], [right]) => left.localeCompare(right)).map(([date, value]) => ({ date, ...value })),
       topicProgress,
       attempts: profile.attempts.slice().reverse().slice(0, 20),
@@ -314,11 +351,12 @@ export const localApi = {
     };
   },
 
-  async generateTest(payload: { profileName: string; mode: string; count: number; topic?: string | null }): Promise<GeneratedTest> {
+  async generateTest(payload: { profileName: string; mode: string; count: number; topic?: string | null; questionType?: QuestionType }): Promise<GeneratedTest> {
     const database = readDatabase();
     const profile = ensureProfile(database, payload.profileName);
     const source = allQuestions(database);
     let pool = payload.topic ? source.filter((question) => question.topic === payload.topic) : source;
+    if (payload.questionType) pool = pool.filter((question) => question.type === payload.questionType);
     if (payload.mode === "mistakes") pool = pool.filter((question) => {
       const review = profile.reviews[question.id];
       return review && review.correctCount < review.timesAnswered;
@@ -328,7 +366,9 @@ export const localApi = {
       const review = profile.reviews[question.id];
       return review && (!review.nextReviewAt || new Date(review.nextReviewAt).getTime() <= Date.now() || review.mastery < 0.7);
     });
-    if (!pool.length) pool = payload.topic ? source.filter((question) => question.topic === payload.topic) : source;
+    if (!pool.length) {
+      pool = source.filter((question) => (!payload.topic || question.topic === payload.topic) && (!payload.questionType || question.type === payload.questionType));
+    }
 
     let selected: Question[];
     if (payload.mode === "exam") {
@@ -354,7 +394,7 @@ export const localApi = {
     const database = readDatabase();
     const profile = ensureProfile(database, payload.profileName);
     const questions = new Map(allQuestions(database).map((question) => [question.id, question]));
-    const results = payload.answers.flatMap((entry) => {
+    const results = payload.answers.filter((entry) => hasAnswer(entry.answer)).flatMap((entry) => {
       const question = questions.get(entry.questionId);
       if (!question) return [];
       const evaluation = evaluateQuestion(question, entry.answer);
@@ -368,7 +408,14 @@ export const localApi = {
     const percent = maxScore ? Math.round((score / maxScore) * 1000) / 10 : 0;
     const grade = percent >= 90 ? "5" : percent >= 75 ? "4" : percent >= 50 ? "3" : "2";
     const xpGained = results.reduce((sum, result) => sum + (result.isCorrect ? result.difficulty === "hard" ? 25 : result.difficulty === "medium" ? 15 : 10 : 0), 0);
-    const coinsGained = Math.max(1, Math.round(score * 1.5 + percent / 10));
+    const coinsGained = results.length ? Math.max(1, Math.round(score * 1.5 + percent / 10)) : 0;
+    if (!results.length) {
+      return {
+        attemptId: "", score: 0, maxScore: 0, percent: 0, grade: "—", xpGained: 0, coinsGained: 0,
+        level: profile.level, streak: profile.streak, bestStreak: profile.bestStreak, correctCount: 0, wrongCount: 0,
+        durationMs: payload.durationMs, results: [], recommendations: [], achievements: [],
+      };
+    }
     results.forEach((result) => updateReview(profile, questions.get(result.questionId)!, result.isCorrect));
 
     const now = new Date();
@@ -385,7 +432,7 @@ export const localApi = {
     profile.activity[today] = { attempts: activity.attempts + 1, correct: activity.correct + score, xp: activity.xp + xpGained };
 
     const attemptId = crypto.randomUUID();
-    profile.attempts.push({ id: attemptId, mode: String(payload.mode), count: payload.count, score, maxScore, percent, grade, durationMs: payload.durationMs, topic: payload.topic ?? null, createdAt: now.toISOString(), items: results });
+    profile.attempts.push({ id: attemptId, mode: String(payload.mode), count: maxScore, score, maxScore, percent, grade, durationMs: payload.durationMs, topic: payload.topic ?? null, createdAt: now.toISOString(), items: results });
     const wrongTopics = results.filter((result) => !result.isCorrect).map((result) => result.topic);
     writeDatabase(database);
     return {
@@ -444,7 +491,7 @@ export const localApi = {
     writeDatabase(database);
     return { imported: questions.length };
   },
-  async ranking() { return buildLeaderboard(readDatabase()); },
+  async ranking() { return syncLeaderboard(buildLeaderboard(readDatabase())); },
   async profile(profileName: string) {
     const database = readDatabase();
     const profile = ensureProfile(database, profileName);

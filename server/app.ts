@@ -16,6 +16,7 @@ import {
   topicKeys,
 } from "./question-bank.js";
 import type {
+  AttemptResult,
   AttemptSubmission,
   GeneratedTest,
   Profile,
@@ -265,7 +266,7 @@ const buildAchievements = async (profileId: string) => {
   const progress = await buildTopicProgress();
   const masteredTopics = progress.filter((topic) => topic.mastery >= 70).length;
 
-  const unlocked = [];
+  const unlocked: Array<{ key: string; title: string; description: string; icon: string }> = [];
   const unlockedAt = new Date();
   const isEligible = (key: string) =>
     profile.achievements?.some((achievement) => achievement.key === key) ?? false;
@@ -320,11 +321,13 @@ const selectQuestions = async ({
   mode,
   count,
   topic,
+  questionType,
 }: {
   profileId: string;
   mode: string;
   count: number;
   topic?: string | null;
+  questionType?: Question["type"];
 }) => {
   const questions = await prisma.question.findMany({
     include: {
@@ -336,6 +339,10 @@ const selectQuestions = async ({
 
   if (topic) {
     pool = pool.filter((item) => item.topic === topic);
+  }
+
+  if (questionType) {
+    pool = pool.filter((item) => item.type === questionType);
   }
 
   if (mode === "mistakes") {
@@ -544,7 +551,7 @@ const getRecommendations = async (profileId: string) => {
     .map(([topic]) => topic);
 };
 
-const toJsonQuestion = (question: Question) => question;
+const toJsonQuestion = (question: unknown) => question as Question;
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, name: "Exam Prep API" });
@@ -593,7 +600,7 @@ app.get("/api/questions", async (req, res) => {
     orderBy: { id: "asc" },
   });
 
-  const filtered = questions.filter((question) => {
+  const filtered = questions.map(toJsonQuestion).filter((question) => {
     if (topic && question.topic !== topic) return false;
     if (difficulty && question.difficulty !== difficulty) return false;
     if (search && !question.question.toLowerCase().includes(search) && !question.tags.some((tag) => String(tag).toLowerCase().includes(search))) {
@@ -602,7 +609,7 @@ app.get("/api/questions", async (req, res) => {
     return true;
   });
 
-  res.json(filtered.map(toJsonQuestion));
+  res.json(filtered);
 });
 
 app.post("/api/questions", async (req, res) => {
@@ -618,12 +625,12 @@ app.post("/api/questions", async (req, res) => {
       difficulty: payload.difficulty,
       type: payload.type,
       question: payload.question,
-      options: payload.options,
+      options: payload.options as never,
       correct: payload.correct as never,
       explanation: payload.explanation,
       source: payload.source,
-      tags: payload.tags,
-      meta: payload.meta ?? null,
+      tags: payload.tags as never,
+      meta: (payload.meta ?? null) as never,
     },
   });
 
@@ -652,12 +659,12 @@ app.put("/api/questions/:id", async (req, res) => {
       difficulty: payload.difficulty,
       type: payload.type,
       question: payload.question,
-      options: payload.options,
+      options: payload.options as never,
       correct: payload.correct as never,
       explanation: payload.explanation,
       source: payload.source,
-      tags: payload.tags,
-      meta: payload.meta ?? undefined,
+      tags: payload.tags as never,
+      meta: payload.meta as never,
     },
   });
 
@@ -687,24 +694,24 @@ app.post("/api/questions/import", async (req, res) => {
           difficulty: question.difficulty,
           type: question.type,
           question: question.question,
-          options: question.options,
+          options: question.options as never,
           correct: question.correct as never,
           explanation: question.explanation,
           source: question.source,
-          tags: question.tags,
-          meta: question.meta ?? null,
+          tags: question.tags as never,
+          meta: (question.meta ?? null) as never,
         },
         update: {
           topic: question.topic,
           difficulty: question.difficulty,
           type: question.type,
           question: question.question,
-          options: question.options,
+          options: question.options as never,
           correct: question.correct as never,
           explanation: question.explanation,
           source: question.source,
-          tags: question.tags,
-          meta: question.meta ?? null,
+          tags: question.tags as never,
+          meta: (question.meta ?? null) as never,
         },
       }),
       prisma.questionReview.upsert({
@@ -739,6 +746,7 @@ app.post("/api/tests/generate", async (req, res) => {
     mode?: string;
     count?: number;
     topic?: string | null;
+    questionType?: Question["type"];
   };
 
   const profile = await ensureProfile(body.profileName);
@@ -748,6 +756,7 @@ app.post("/api/tests/generate", async (req, res) => {
     mode: body.mode ?? "practice",
     count,
     topic: body.topic ?? null,
+    questionType: body.questionType,
   });
 
   const test: GeneratedTest = {
@@ -777,23 +786,30 @@ app.post("/api/tests/generate", async (req, res) => {
 
 app.post("/api/tests/submit", async (req, res) => {
   const body = req.body as AttemptSubmission;
+  const hasAnswer = (answer: unknown) => {
+    if (answer === undefined || answer === null) return false;
+    if (typeof answer === "string") return answer.trim().length > 0;
+    if (Array.isArray(answer)) return answer.length > 0;
+    return true;
+  };
+  const submittedAnswers = body.answers.filter((entry) => hasAnswer(entry.answer));
   const profile = await ensureProfile(body.profileName);
   const questions = await prisma.question.findMany({
     where: {
       id: {
-        in: body.answers.map((entry) => entry.questionId),
+        in: submittedAnswers.map((entry) => entry.questionId),
       },
     },
   });
 
-  const questionMap = new Map(questions.map((question) => [question.id, question]));
-  const results = body.answers.map((entry) => {
+  const questionMap = new Map<string, Question>(questions.map((question) => [question.id, toJsonQuestion(question)]));
+  const results: AttemptResult[] = submittedAnswers.flatMap((entry) => {
     const question = questionMap.get(entry.questionId);
     if (!question) {
-      return null;
+      return [];
     }
-    const evaluation = evaluateQuestion(question as Question, entry.answer);
-    return {
+    const evaluation = evaluateQuestion(question, entry.answer);
+    return [{
       questionId: question.id,
       question: question.question,
       topic: question.topic,
@@ -801,22 +817,11 @@ app.post("/api/tests/submit", async (req, res) => {
       type: question.type,
       isCorrect: evaluation.isCorrect,
       userAnswer: entry.answer,
-      correctAnswer: getCorrectAnswerPreview(question as Question),
+      correctAnswer: getCorrectAnswerPreview(question),
       explanation: question.explanation,
       whyWrong: evaluation.whyWrong,
-    };
-  }).filter((item): item is {
-    questionId: string;
-    question: string;
-    topic: string;
-    difficulty: string;
-    type: string;
-    isCorrect: boolean;
-    userAnswer: unknown;
-    correctAnswer: unknown;
-    explanation: string;
-    whyWrong: string;
-  } => Boolean(item));
+    } satisfies AttemptResult];
+  });
 
   const score = results.filter((result) => result.isCorrect).length;
   const maxScore = results.length;
@@ -829,12 +834,20 @@ app.post("/api/tests/submit", async (req, res) => {
   const wrongCount = results.length - correctCount;
   const attemptId = nanoid();
 
+  if (results.length === 0) {
+    return res.json({
+      attemptId: "", score: 0, maxScore: 0, percent: 0, grade: "—", xpGained: 0, coinsGained: 0,
+      level: profile.level, streak: profile.streak, bestStreak: profile.bestStreak, correctCount: 0, wrongCount: 0,
+      durationMs, results: [], recommendations: [], achievements: [],
+    } satisfies SubmissionResponse);
+  }
+
   await prisma.attempt.create({
     data: {
       id: attemptId,
       profileId: profile.id,
       mode: body.mode,
-      count: body.count,
+      count: maxScore,
       score,
       maxScore,
       percent,
@@ -857,7 +870,7 @@ app.post("/api/tests/submit", async (req, res) => {
 
   await Promise.all(
     results.map((result) =>
-      updateQuestionReview(questionMap.get(result.questionId) as Question, result.isCorrect),
+      updateQuestionReview(questionMap.get(result.questionId)!, result.isCorrect),
     ),
   );
 

@@ -4,5 +4,5 @@
     "outDir": "./dist/server",
     "types": ["node"]
   },
-  "include": ["server", "scripts", "shared", "prisma"]
+  "include": ["server", "scripts", "shared", "prisma", "netlify"]
 }

@@ -87,9 +87,9 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
       count: questions.length,
       durationMs: Date.now() - startedAt,
       topic: selectedTopic || null,
-      answers: questions.map((question) => ({
+      answers: questions.filter((question) => answers[question.id] !== undefined).map((question) => ({
         questionId: question.id,
-        answer: answers[question.id] ?? "",
+        answer: answers[question.id],
       })),
     });
   };
@@ -264,7 +264,7 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
 
               {currentQuestion.media ? (
                 <GlassCard className="overflow-hidden p-0">
-                  <img src={currentQuestion.media.src} alt={currentQuestion.media.alt} className="h-56 w-full object-cover" />
+                  <img src={currentQuestion.media.src} alt={currentQuestion.media.alt} className="mx-auto h-56 w-full max-w-xl object-contain p-6" />
                 </GlassCard>
               ) : null}
 

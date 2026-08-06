@@ -7,15 +7,15 @@ import { QuestionRenderer, type AnswerValue } from "@/components/question-render
 import { shuffleArray, formatDuration } from "@/lib/utils";
 import { ArrowLeft, ArrowRight, Shuffle, TimerReset, Trophy, RotateCcw, WandSparkles } from "lucide-react";
 import type { AppPageProps } from "./types";
-import type { GeneratedTest, SubmissionResponse } from "@shared/types";
+import type { GeneratedTest, QuestionType, SubmissionResponse } from "@shared/types";
 
-const GAME_LABELS: Record<string, { title: string; mode: string; duration: number; questions: number; subtitle: string }> = {
+const GAME_LABELS: Record<string, { title: string; mode: string; duration: number; questions: number; subtitle: string; questionType?: QuestionType }> = {
   cards: { title: "Карточки", mode: "practice", duration: 0, questions: 12, subtitle: "Переворот терминов и определений." },
   speed: { title: "Кто быстрее", mode: "random", duration: 60_000, questions: 20, subtitle: "Максимум ответов за 60 секунд." },
   millionaire: { title: "Миллионер", mode: "random", duration: 0, questions: 15, subtitle: "15 вопросов с подсказками." },
   wheel: { title: "Колесо тем", mode: "random", duration: 0, questions: 8, subtitle: "Случайная тема и быстрый старт." },
   matching: { title: "Собери соответствия", mode: "topic", duration: 0, questions: 10, subtitle: "Соедините понятия и определения." },
-  truth: { title: "Правда или ложь", mode: "random", duration: 30_000, questions: 18, subtitle: "Молниеносные верно/неверно." },
+  truth: { title: "Правда или ложь", mode: "random", duration: 30_000, questions: 18, subtitle: "Молниеносные верно/неверно.", questionType: "trueFalse" },
   puzzle: { title: "Пазл знаний", mode: "random", duration: 0, questions: 9, subtitle: "Правильные ответы открывают изображение." },
   memory: { title: "Memory", mode: "topic", duration: 0, questions: 8, subtitle: "Найдите пары терминов и определений." },
   timeline: { title: "Хронология", mode: "topic", duration: 0, questions: 6, subtitle: "Соберите этапы жизненного цикла." },
@@ -49,6 +49,7 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
         mode: game.mode,
         count: game.questions,
         topic: selectedTopic,
+        questionType: game.questionType,
       }),
     onSuccess: (value) => {
       setDeck(value);
@@ -111,9 +112,9 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
       count: questions.length,
       durationMs: Date.now() - startedAt,
       topic: selectedTopic,
-      answers: questions.map((question) => ({
+      answers: questions.filter((question) => answers[question.id] !== undefined).map((question) => ({
         questionId: question.id,
-        answer: answers[question.id] ?? "",
+        answer: answers[question.id],
       })),
     });
   };

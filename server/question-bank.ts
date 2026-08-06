@@ -37,15 +37,15 @@ const QUESTION_TYPE_CYCLE: QuestionType[] = [
   "scenario",
 ];
 
-const IMAGE_POOL = [
-  "/assets/icon-info.svg",
-  "/assets/icon-lock.svg",
-  "/assets/icon-database.svg",
-  "/assets/icon-network.svg",
-  "/assets/icon-code.svg",
-  "/assets/icon-palette.svg",
-  "/assets/icon-vector.svg",
-  "/assets/icon-grid.svg",
+const VISUAL_CATALOG = [
+  { src: "/assets/icon-info.svg", label: "Информация", topics: ["information", "it", "information-systems", "life-cycle"] },
+  { src: "/assets/icon-lock.svg", label: "Информационная безопасность", topics: ["security"] },
+  { src: "/assets/icon-database.svg", label: "Базы данных", topics: ["databases"] },
+  { src: "/assets/icon-network.svg", label: "Интернет и сети", topics: ["networks", "web-graphics"] },
+  { src: "/assets/icon-code.svg", label: "Программирование", topics: ["languages", "oop", "html-css-js", "automation", "modern-it"] },
+  { src: "/assets/icon-palette.svg", label: "Растровая и цветовая графика", topics: ["computer-graphics", "raster-graphics", "image-formats", "compression", "color-models", "raster-editors"] },
+  { src: "/assets/icon-vector.svg", label: "Векторная графика", topics: ["vector-graphics", "vector-editors"] },
+  { src: "/assets/icon-grid.svg", label: "Проектирование и композиция", topics: ["design-systems", "typography", "composition", "accessibility", "design-systems-2"] },
 ];
 
 const hashSeed = (value: string) => {
@@ -111,10 +111,8 @@ const buildOptions = (
   );
 };
 
-const pickVisual = (topicKey: string, conceptKey: string, seed: string) => {
-  const index = hashSeed(`${topicKey}:${conceptKey}:${seed}`) % IMAGE_POOL.length;
-  return IMAGE_POOL[index];
-};
+const pickVisual = (topicKey: string) =>
+  VISUAL_CATALOG.find((visual) => visual.topics.includes(topicKey)) ?? VISUAL_CATALOG[0];
 
 const buildMatching = (topicKey: string, seed: string, termDefs: Array<{ term: string; definition: string }>) => {
   const left = shuffle(termDefs.map((item) => item.term), `${seed}:left`);
@@ -251,8 +249,9 @@ export const generateQuestionBank = (): Question[] => {
           break;
         }
         case "trueFalse": {
-          const statement = `${concept.term} связано с понятием ${secondary.term}.`;
-          const isTrue = index % 2 === 0;
+          const trueFalseIndex = QUESTION_TYPE_CYCLE.slice(0, (index % QUESTION_TYPE_CYCLE.length) + 1).filter((type) => type === "trueFalse").length
+            + Math.floor(index / QUESTION_TYPE_CYCLE.length) * QUESTION_TYPE_CYCLE.filter((type) => type === "trueFalse").length;
+          const isTrue = trueFalseIndex % 2 === 1;
           const options = [
             { id: "true", text: "Верно" },
             { id: "false", text: "Неверно" },
@@ -262,17 +261,15 @@ export const generateQuestionBank = (): Question[] => {
             topic: topic.title,
             difficulty,
             type: template,
-            question: isTrue
-              ? `${concept.term} действительно относится к ${topic.title.toLowerCase()}?`
-              : `Верно ли, что ${statement}`,
+            question: `Верно ли утверждение: «${concept.term} — ${isTrue ? concept.definition : secondary.definition}»?`,
             options,
             correct: isTrue,
             explanation: isTrue
               ? `${concept.term}: ${concept.definition}`
-              : `На самом деле ${concept.term} ближе к ${concept.keyword}, а не к ${secondary.term}.`,
+              : `Неверно. Определение «${secondary.definition}» относится к понятию «${secondary.term}». ${concept.term}: ${concept.definition}`,
             source: topic.source,
             tags: commonTags,
-            meta: { concept: concept.term, statement },
+            meta: { concept: concept.term, statement: isTrue ? concept.definition : secondary.definition },
           };
           break;
         }
@@ -360,28 +357,27 @@ export const generateQuestionBank = (): Question[] => {
           break;
         }
         case "imageChoice": {
-          const correctImage = pickVisual(topic.key, concept.term, seed);
-          const distractors = IMAGE_POOL.filter((asset) => asset !== correctImage).slice(0, 3);
-          const images = shuffle([correctImage, ...distractors], `${seed}:images`);
-          const options = images.map((image, optionIndex) => ({
+          const correctVisual = pickVisual(topic.key);
+          const distractors = shuffle(VISUAL_CATALOG.filter((visual) => visual.src !== correctVisual.src), `${seed}:visual-distractors`).slice(0, 3);
+          const images = shuffle([correctVisual, ...distractors], `${seed}:images`);
+          const options = images.map((visual, optionIndex) => ({
             id: `img-${optionIndex + 1}`,
-            text: topic.title,
-            image,
-            isCorrect: image === correctImage,
+            text: visual.label,
+            image: visual.src,
+            isCorrect: visual.src === correctVisual.src,
           }));
           question = {
             id,
             topic: topic.title,
             difficulty,
             type: template,
-            question: `Выберите изображение, которое лучше всего подходит к понятию «${concept.term}».`,
+            question: `К какой визуальной категории относится понятие «${concept.term}»? Выберите подписанный значок.`,
             options,
             correct: options.find((option) => option.isCorrect)?.id ?? options[0].id,
-            explanation: `Для понятия «${concept.term}» наиболее уместен визуальный образ, связанный с темой ${topic.title}.`,
+            explanation: `Понятие «${concept.term}» относится к теме «${topic.title}», поэтому правильная категория — «${correctVisual.label}».`,
             source: topic.source,
             tags: [...commonTags, "image"],
-            media: { kind: "image", src: correctImage, alt: concept.term },
-            meta: { concept: concept.term, image: correctImage },
+            meta: { concept: concept.term, image: correctVisual.src, visualCategory: correctVisual.label },
           };
           break;
         }
@@ -524,8 +520,10 @@ export const getCorrectAnswerPreview = (question: Question) => {
       return question.options.find((option) => option.id === question.correct)?.text ?? "";
     case "trueFalse":
       return Boolean(question.correct) ? "Верно" : "Неверно";
-    case "multiple":
-      return question.options.filter((option) => Array.isArray(question.correct) && question.correct.includes(option.id)).map((option) => option.text);
+    case "multiple": {
+      const correct = question.correct as string[];
+      return question.options.filter((option) => correct.includes(option.id)).map((option) => option.text);
+    }
     case "fill":
       return (question.correct as FillQuestion).answer;
     case "matching":

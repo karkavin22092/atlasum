@@ -239,8 +239,8 @@ export const QuestionRenderer = ({ question, value, onChange, locked }: Props) =
             disabled={locked}
           >
             {option.image ? (
-              <div className="mb-3 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/70">
-                <img src={option.image} alt={option.text} className="h-36 w-full object-cover" />
+              <div className="mb-3 grid h-40 place-items-center overflow-hidden rounded-2xl border border-white/10 bg-slate-950/70 p-5">
+                <img src={option.image} alt={option.text} className="h-full w-full object-contain" />
               </div>
             ) : null}
             <div className="text-base font-medium">{option.text}</div>

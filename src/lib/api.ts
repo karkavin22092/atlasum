@@ -5,6 +5,7 @@ import type {
   Profile,
   ProfileStats,
   Question,
+  QuestionType,
   SubmissionResponse,
 } from "@shared/types";
 import { localApi } from "./local-api";
@@ -59,7 +60,7 @@ export const api = {
     achievements: Array<{ key: string; title: string; description: string; icon: string; unlockedAt: string }>;
     questionBank: { total: number; topics: Array<{ key: string; title: string; questions: number }> };
   }>(`/api/meta?profileName=${encodeURIComponent(profileName)}`), () => localApi.meta(profileName)),
-  generateTest: (payload: { profileName: string; mode: string; count: number; topic?: string | null }) =>
+  generateTest: (payload: { profileName: string; mode: string; count: number; topic?: string | null; questionType?: QuestionType }) =>
     withLocalFallback(() => request<GeneratedTest>("/api/tests/generate", {
       method: "POST",
       body: JSON.stringify(payload),

@@ -111,6 +111,8 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     queryKey: ["meta", profileName],
     queryFn: () => api.meta(profileName),
     retry: 0,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   });
 
   const meta = (metaQuery.data ?? fallbackMeta) as AppMeta;

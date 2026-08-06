@@ -54,14 +54,13 @@ const ensureQuestionBank = async () => {
       difficulty: question.difficulty,
       type: question.type,
       question: question.question,
-      options: question.options,
+      options: question.options as never,
       correct: question.correct as never,
       explanation: question.explanation,
       source: question.source,
-      tags: question.tags,
-      meta: question.meta ?? null,
+      tags: question.tags as never,
+      meta: (question.meta ?? null) as never,
     })),
-    skipDuplicates: true,
   });
 
   await prisma.questionReview.createMany({
@@ -74,7 +73,6 @@ const ensureQuestionBank = async () => {
       mastery: 0,
       nextReviewAt: new Date(0),
     })),
-    skipDuplicates: true,
   });
 };
 
@@ -82,4 +80,3 @@ await ensureProfile();
 await ensureQuestionBank();
 
 console.log("Bootstrap complete.");
-
