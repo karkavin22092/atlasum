@@ -2,6 +2,7 @@ import questionData from "../../data/questions.json";
 import { dashboardMeta } from "@server/content";
 import { ADMIN_USERNAME } from "./permissions";
 import { hasAnswer } from "./answers";
+import { isDeletedAccountName } from "./deleted-accounts";
 import type {
   AttemptResult,
   AttemptSubmission,
@@ -146,11 +147,22 @@ const removeCorruptedAttempts = (database: LocalDatabase) => {
   return changed;
 };
 
+const removeDeletedProfiles = (database: LocalDatabase) => {
+  const deletedIds = Object.entries(database.profiles)
+    .filter(([id, profile]) => isDeletedAccountName(id) || isDeletedAccountName(profile.name))
+    .map(([id]) => id);
+  deletedIds.forEach((id) => delete database.profiles[id]);
+  return deletedIds.length > 0;
+};
+
 const readDatabase = (): LocalDatabase => {
   if (typeof window === "undefined") return emptyDatabase();
   try {
     const database = { ...emptyDatabase(), ...JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "{}") } as LocalDatabase;
-    if (removeCorruptedAttempts(database)) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(database));
+    const deletedProfiles = removeDeletedProfiles(database);
+    const removedAttempts = removeCorruptedAttempts(database);
+    const changed = deletedProfiles || removedAttempts;
+    if (changed) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(database));
     return database;
   } catch {
     return emptyDatabase();

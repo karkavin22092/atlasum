@@ -17,6 +17,7 @@ import { MessagesPage } from "./pages/messages";
 import { dashboardMeta } from "@server/content";
 import type { DashboardMeta, Profile, ProfileStats } from "@shared/types";
 import { useAuth } from "./lib/auth";
+import { getUnreadMessageSummary } from "./lib/chat";
 
 type AppMeta = DashboardMeta & {
   profile: Profile;
@@ -116,6 +117,16 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   });
 
   const meta = (metaQuery.data ?? fallbackMeta) as AppMeta;
+  const unreadMessagesQuery = useQuery({
+    queryKey: ["unread-messages", meta.profile.id],
+    queryFn: () => getUnreadMessageSummary(meta.profile.id),
+    enabled: Boolean(user && meta.profile.id !== "guest"),
+    retry: 0,
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: true,
+  });
+  const unreadMessageCount = unreadMessagesQuery.data?.count ?? 0;
+  const unreadLabel = unreadMessageCount > 99 ? "99+" : String(unreadMessageCount);
 
   return (
     <div className="theme-shell min-h-screen text-slate-100">
@@ -138,9 +149,14 @@ const AppShell = ({ children }: { children: ReactNode }) => {
 
           <div className="hidden items-center gap-2 md:flex">
             {user ? (
-              <Link to="/messages" className="glass inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm text-slate-200 transition hover:bg-white/10">
+              <Link to="/messages" className="glass relative inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm text-slate-200 transition hover:bg-white/10">
                 <MessageCircle className="h-4 w-4 text-cyan-300" />
                 Сообщения
+                {unreadMessageCount ? (
+                  <span className="message-unread-badge inline-flex min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[11px] font-bold leading-none shadow-[0_0_14px_rgba(244,63,94,0.65)]">
+                    {unreadLabel}
+                  </span>
+                ) : null}
               </Link>
             ) : null}
             <Link to="/leaderboard" className="glass inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm text-slate-200 transition hover:bg-white/10">
@@ -173,8 +189,13 @@ const AppShell = ({ children }: { children: ReactNode }) => {
 
           <div className="flex items-center gap-2 md:hidden">
             {user ? (
-              <Link to="/messages" aria-label="Сообщения" className="glass inline-flex h-10 w-10 items-center justify-center rounded-full">
+              <Link to="/messages" aria-label={unreadMessageCount ? `Сообщения, новых: ${unreadMessageCount}` : "Сообщения"} className="glass relative inline-flex h-10 w-10 items-center justify-center rounded-full">
                 <MessageCircle className="h-4 w-4 text-cyan-300" />
+                {unreadMessageCount ? (
+                  <span className="message-unread-badge absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full border-2 border-slate-950 bg-rose-500 px-1 text-[10px] font-bold leading-none shadow-[0_0_12px_rgba(244,63,94,0.7)]">
+                    {unreadLabel}
+                  </span>
+                ) : null}
               </Link>
             ) : null}
             <Link to="/leaderboard" aria-label="Рейтинг" className="glass inline-flex h-10 w-10 items-center justify-center rounded-full">

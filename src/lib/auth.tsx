@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
+import { isDeletedAccountName } from "./deleted-accounts";
 
 export type AuthUser = {
   id: string;
@@ -22,7 +23,16 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 const readUsers = (): StoredUser[] => {
   try {
-    return JSON.parse(window.localStorage.getItem(USERS_KEY) ?? "[]") as StoredUser[];
+    const stored = JSON.parse(window.localStorage.getItem(USERS_KEY) ?? "[]") as StoredUser[];
+    const users = stored.filter((user) => !isDeletedAccountName(user.name));
+    if (users.length !== stored.length) {
+      const activeId = window.localStorage.getItem(SESSION_KEY);
+      if (stored.some((user) => user.id === activeId && isDeletedAccountName(user.name))) {
+        window.localStorage.removeItem(SESSION_KEY);
+      }
+      window.localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    }
+    return users;
   } catch {
     return [];
   }
@@ -63,6 +73,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const normalizedName = name.trim();
     const normalizedEmail = email.trim().toLowerCase();
     if (normalizedName.length < 2) throw new Error("Имя должно содержать минимум 2 символа");
+    if (isDeletedAccountName(normalizedName)) throw new Error("Это имя удалено и больше недоступно");
     if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) throw new Error("Введите корректную электронную почту");
     if (password.length < 6) throw new Error("Пароль должен содержать минимум 6 символов");
     const users = readUsers();

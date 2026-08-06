@@ -30,22 +30,11 @@ const QUESTION_TYPE_CYCLE: QuestionType[] = [
   "scenario",
   "matching",
   "sequence",
-  "imageChoice",
+  "single",
   "single",
   "multiple",
   "trueFalse",
   "scenario",
-];
-
-const VISUAL_CATALOG = [
-  { src: "/assets/icon-info.svg", label: "Информация", topics: ["information", "it", "information-systems", "life-cycle"] },
-  { src: "/assets/icon-lock.svg", label: "Информационная безопасность", topics: ["security"] },
-  { src: "/assets/icon-database.svg", label: "Базы данных", topics: ["databases"] },
-  { src: "/assets/icon-network.svg", label: "Интернет и сети", topics: ["networks", "web-graphics"] },
-  { src: "/assets/icon-code.svg", label: "Программирование", topics: ["languages", "oop", "html-css-js", "automation", "modern-it"] },
-  { src: "/assets/icon-palette.svg", label: "Растровая и цветовая графика", topics: ["computer-graphics", "raster-graphics", "image-formats", "compression", "color-models", "raster-editors"] },
-  { src: "/assets/icon-vector.svg", label: "Векторная графика", topics: ["vector-graphics", "vector-editors"] },
-  { src: "/assets/icon-grid.svg", label: "Проектирование и композиция", topics: ["design-systems", "typography", "composition", "accessibility", "design-systems-2"] },
 ];
 
 const hashSeed = (value: string) => {
@@ -100,19 +89,21 @@ const buildOptions = (
   seed: string,
   count = 4,
 ) => {
-  const options = unique([correctText, ...pickMany(distractors, count - 1, seed)]).slice(0, count);
-  return shuffle(
-    options.map((text, index) => ({
+  const texts = unique([correctText, ...pickMany(distractors, count - 1, seed)]).slice(0, count);
+  return shuffle(texts, `${seed}:options`).map((text, index) => ({
       id: `opt-${index + 1}`,
       text,
       isCorrect: text === correctText,
-    })),
-    `${seed}:options`,
-  );
+    }));
 };
 
-const pickVisual = (topicKey: string) =>
-  VISUAL_CATALOG.find((visual) => visual.topics.includes(topicKey)) ?? VISUAL_CATALOG[0];
+const getCorrectOptionId = (options: QuestionOption[]) => {
+  const correctOption = options.find((option) => option.isCorrect);
+  if (!correctOption) {
+    throw new Error("Не удалось сформировать правильный вариант ответа.");
+  }
+  return correctOption.id;
+};
 
 const buildMatching = (topicKey: string, seed: string, termDefs: Array<{ term: string; definition: string }>) => {
   const left = shuffle(termDefs.map((item) => item.term), `${seed}:left`);
@@ -146,7 +137,7 @@ const buildFill = (prompt: string, answer: string, seed: string, distractors: st
   const fill = {
     prompt,
     answer,
-    acceptable: unique([answer, ...distractors.slice(0, 2)]),
+    acceptable: [answer],
   } satisfies FillQuestion;
 
   const options = shuffle(
@@ -175,6 +166,8 @@ export const generateQuestionBank = (): Question[] => {
       const serial = String(index + 1).padStart(2, "0");
       const id = `q-${topic.key}-${serial}`;
       const seed = `${topic.key}:${id}`;
+      const promptVariant = Math.floor(index / QUESTION_TYPE_CYCLE.length) % 5;
+      const otherConcepts = concepts.filter((item) => item.term !== concept.term);
       const commonTags = [
         topic.key,
         difficulty,
@@ -189,17 +182,24 @@ export const generateQuestionBank = (): Question[] => {
         case "single": {
           const options = buildOptions(
             concept.definition,
-            [secondary.definition, tertiary.definition, concept.hint, concept.scenario],
+            otherConcepts.map((item) => item.definition),
             seed,
           );
+          const prompts = [
+            `Что лучше всего описывает термин «${concept.term}»?`,
+            `Какое определение соответствует понятию «${concept.term}»?`,
+            `Что означает понятие «${concept.term}»?`,
+            `Как следует понимать термин «${concept.term}»?`,
+            `Какова точная характеристика понятия «${concept.term}»?`,
+          ];
           question = {
             id,
             topic: topic.title,
             difficulty,
             type: template,
-            question: `Что лучше всего описывает термин «${concept.term}»?`,
+            question: prompts[promptVariant],
             options,
-            correct: options.find((option) => option.isCorrect)?.id ?? options[0].id,
+            correct: getCorrectOptionId(options),
             explanation: `${concept.term} означает: ${concept.definition}`,
             source: topic.source,
             tags: commonTags,
@@ -213,32 +213,33 @@ export const generateQuestionBank = (): Question[] => {
             concept.scenario,
           ]);
           const distractorTexts = unique([
-            secondary.definition,
-            tertiary.definition,
-            concept.hint,
-            `Неверно: ${concept.distractors[0]}`,
+            ...otherConcepts.map((item) => item.definition),
           ]);
           const options = shuffle(
             [
-              ...correctTexts.map((text, idx) => ({
-                id: `multi-c-${idx + 1}`,
+              ...correctTexts.map((text) => ({
                 text,
                 isCorrect: true,
               })),
-              ...pickMany(distractorTexts, 2, `${seed}:multi`).map((text, idx) => ({
-                id: `multi-w-${idx + 1}`,
+              ...pickMany(distractorTexts, 2, `${seed}:multi`).map((text) => ({
                 text,
                 isCorrect: false,
               })),
             ],
             `${seed}:multi-options`,
-          );
+          ).map((option, optionIndex) => ({ ...option, id: `opt-${optionIndex + 1}` }));
           question = {
             id,
             topic: topic.title,
             difficulty,
             type: template,
-            question: `Выберите все верные утверждения о понятии «${concept.term}».`,
+            question: [
+              `Какие утверждения о понятии «${concept.term}» верны?`,
+              `Что верно характеризует понятие «${concept.term}»?`,
+              `Какие формулировки правильно раскрывают термин «${concept.term}»?`,
+              `Какие утверждения точно относятся к термину «${concept.term}»?`,
+              `Что можно верно сказать о понятии «${concept.term}»?`,
+            ][promptVariant],
             options,
             correct: options.filter((option) => option.isCorrect).map((option) => option.id),
             explanation: `${concept.term}: ${concept.definition}. В учебной ситуации подходит и ${concept.scenario}.`,
@@ -256,12 +257,19 @@ export const generateQuestionBank = (): Question[] => {
             { id: "true", text: "Верно" },
             { id: "false", text: "Неверно" },
           ];
+          const statement = `${concept.term} — ${isTrue ? concept.definition : secondary.definition}`;
           question = {
             id,
             topic: topic.title,
             difficulty,
             type: template,
-            question: `Верно ли утверждение: «${concept.term} — ${isTrue ? concept.definition : secondary.definition}»?`,
+            question: [
+              `Верно ли утверждение: «${statement}»?`,
+              `Является ли верным утверждение: «${statement}»?`,
+              `Соответствует ли истине утверждение: «${statement}»?`,
+              `Правильно ли дано определение: «${statement}»?`,
+              `Можно ли считать верным утверждение: «${statement}»?`,
+            ][promptVariant],
             options,
             correct: isTrue,
             explanation: isTrue
@@ -274,10 +282,13 @@ export const generateQuestionBank = (): Question[] => {
           break;
         }
         case "fill": {
-          const prompt = `Заполните пропуск: «${concept.term}» — это ${concept.definition.replace(
-            concept.term.toLowerCase(),
-            "_____",
-          )}`;
+          const prompt = [
+            `Какой термин соответствует определению: «${concept.definition}»?`,
+            `Как называется понятие, которое означает: «${concept.definition}»?`,
+            `Какое понятие описано определением: «${concept.definition}»?`,
+            `Какой термин нужно назвать по определению: «${concept.definition}»?`,
+            `Как называется объект или явление со следующим определением: «${concept.definition}»?`,
+          ][promptVariant];
           const { correct, options } = buildFill(
             prompt,
             concept.term,
@@ -302,7 +313,7 @@ export const generateQuestionBank = (): Question[] => {
         case "scenario": {
           const options = buildOptions(
             concept.term,
-            [secondary.term, tertiary.term, concept.keyword, topic.title],
+            otherConcepts.map((item) => item.term),
             seed,
           );
           question = {
@@ -310,9 +321,15 @@ export const generateQuestionBank = (): Question[] => {
             topic: topic.title,
             difficulty,
             type: template,
-            question: `Практическая ситуация: ${concept.scenario} Какое понятие описано?`,
+            question: [
+              `${concept.scenario} Какое понятие описано в этой ситуации?`,
+              `${concept.scenario} Какой термин точнее всего подходит к примеру?`,
+              `${concept.scenario} Как называется показанное здесь понятие?`,
+              `${concept.scenario} Какое понятие иллюстрирует этот пример?`,
+              `${concept.scenario} Какой термин следует применить к этой ситуации?`,
+            ][promptVariant],
             options,
-            correct: options.find((option) => option.isCorrect)?.id ?? options[0].id,
+            correct: getCorrectOptionId(options),
             explanation: `${concept.term} подходит лучше всего, потому что ${concept.definition.toLowerCase()}`,
             source: topic.source,
             tags: [...commonTags, "scenario"],
@@ -323,12 +340,19 @@ export const generateQuestionBank = (): Question[] => {
         case "matching": {
           const matchingSet = pickMany(termPairs, Math.min(4, termPairs.length), seed);
           const matching = buildMatching(topic.key, seed, matchingSet);
+          const matchingTerms = [...matching.meta.left].sort((left, right) => left.localeCompare(right, "ru")).join(", ");
           question = {
             id,
             topic: topic.title,
             difficulty,
             type: template,
-            question: `Соотнесите термины и определения по теме «${topic.title}».`,
+            question: [
+              `Как правильно соотнести с определениями термины «${matchingTerms}»?`,
+              `Какие определения соответствуют терминам «${matchingTerms}»?`,
+              `Как сопоставить с точными значениями понятия «${matchingTerms}»?`,
+              `Какие пары нужно составить для терминов «${matchingTerms}»?`,
+              `Как распределить определения между терминами «${matchingTerms}»?`,
+            ][promptVariant],
             options: matching.options,
             correct: matching.correct,
             explanation: `Пара правильна, если термин соответствует своему определению. В этой теме важно помнить: ${concept.term} — ${concept.definition}`,
@@ -341,43 +365,25 @@ export const generateQuestionBank = (): Question[] => {
         case "sequence": {
           const steps = topic.process.slice(0, Math.min(5, topic.process.length));
           const sequence = buildSequence(steps, seed);
+          const listedSteps = [...steps].sort((left, right) => left.localeCompare(right, "ru")).join(", ");
           question = {
             id,
             topic: topic.title,
             difficulty,
             type: template,
-            question: `Расставьте этапы в правильном порядке для темы «${topic.title}».`,
+            question: [
+              `В каком порядке должны выполняться этапы «${listedSteps}»?`,
+              `Какова правильная последовательность действий «${listedSteps}»?`,
+              `Как расположить от первого к последнему этапы «${listedSteps}»?`,
+              `Какая последовательность верна для этапов «${listedSteps}»?`,
+              `В каком порядке следует расположить шаги «${listedSteps}»?`,
+            ][promptVariant],
             options: sequence.options,
             correct: sequence.correct,
             explanation: `Последовательность строится так: ${steps.join(" → ")}.`,
             source: topic.source,
             tags: [...commonTags, "sequence"],
             meta: { steps },
-          };
-          break;
-        }
-        case "imageChoice": {
-          const correctVisual = pickVisual(topic.key);
-          const distractors = shuffle(VISUAL_CATALOG.filter((visual) => visual.src !== correctVisual.src), `${seed}:visual-distractors`).slice(0, 3);
-          const images = shuffle([correctVisual, ...distractors], `${seed}:images`);
-          const options = images.map((visual, optionIndex) => ({
-            id: `img-${optionIndex + 1}`,
-            text: visual.label,
-            image: visual.src,
-            isCorrect: visual.src === correctVisual.src,
-          }));
-          question = {
-            id,
-            topic: topic.title,
-            difficulty,
-            type: template,
-            question: `К какой визуальной категории относится понятие «${concept.term}»? Выберите подписанный значок.`,
-            options,
-            correct: options.find((option) => option.isCorrect)?.id ?? options[0].id,
-            explanation: `Понятие «${concept.term}» относится к теме «${topic.title}», поэтому правильная категория — «${correctVisual.label}».`,
-            source: topic.source,
-            tags: [...commonTags, "image"],
-            meta: { concept: concept.term, image: correctVisual.src, visualCategory: correctVisual.label },
           };
           break;
         }
@@ -390,20 +396,132 @@ export const generateQuestionBank = (): Question[] => {
             type: "single",
             question: `Что означает термин «${concept.term}»?`,
             options,
-            correct: options.find((option) => option.isCorrect)?.id ?? options[0].id,
+            correct: getCorrectOptionId(options),
             explanation: `${concept.term}: ${concept.definition}`,
             source: topic.source,
             tags: commonTags,
           };
       }
 
-      // Keep every prompt independently searchable and unambiguous in exports.
-      question.question = `${question.question} Раздел «${topic.title}», вариант ${serial}.`;
       questions.push(question);
     }
   }
 
+  validateQuestionBank(questions);
   return questions;
+};
+
+const sameValues = (left: string[], right: string[]) =>
+  left.length === right.length && [...left].sort().every((value, index) => value === [...right].sort()[index]);
+
+const requireValid = (condition: boolean, questionId: string, message: string) => {
+  if (!condition) {
+    throw new Error(`Ошибка в банке вопросов (${questionId}): ${message}`);
+  }
+};
+
+export const validateQuestionBank = (questions: Question[]) => {
+  const expectedTotal = topicCatalog.length * 60;
+  if (questions.length !== expectedTotal) {
+    throw new Error(`Ожидалось ${expectedTotal} вопросов, получено ${questions.length}.`);
+  }
+
+  const ids = new Set<string>();
+  const prompts = new Set<string>();
+
+  for (const question of questions) {
+    requireValid(!ids.has(question.id), question.id, "идентификатор должен быть уникальным");
+    requireValid(!prompts.has(question.question), question.id, "текст вопроса должен быть уникальным");
+    requireValid(!/Раздел «.+», вариант \d+/iu.test(question.question), question.id, "в тексте осталась служебная приписка");
+    requireValid(question.question.trim().endsWith("?"), question.id, "текст должен содержать только вопрос");
+    ids.add(question.id);
+    prompts.add(question.question);
+
+    const topic = topicCatalog.find((item) => item.title === question.topic);
+    requireValid(Boolean(topic), question.id, "неизвестная тема");
+    if (!topic) continue;
+
+    const optionIds = question.options.map((option) => option.id);
+    const optionTexts = question.options.map((option) => option.text.trim());
+    requireValid(new Set(optionIds).size === optionIds.length, question.id, "идентификаторы ответов повторяются");
+    requireValid(new Set(optionTexts).size === optionTexts.length, question.id, "варианты ответов повторяются");
+    requireValid(optionTexts.every(Boolean), question.id, "найден пустой вариант ответа");
+
+    const conceptName = typeof question.meta?.concept === "string" ? question.meta.concept : "";
+    const concept = topic.concepts.find((item) => item.term === conceptName);
+
+    if (question.type === "single" || question.type === "scenario") {
+      const correctId = String(question.correct);
+      const correctOption = question.options.find((option) => option.id === correctId);
+      requireValid(Boolean(correctOption), question.id, "правильный вариант отсутствует в списке");
+      requireValid(question.options.filter((option) => option.isCorrect).length === 1, question.id, "должен быть ровно один правильный вариант");
+      requireValid(correctOption?.isCorrect === true, question.id, "поле correct не совпадает с отмеченным вариантом");
+      requireValid(Boolean(concept), question.id, "не найдено исходное понятие");
+      if (!correctOption || !concept) continue;
+
+      if (question.type === "single") {
+        requireValid(correctOption.text === concept.definition, question.id, "правильный ответ не совпадает с определением понятия");
+      } else if (question.type === "scenario") {
+        requireValid(correctOption.text === concept.term, question.id, "ответ на ситуацию не совпадает с исходным понятием");
+      }
+      continue;
+    }
+
+    if (question.type === "multiple") {
+      requireValid(Boolean(concept), question.id, "не найдено исходное понятие");
+      const correctIds = Array.isArray(question.correct) ? question.correct.map(String) : [];
+      const markedIds = question.options.filter((option) => option.isCorrect).map((option) => option.id);
+      requireValid(correctIds.length >= 2, question.id, "должно быть не менее двух правильных ответов");
+      requireValid(sameValues(correctIds, markedIds), question.id, "поле correct не совпадает с отмеченными ответами");
+      if (concept) {
+        const correctTexts = question.options.filter((option) => correctIds.includes(option.id)).map((option) => option.text);
+        requireValid(sameValues(correctTexts, [concept.definition, concept.scenario]), question.id, "правильные утверждения не соответствуют исходным данным");
+      }
+      continue;
+    }
+
+    if (question.type === "trueFalse") {
+      requireValid(typeof question.correct === "boolean", question.id, "ответ должен быть логическим значением");
+      requireValid(sameValues(optionIds, ["true", "false"]), question.id, "нужны только ответы «Верно» и «Неверно»");
+      requireValid(Boolean(concept), question.id, "не найдено исходное понятие");
+      if (concept) {
+        const statement = typeof question.meta?.statement === "string" ? question.meta.statement : "";
+        requireValid(question.correct ? statement === concept.definition : statement !== concept.definition, question.id, "метка истинности не соответствует утверждению");
+        if (!question.correct) {
+          requireValid(topic.concepts.some((item) => item.term !== concept.term && item.definition === statement), question.id, "ложное утверждение не связано с проверяемыми данными");
+        }
+      }
+      continue;
+    }
+
+    if (question.type === "fill") {
+      const answer = question.correct as FillQuestion;
+      requireValid(Boolean(concept), question.id, "не найдено исходное понятие");
+      requireValid(answer.answer === concept?.term, question.id, "ответ не совпадает с термином из определения");
+      requireValid((answer.acceptable ?? []).every((item) => item === answer.answer), question.id, "в допустимые ответы попал посторонний термин");
+      requireValid(Boolean(concept && question.question.includes(concept.definition)), question.id, "вопрос не содержит проверяемое определение");
+      continue;
+    }
+
+    if (question.type === "matching") {
+      const pairs = question.correct as MatchingItem[];
+      requireValid(Array.isArray(pairs) && pairs.length >= 2, question.id, "недостаточно пар для сопоставления");
+      requireValid(pairs.every((pair) => topic.concepts.some((item) => item.term === pair.left && item.definition === pair.right)), question.id, "найдена неверная пара термин — определение");
+      requireValid(sameValues(pairs.map((pair) => pair.left), (question.meta?.left as string[]) ?? []), question.id, "список терминов не совпадает с эталоном");
+      requireValid(sameValues(pairs.map((pair) => pair.right), (question.meta?.right as string[]) ?? []), question.id, "список определений не совпадает с эталоном");
+      continue;
+    }
+
+    if (question.type === "sequence") {
+      const sequence = question.correct as SequenceQuestion;
+      const expectedOrder = topic.process.slice(0, Math.min(5, topic.process.length));
+      requireValid(sameValues(sequence.items, expectedOrder), question.id, "набор этапов не совпадает с процессом темы");
+      requireValid(sequence.correctOrder.every((item, index) => item === expectedOrder[index]), question.id, "правильный порядок этапов искажён");
+      requireValid(sameValues(optionTexts, expectedOrder), question.id, "варианты этапов не совпадают с эталоном");
+    }
+  }
+
+  return true;
 };
 
 export const normalizeText = (value: string) =>

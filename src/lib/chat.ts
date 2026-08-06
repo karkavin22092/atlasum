@@ -1,16 +1,36 @@
+import { isDeletedAccountName } from "./deleted-accounts";
+
 export type ChatMessage = {
   id: string;
   senderId: string;
   recipientId: string;
   text: string;
   createdAt: string;
+  reactions?: Record<string, string[]>;
 };
 
+export const REACTION_EMOJIS = ["👍", "❤️", "😂", "🔥", "👏", "🤔"] as const;
+export const MESSAGE_EMOJIS = ["😀", "😊", "😂", "😍", "🤓", "😎", "🤔", "👍", "👏", "🔥", "❤️", "🎉", "💡", "✅", "🚀", "💯"] as const;
+
 const CHAT_STORAGE_KEY = "design-tests-chat-v1";
+const CHAT_READ_STORAGE_KEY = "design-tests-chat-read-v1";
+
+type ReadState = Record<string, Record<string, string>>;
+
+const readState = (): ReadState => {
+  try {
+    return JSON.parse(window.localStorage.getItem(CHAT_READ_STORAGE_KEY) ?? "{}") as ReadState;
+  } catch {
+    return {};
+  }
+};
 
 const readMessages = (): ChatMessage[] => {
   try {
-    return JSON.parse(window.localStorage.getItem(CHAT_STORAGE_KEY) ?? "[]") as ChatMessage[];
+    const stored = JSON.parse(window.localStorage.getItem(CHAT_STORAGE_KEY) ?? "[]") as ChatMessage[];
+    const messages = stored.filter((message) => !isDeletedAccountName(message.senderId) && !isDeletedAccountName(message.recipientId));
+    if (messages.length !== stored.length) window.localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+    return messages;
   } catch {
     return [];
   }
@@ -18,6 +38,10 @@ const readMessages = (): ChatMessage[] => {
 
 const writeMessages = (messages: ChatMessage[]) => {
   window.localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+};
+
+const replaceLocalMessage = (message: ChatMessage) => {
+  writeMessages(readMessages().map((item) => item.id === message.id ? message : item));
 };
 
 const isConversationMessage = (message: ChatMessage, firstUserId: string, secondUserId: string) =>
@@ -51,6 +75,32 @@ export const getConversation = async (firstUserId: string, secondUserId: string)
 export const getLatestMessage = (firstUserId: string, secondUserId: string) =>
   getLocalConversation(firstUserId, secondUserId).at(-1) ?? null;
 
+export const markConversationRead = (userId: string, contactId: string, messages: ChatMessage[]) => {
+  const latestIncoming = messages.filter((message) => message.senderId === contactId && message.recipientId === userId).at(-1);
+  const state = readState();
+  state[userId] = { ...(state[userId] ?? {}), [contactId]: latestIncoming?.createdAt ?? new Date().toISOString() };
+  window.localStorage.setItem(CHAT_READ_STORAGE_KEY, JSON.stringify(state));
+};
+
+export const getUnreadMessageSummary = async (userId: string) => {
+  try {
+    let incoming: ChatMessage[];
+    if (import.meta.env.PROD) {
+      const query = new URLSearchParams({ userId });
+      const response = await fetch(`/.netlify/functions/messages?${query.toString()}`);
+      if (!response.ok) throw new Error(await response.text());
+      incoming = await response.json() as ChatMessage[];
+    } else {
+      incoming = readMessages().filter((message) => message.recipientId === userId);
+    }
+    const state = readState()[userId] ?? {};
+    const unread = incoming.filter((message) => message.createdAt > (state[message.senderId] ?? ""));
+    return { count: unread.length, senderIds: [...new Set(unread.map((message) => message.senderId))] };
+  } catch {
+    return { count: 0, senderIds: [] as string[] };
+  }
+};
+
 export const sendMessage = async (senderId: string, recipientId: string, text: string) => {
   const normalizedText = text.trim();
   if (!normalizedText) throw new Error("Сообщение не может быть пустым");
@@ -63,6 +113,7 @@ export const sendMessage = async (senderId: string, recipientId: string, text: s
     recipientId,
     text: normalizedText,
     createdAt: new Date().toISOString(),
+    reactions: {},
   };
   try {
     const response = await fetch("/.netlify/functions/messages", {
@@ -80,5 +131,34 @@ export const sendMessage = async (senderId: string, recipientId: string, text: s
     }
     writeMessages([...readMessages(), localMessage]);
     return localMessage;
+  }
+};
+
+export const toggleMessageReaction = async (message: ChatMessage, userId: string, emoji: string) => {
+  if (!REACTION_EMOJIS.includes(emoji as typeof REACTION_EMOJIS[number])) throw new Error("Эта реакция недоступна");
+  try {
+    if (import.meta.env.PROD) {
+      const response = await fetch("/.netlify/functions/messages", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...message, userId, emoji }),
+      });
+      if (!response.ok) throw new Error(await response.text());
+      const updated = await response.json() as ChatMessage;
+      replaceLocalMessage(updated);
+      return updated;
+    }
+
+    const reactions = { ...(message.reactions ?? {}) };
+    const users = new Set(reactions[emoji] ?? []);
+    if (users.has(userId)) users.delete(userId);
+    else users.add(userId);
+    if (users.size) reactions[emoji] = [...users];
+    else delete reactions[emoji];
+    const updated = { ...message, reactions };
+    replaceLocalMessage(updated);
+    return updated;
+  } catch (error) {
+    throw new Error("Не удалось изменить реакцию. Попробуйте ещё раз.", { cause: error });
   }
 };
