@@ -1,5 +1,6 @@
 import questionData from "../../data/questions.json";
 import { dashboardMeta } from "@server/content";
+import { ADMIN_USERNAME } from "./permissions";
 import type {
   AttemptResult,
   AttemptSubmission,
@@ -66,6 +67,18 @@ const readDatabase = (): LocalDatabase => {
 const writeDatabase = (database: LocalDatabase) => {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(database));
   window.dispatchEvent(new Event("design-tests-data-updated"));
+};
+
+const assertAdminSession = () => {
+  try {
+    const sessionId = window.localStorage.getItem("design-tests-session-v1");
+    const users = JSON.parse(window.localStorage.getItem("design-tests-users-v1") ?? "[]") as Array<{ id?: string; name?: string }>;
+    const activeUser = users.find((user) => user.id === sessionId);
+    if (activeUser?.name?.trim().toLowerCase() === ADMIN_USERNAME) return;
+  } catch {
+    // The common error below keeps permission failures consistent.
+  }
+  throw new Error("Недостаточно прав для управления базой вопросов");
 };
 
 const slugify = (value: string) =>
@@ -229,15 +242,18 @@ const buildAchievements = (profile: StoredProfile) => {
   return values.filter((item) => item.unlocked).map(({ unlocked: _unlocked, ...item }) => ({ ...item, unlockedAt: profile.lastActiveAt ?? new Date().toISOString() }));
 };
 
-const seedLeaders = [
-  { id: "leader-alina", name: "Алина", xp: 2840, level: 12, streak: 9, bestStreak: 14, attempts: 31, accuracy: 91.4, lastActiveAt: null },
-  { id: "leader-maksim", name: "Максим", xp: 2365, level: 10, streak: 6, bestStreak: 11, attempts: 27, accuracy: 87.8, lastActiveAt: null },
-  { id: "leader-daria", name: "Дарья", xp: 1980, level: 8, streak: 4, bestStreak: 8, attempts: 22, accuracy: 84.6, lastActiveAt: null },
-];
+const registeredProfileNames = () => {
+  try {
+    const users = JSON.parse(window.localStorage.getItem("design-tests-users-v1") ?? "[]") as Array<{ name?: string }>;
+    return new Set(users.map((user) => user.name?.trim().toLowerCase()).filter((name): name is string => Boolean(name)));
+  } catch {
+    return new Set<string>();
+  }
+};
 
-const buildLeaderboard = (database: LocalDatabase) => [
-  ...seedLeaders,
-  ...Object.values(database.profiles).filter((profile) => profile.name !== "Гость").map((profile) => ({
+const buildLeaderboard = (database: LocalDatabase) => {
+  const registeredNames = registeredProfileNames();
+  return Object.values(database.profiles).filter((profile) => registeredNames.has(profile.name.trim().toLowerCase())).map((profile) => ({
     id: profile.id,
     name: profile.name,
     xp: profile.xp,
@@ -247,8 +263,8 @@ const buildLeaderboard = (database: LocalDatabase) => [
     attempts: profile.attempts.length,
     accuracy: getStats(profile).accuracy,
     lastActiveAt: profile.lastActiveAt,
-  })),
-].sort((left, right) => right.xp - left.xp).map((entry, index) => ({ ...entry, rank: index + 1 }));
+  })).sort((left, right) => right.xp - left.xp).map((entry, index) => ({ ...entry, rank: index + 1 }));
+};
 
 const updateReview = (profile: StoredProfile, question: Question, isCorrect: boolean) => {
   const current = profile.reviews[question.id] ?? {
@@ -390,8 +406,12 @@ export const localApi = {
     return questions;
   },
 
-  async exportQuestions() { return allQuestions(); },
+  async exportQuestions() {
+    assertAdminSession();
+    return allQuestions();
+  },
   async createQuestion(question: Question) {
+    assertAdminSession();
     const database = readDatabase();
     database.overrides[question.id] = question;
     database.deletedQuestionIds = database.deletedQuestionIds.filter((id) => id !== question.id);
@@ -399,6 +419,7 @@ export const localApi = {
     return question;
   },
   async updateQuestion(id: string, payload: Partial<Question>) {
+    assertAdminSession();
     const database = readDatabase();
     const current = allQuestions(database).find((question) => question.id === id);
     if (!current) throw new Error("Вопрос не найден");
@@ -408,6 +429,7 @@ export const localApi = {
     return updated;
   },
   async deleteQuestion(id: string) {
+    assertAdminSession();
     const database = readDatabase();
     delete database.overrides[id];
     database.deletedQuestionIds = [...new Set([...database.deletedQuestionIds, id])];
@@ -415,6 +437,7 @@ export const localApi = {
     return { ok: true };
   },
   async importQuestions(questions: Question[]) {
+    assertAdminSession();
     const database = readDatabase();
     questions.forEach((question) => { database.overrides[question.id] = question; });
     database.deletedQuestionIds = database.deletedQuestionIds.filter((id) => !questions.some((question) => question.id === id));

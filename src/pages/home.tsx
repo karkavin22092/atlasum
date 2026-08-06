@@ -6,8 +6,11 @@ import { Badge, Button, GlassCard, Panel, ProgressBar, StatCard, TitleBlock } fr
 import { BookOpen, Brain, Gamepad2, LineChart, Medal, ShieldCheck, Sparkles, Target, Trophy } from "lucide-react";
 import type { AppPageProps } from "./types";
 import { levelLabel } from "@/lib/utils";
+import { useAuth } from "@/lib/auth";
+import { isAdminUser } from "@/lib/permissions";
 
 export const HomePage = ({ meta }: AppPageProps) => {
+  const { user } = useAuth();
   const profile = meta?.profile;
   const stats = meta?.stats;
   const [selectedTopic, setSelectedTopic] = useState("");
@@ -129,12 +132,14 @@ export const HomePage = ({ meta }: AppPageProps) => {
                   Открыть тему в практике
                 </Button>
               </Link>
-              <Link to="/admin">
-                <Button variant="secondary">
-                  <Brain className="h-4 w-4" />
-                  Управлять базой
-                </Button>
-              </Link>
+              {isAdminUser(user) ? (
+                <Link to="/admin">
+                  <Button variant="secondary">
+                    <Brain className="h-4 w-4" />
+                    Управлять базой
+                  </Button>
+                </Link>
+              ) : null}
             </div>
           </div>
 
@@ -233,7 +238,7 @@ export const HomePage = ({ meta }: AppPageProps) => {
                 Топ студентов
               </div>
               <div className="space-y-2">
-                {meta?.leaderboard.map((entry) => (
+                {meta?.leaderboard.length ? meta.leaderboard.map((entry) => (
                   <div key={entry.id} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm">
                     <div className="text-slate-200">
                       <span className="mr-2 text-slate-500">#{entry.rank}</span>
@@ -241,7 +246,11 @@ export const HomePage = ({ meta }: AppPageProps) => {
                     </div>
                     <div className="text-slate-400">{entry.xp} XP</div>
                   </div>
-                ))}
+                )) : (
+                  <div className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-center text-sm text-slate-400">
+                    Зарегистрированных участников пока нет.
+                  </div>
+                )}
               </div>
             </GlassCard>
 

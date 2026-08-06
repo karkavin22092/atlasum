@@ -4,7 +4,7 @@ import { useTheme } from "./lib/theme";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./lib/api";
 import { AnimatePresence, motion } from "framer-motion";
-import { LogIn, LogOut, MoonStar, SunMedium, Sparkles, Trophy } from "lucide-react";
+import { LogIn, LogOut, MessageCircle, MoonStar, SunMedium, Sparkles, Trophy } from "lucide-react";
 import { HomePage } from "./pages/home";
 import { PracticePage } from "./pages/practice";
 import { GamesPage } from "./pages/games";
@@ -13,6 +13,7 @@ import { AdminPage } from "./pages/admin";
 import { ReviewPage } from "./pages/review";
 import { AuthPage } from "./pages/auth";
 import { LeaderboardPage } from "./pages/leaderboard";
+import { MessagesPage } from "./pages/messages";
 import { dashboardMeta } from "@server/content";
 import type { DashboardMeta, Profile, ProfileStats } from "@shared/types";
 import { useAuth } from "./lib/auth";
@@ -115,14 +116,14 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const meta = (metaQuery.data ?? fallbackMeta) as AppMeta;
 
   return (
-    <div className="min-h-screen text-slate-100">
+    <div className="theme-shell min-h-screen text-slate-100">
       <div className="fixed inset-0 -z-10 soft-grid opacity-35" />
-      <div className="fixed inset-0 -z-20 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.14),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(168,85,247,0.12),transparent_26%),linear-gradient(180deg,#020617_0%,#0f172a_100%)]" />
+      <div className="theme-atmosphere fixed inset-0 -z-20" />
 
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/60 backdrop-blur-xl">
+      <header className="theme-header sticky top-0 z-40 border-b backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
           <Link to="/" className="flex items-center gap-3 transition hover:opacity-90">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400 via-sky-500 to-violet-500 shadow-glow">
+            <div className="theme-brand-mark flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400 via-sky-500 to-violet-500 shadow-glow">
               <Sparkles className="h-5 w-5 text-white" />
             </div>
             <div>
@@ -134,6 +135,12 @@ const AppShell = ({ children }: { children: ReactNode }) => {
           </Link>
 
           <div className="hidden items-center gap-2 md:flex">
+            {user ? (
+              <Link to="/messages" className="glass inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm text-slate-200 transition hover:bg-white/10">
+                <MessageCircle className="h-4 w-4 text-cyan-300" />
+                Сообщения
+              </Link>
+            ) : null}
             <Link to="/leaderboard" className="glass inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm text-slate-200 transition hover:bg-white/10">
               <Trophy className="h-4 w-4 text-amber-300" />
               Рейтинг
@@ -154,6 +161,8 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             <button
               type="button"
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              title={theme === "dark" ? "Включить светлую тему" : "Включить тёмную тему"}
+              aria-label={theme === "dark" ? "Включить светлую тему" : "Включить тёмную тему"}
               className="glass inline-flex h-11 w-11 items-center justify-center rounded-full transition hover:scale-105"
             >
               {theme === "dark" ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}
@@ -161,6 +170,11 @@ const AppShell = ({ children }: { children: ReactNode }) => {
           </div>
 
           <div className="flex items-center gap-2 md:hidden">
+            {user ? (
+              <Link to="/messages" aria-label="Сообщения" className="glass inline-flex h-10 w-10 items-center justify-center rounded-full">
+                <MessageCircle className="h-4 w-4 text-cyan-300" />
+              </Link>
+            ) : null}
             <Link to="/leaderboard" aria-label="Рейтинг" className="glass inline-flex h-10 w-10 items-center justify-center rounded-full">
               <Trophy className="h-4 w-4 text-amber-300" />
             </Link>
@@ -176,6 +190,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             <button
               type="button"
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              aria-label={theme === "dark" ? "Включить светлую тему" : "Включить тёмную тему"}
               className="glass inline-flex h-10 w-10 items-center justify-center rounded-full"
             >
               {theme === "dark" ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}
@@ -225,6 +240,8 @@ const App = () => {
       <Route path="/games/:gameId" element={<AppShell><GameRunnerPage /></AppShell>} />
       <Route path="/admin" element={<AppShell><AdminPage /></AppShell>} />
       <Route path="/leaderboard" element={<AppShell><LeaderboardPage /></AppShell>} />
+      <Route path="/messages" element={<AppShell><MessagesPage /></AppShell>} />
+      <Route path="/messages/:recipientId" element={<AppShell><MessagesPage /></AppShell>} />
       <Route path="/auth" element={<AuthPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

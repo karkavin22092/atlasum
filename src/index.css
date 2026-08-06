@@ -5,6 +5,36 @@
 :root {
   color-scheme: dark;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --page-bg: #020617;
+  --page-text: #e2e8f0;
+  --atmosphere:
+    radial-gradient(circle at top left, rgba(56, 189, 248, 0.14), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(168, 85, 247, 0.12), transparent 26%),
+    linear-gradient(180deg, #020617 0%, #0f172a 100%);
+  --header-bg: rgba(2, 6, 23, 0.72);
+  --header-border: rgba(255, 255, 255, 0.1);
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-strong-bg: rgba(2, 6, 23, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-strong-border: rgba(255, 255, 255, 0.15);
+  --grid-color: rgba(148, 163, 184, 0.08);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --page-bg: #edf6fb;
+  --page-text: #1e293b;
+  --atmosphere:
+    radial-gradient(circle at 8% 4%, rgba(14, 165, 233, 0.2), transparent 28%),
+    radial-gradient(circle at 92% 88%, rgba(99, 102, 241, 0.14), transparent 30%),
+    linear-gradient(160deg, #f8fcff 0%, #e9f4fa 52%, #f3f1ff 100%);
+  --header-bg: rgba(248, 252, 255, 0.78);
+  --header-border: rgba(15, 23, 42, 0.1);
+  --glass-bg: rgba(255, 255, 255, 0.62);
+  --glass-strong-bg: rgba(255, 255, 255, 0.78);
+  --glass-border: rgba(51, 65, 85, 0.14);
+  --glass-strong-border: rgba(51, 65, 85, 0.18);
+  --grid-color: rgba(14, 116, 144, 0.08);
 }
 
 html,
@@ -15,25 +45,40 @@ body,
 
 body {
   margin: 0;
-  background:
-    radial-gradient(circle at top left, rgba(56, 189, 248, 0.12), transparent 30%),
-    radial-gradient(circle at top right, rgba(168, 85, 247, 0.1), transparent 28%),
-    linear-gradient(180deg, #020617 0%, #0f172a 100%);
-  color: #e2e8f0;
+  background: var(--page-bg);
+  color: var(--page-text);
+  transition: background-color 240ms ease, color 240ms ease;
+}
+
+.theme-shell {
+  color: var(--page-text);
+}
+
+.theme-atmosphere {
+  background: var(--atmosphere);
+}
+
+.theme-header {
+  border-color: var(--header-border);
+  background: var(--header-bg);
 }
 
 .glass {
-  @apply border border-white/10 bg-white/5 shadow-2xl backdrop-blur-xl;
+  @apply border shadow-2xl backdrop-blur-xl;
+  border-color: var(--glass-border);
+  background: var(--glass-bg);
 }
 
 .glass-strong {
-  @apply border border-white/15 bg-slate-950/60 shadow-2xl backdrop-blur-2xl;
+  @apply border shadow-2xl backdrop-blur-2xl;
+  border-color: var(--glass-strong-border);
+  background: var(--glass-strong-bg);
 }
 
 .soft-grid {
   background-image:
-    linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
+    linear-gradient(var(--grid-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
   background-size: 40px 40px;
 }
 
@@ -54,3 +99,66 @@ body {
   color: transparent;
 }
 
+:root[data-theme="light"] .gradient-text {
+  background-image: linear-gradient(135deg, #0f172a 0%, #0284c7 44%, #4f46e5 100%);
+}
+
+:root[data-theme="light"] .text-white,
+:root[data-theme="light"] .text-slate-100 {
+  color: #0f172a !important;
+}
+
+:root[data-theme="light"] .text-slate-200 {
+  color: #1e293b !important;
+}
+
+:root[data-theme="light"] .text-slate-300 {
+  color: #334155 !important;
+}
+
+:root[data-theme="light"] .text-slate-400 {
+  color: #475569 !important;
+}
+
+:root[data-theme="light"] .text-slate-500 {
+  color: #64748b !important;
+}
+
+:root[data-theme="light"] [class~="text-cyan-200/80"] {
+  color: #0369a1 !important;
+}
+
+:root[data-theme="light"] [class~="border-white/10"],
+:root[data-theme="light"] [class~="border-white/15"] {
+  border-color: rgba(51, 65, 85, 0.14) !important;
+}
+
+:root[data-theme="light"] [class~="bg-white/5"] {
+  background-color: rgba(255, 255, 255, 0.62) !important;
+}
+
+:root[data-theme="light"] [class~="bg-white/10"],
+:root[data-theme="light"] [class~="bg-black/15"] {
+  background-color: rgba(226, 232, 240, 0.72) !important;
+}
+
+:root[data-theme="light"] [class~="hover:bg-white/5"]:hover,
+:root[data-theme="light"] [class~="hover:bg-white/10"]:hover,
+:root[data-theme="light"] [class~="hover:bg-white/15"]:hover {
+  background-color: rgba(203, 213, 225, 0.7) !important;
+}
+
+:root[data-theme="light"] .theme-brand-mark .text-white {
+  color: #fff !important;
+}
+
+:root[data-theme="light"] input,
+:root[data-theme="light"] textarea,
+:root[data-theme="light"] select,
+:root[data-theme="light"] option {
+  color: #0f172a;
+}
+
+:root[data-theme="light"] option {
+  background: #f8fafc;
+}

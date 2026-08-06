@@ -1,5 +1,6 @@
-import { Award, Crown, Medal, Trophy } from "lucide-react";
-import { BackButton, Badge, GlassCard, Panel, TitleBlock } from "@/components/ui";
+import { Award, Crown, Medal, MessageCircle, Trophy } from "lucide-react";
+import { Link } from "react-router-dom";
+import { BackButton, Badge, Button, GlassCard, Panel, TitleBlock } from "@/components/ui";
 import type { AppPageProps } from "./types";
 
 const rankIcon = (rank: number) => {
@@ -26,11 +27,11 @@ export const LeaderboardPage = ({ meta, profileName }: AppPageProps) => (
         </div>
       </div>
       <div className="space-y-3">
-        {meta?.leaderboard.map((entry) => {
+        {meta?.leaderboard.length ? meta.leaderboard.map((entry) => {
           const isCurrent = entry.name === profileName;
           return (
             <GlassCard key={entry.id} className={isCurrent ? "border-cyan-300/35 bg-cyan-400/10" : ""}>
-              <div className="grid items-center gap-3 sm:grid-cols-[44px_1fr_auto_auto]">
+              <div className="grid items-center gap-3 sm:grid-cols-[44px_1fr_auto_auto_auto]">
                 <div className="flex items-center gap-2">{rankIcon(entry.rank)}</div>
                 <div>
                   <div className="flex flex-wrap items-center gap-2 font-semibold text-white">
@@ -41,10 +42,23 @@ export const LeaderboardPage = ({ meta, profileName }: AppPageProps) => (
                 </div>
                 <Badge tone="violet">Уровень {entry.level}</Badge>
                 <div className="text-right text-lg font-semibold text-cyan-200">{entry.xp} XP</div>
+                {isCurrent ? null : (
+                  <Link to={`/messages/${entry.id}`}>
+                    <Button variant="secondary" className="w-full sm:w-auto">
+                      <MessageCircle className="h-4 w-4" />
+                      Написать
+                    </Button>
+                  </Link>
+                )}
               </div>
             </GlassCard>
           );
-        })}
+        }) : (
+          <GlassCard className="py-10 text-center">
+            <div className="font-semibold text-white">В рейтинге пока никого нет</div>
+            <div className="mt-2 text-sm text-slate-400">Зарегистрируйтесь и завершите тест, чтобы стать первым участником.</div>
+          </GlassCard>
+        )}
       </div>
     </Panel>
   </div>

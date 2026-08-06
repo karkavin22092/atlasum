@@ -1,12 +1,14 @@
 import { useState, type FormEvent } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { AtSign, LockKeyhole, Sparkles, UserRound } from "lucide-react";
+import { AtSign, LockKeyhole, MoonStar, Sparkles, SunMedium, UserRound } from "lucide-react";
 import { Button, GlassCard } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
+import { useTheme } from "@/lib/theme";
 
 export const AuthPage = () => {
   const { user, login, register } = useAuth();
+  const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -35,12 +37,20 @@ export const AuthPage = () => {
   };
 
   return (
-    <div className="relative grid min-h-screen place-items-center overflow-hidden px-4 py-10 text-slate-100">
-      <div className="fixed inset-0 -z-20 bg-[radial-gradient(circle_at_15%_15%,rgba(34,211,238,0.2),transparent_30%),radial-gradient(circle_at_85%_80%,rgba(99,102,241,0.2),transparent_30%),linear-gradient(145deg,#020617,#0b1730)]" />
+    <div className="theme-shell relative grid min-h-screen place-items-center overflow-hidden px-4 py-10 text-slate-100">
+      <div className="theme-atmosphere fixed inset-0 -z-20" />
       <div className="fixed inset-0 -z-10 soft-grid opacity-30" />
+      <button
+        type="button"
+        onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+        aria-label={theme === "dark" ? "Включить светлую тему" : "Включить тёмную тему"}
+        className="glass fixed right-4 top-4 grid h-11 w-11 place-items-center rounded-full"
+      >
+        {theme === "dark" ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}
+      </button>
       <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
         <Link to="/" className="mb-6 flex items-center justify-center gap-3">
-          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-cyan-400 via-sky-500 to-indigo-500 shadow-glow">
+          <div className="theme-brand-mark grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-cyan-400 via-sky-500 to-indigo-500 shadow-glow">
             <Sparkles className="h-5 w-5" />
           </div>
           <div>

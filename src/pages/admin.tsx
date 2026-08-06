@@ -2,9 +2,11 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { BackButton, Badge, Button, GlassCard, Panel, TitleBlock } from "@/components/ui";
-import type { AppPageProps } from "./types";
 import type { Question } from "@shared/types";
-import { Download, FileUp, Plus, Save, Search, Trash2 } from "lucide-react";
+import { Download, FileUp, Plus, Save, Search, ShieldX, Trash2 } from "lucide-react";
+import { Navigate, useLocation } from "react-router-dom";
+import { useAuth } from "@/lib/auth";
+import { ADMIN_USERNAME, isAdminUser } from "@/lib/permissions";
 
 const emptyQuestion = (): Question => ({
   id: `q-custom-${Date.now()}`,
@@ -24,7 +26,7 @@ const emptyQuestion = (): Question => ({
   tags: ["custom"],
 });
 
-export const AdminPage = () => {
+const AdminContent = () => {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [topic, setTopic] = useState("");
@@ -285,4 +287,30 @@ export const AdminPage = () => {
       </div>
     </div>
   );
+};
+
+export const AdminPage = () => {
+  const { user } = useAuth();
+  const location = useLocation();
+
+  if (!user) {
+    return <Navigate to="/auth" replace state={{ from: location.pathname }} />;
+  }
+
+  if (!isAdminUser(user)) {
+    return (
+      <div className="space-y-6">
+        <TitleBlock eyebrow="Доступ ограничен" title="Админ-панель закрыта" description={`Управлять базой вопросов может только пользователь ${ADMIN_USERNAME}.`} right={<BackButton to="/" />} />
+        <Panel className="grid min-h-72 place-items-center text-center">
+          <div>
+            <ShieldX className="mx-auto h-12 w-12 text-rose-300" />
+            <div className="mt-4 text-lg font-semibold text-white">Недостаточно прав</div>
+            <div className="mt-2 text-sm text-slate-400">Вы вошли как {user.name}. Просматривать вопросы можно в режиме практики.</div>
+          </div>
+        </Panel>
+      </div>
+    );
+  }
+
+  return <AdminContent />;
 };
