@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Profile {
+  id           String          @id
+  name         String
+  xp           Int             @default(0)
+  coins        Int             @default(0)
+  level        Int             @default(1)
+  streak       Int             @default(0)
+  bestStreak   Int             @default(0)
+  lastActiveAt  DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  attempts     Attempt[]
+  activities   ActivityDay[]
+  achievements ProfileAchievement[]
+}
+
+model Question {
+  id           String           @id
+  topic        String
+  difficulty   String
+  type         String
+  question     String
+  options      Json
+  correct      Json
+  explanation  String
+  source       String
+  tags         Json
+  meta         Json?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  reviews      QuestionReview[]
+  attemptItems AttemptItem[]
+}
+
+model QuestionReview {
+  id             Int       @id @default(autoincrement())
+  questionId     String    @unique
+  question       Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  timesAnswered  Int       @default(0)
+  correctCount   Int       @default(0)
+  lastAnsweredAt DateTime?
+  easeFactor     Float     @default(2.5)
+  intervalDays   Int       @default(0)
+  nextReviewAt   DateTime?
+  mastery        Float     @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model Attempt {
+  id           String         @id
+  profileId    String
+  profile      Profile        @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  mode         String
+  count        Int
+  score        Int
+  maxScore     Int
+  percent      Float
+  grade        String
+  durationMs   Int
+  topic        String?
+  createdAt    DateTime       @default(now())
+  items        AttemptItem[]
+}
+
+model AttemptItem {
+  id             Int       @id @default(autoincrement())
+  attemptId      String
+  attempt        Attempt   @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId     String
+  question       Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  topic          String
+  difficulty     String
+  isCorrect      Boolean
+  userAnswer     Json
+  correctAnswer  Json
+  explanation    String
+  createdAt      DateTime  @default(now())
+}
+
+model ActivityDay {
+  id         Int      @id @default(autoincrement())
+  profileId  String
+  profile    Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  date       String
+  attempts   Int      @default(0)
+  correct    Int      @default(0)
+  xp         Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([profileId, date])
+}
+
+model ProfileAchievement {
+  id          Int      @id @default(autoincrement())
+  profileId   String
+  profile     Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  key         String
+  title       String
+  description String
+  icon        String
+  unlockedAt  DateTime @default(now())
+
+  @@unique([profileId, key])
+}

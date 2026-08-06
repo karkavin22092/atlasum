@@ -1,0 +1,945 @@
+import express from "express";
+import cors from "cors";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { nanoid } from "nanoid";
+import { prisma } from "./db.js";
+import { dashboardMeta, topicCatalog } from "./content.js";
+import {
+  buildQuestionBankSummary,
+  createRandom,
+  evaluateQuestion,
+  getCorrectAnswerPreview,
+  getTopicByTitle,
+  normalizeText,
+  shuffle,
+  topicKeys,
+} from "./question-bank.js";
+import type {
+  AttemptSubmission,
+  GeneratedTest,
+  Profile,
+  ProfileStats,
+  Question,
+  SubmissionResponse,
+} from "@shared/types";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+
+app.use(cors());
+app.use(express.json({ limit: "4mb" }));
+
+const PROFILE_ID_FALLBACK = "local-user";
+
+const slugify = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-zа-я0-9]+/giu, "-")
+    .replace(/^-+|-+$/g, "") || PROFILE_ID_FALLBACK;
+
+const formatDateKey = (date = new Date()) =>
+  new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Novosibirsk",
+  }).format(date);
+
+const getLevel = (xp: number) => Math.max(1, Math.floor(xp / 250) + 1);
+
+const getXpThreshold = (level: number) => level * 250;
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+const ensureProfile = async (profileName?: string) => {
+  const name = profileName?.trim() || "Гость";
+  const id = slugify(name);
+
+  return prisma.profile.upsert({
+    where: { id },
+    create: {
+      id,
+      name,
+      xp: 0,
+      coins: 0,
+      level: 1,
+      streak: 0,
+      bestStreak: 0,
+      lastActiveAt: new Date(),
+    },
+    update: {
+      name,
+    },
+  });
+};
+
+const toProfile = (profile: {
+  id: string;
+  name: string;
+  xp: number;
+  coins: number;
+  level: number;
+  streak: number;
+  bestStreak: number;
+  lastActiveAt: Date | null;
+}): Profile => ({
+  id: profile.id,
+  name: profile.name,
+  xp: profile.xp,
+  coins: profile.coins,
+  level: profile.level,
+  streak: profile.streak,
+  bestStreak: profile.bestStreak,
+  lastActiveAt: profile.lastActiveAt ? profile.lastActiveAt.toISOString() : null,
+});
+
+const getProfileStats = async (profileId: string): Promise<ProfileStats> => {
+  const [answered, correct, reviewDue, mastered, weak] = await Promise.all([
+    prisma.attemptItem.count({
+      where: { attempt: { profileId } },
+    }),
+    prisma.attemptItem.count({
+      where: { attempt: { profileId }, isCorrect: true },
+    }),
+    prisma.questionReview.count({
+      where: {
+        nextReviewAt: {
+          lte: new Date(),
+        },
+      },
+    }),
+    prisma.questionReview.count({
+      where: {
+        mastery: {
+          gte: 0.8,
+        },
+      },
+    }),
+    prisma.questionReview.count({
+      where: {
+        mastery: {
+          lt: 0.45,
+        },
+      },
+    }),
+  ]);
+
+  const profile = await prisma.profile.findUnique({
+    where: { id: profileId },
+  });
+
+  const xp = profile?.xp ?? 0;
+  const level = profile?.level ?? getLevel(xp);
+  const nextLevelXp = getXpThreshold(level);
+  const levelStartXp = getXpThreshold(level - 1);
+  const levelProgress = nextLevelXp === levelStartXp ? 0 : clamp(((xp - levelStartXp) / (nextLevelXp - levelStartXp)) * 100, 0, 100);
+
+  return {
+    totalQuestionsAnswered: answered,
+    totalCorrect: correct,
+    accuracy: answered === 0 ? 0 : Math.round((correct / answered) * 1000) / 10,
+    xpPerLevel: 250,
+    nextLevelXp,
+    levelProgress,
+    reviewDue,
+    mastered,
+    weak,
+  };
+};
+
+const buildTopicProgress = async () => {
+  const reviews = await prisma.questionReview.findMany({
+    include: {
+      question: true,
+    },
+  });
+
+  const buckets = new Map<string, { title: string; total: number; mastered: number; answered: number }>();
+
+  for (const review of reviews) {
+    const key = review.question.topic;
+    const current = buckets.get(key) ?? {
+      title: key,
+      total: 0,
+      mastered: 0,
+      answered: 0,
+    };
+
+    current.total += 1;
+    current.answered += review.timesAnswered;
+    if (review.mastery >= 0.7) {
+      current.mastered += 1;
+    }
+    buckets.set(key, current);
+  }
+
+  return topicCatalog.map((topic) => {
+    const bucket = buckets.get(topic.title) ?? {
+      title: topic.title,
+      total: 0,
+      mastered: 0,
+      answered: 0,
+    };
+
+    return {
+      ...topic,
+      mastery: bucket.total === 0 ? 0 : Math.round((bucket.mastered / bucket.total) * 1000) / 10,
+      answered: bucket.answered,
+    };
+  });
+};
+
+const buildLeaderboard = async () => {
+  const profiles = await prisma.profile.findMany({
+    orderBy: [{ xp: "desc" }, { updatedAt: "asc" }],
+    take: 10,
+    include: {
+      attempts: true,
+    },
+  });
+
+  return profiles.map((profile, index) => {
+    const attempts = profile.attempts.length;
+    const totalPercent = profile.attempts.reduce((sum, attempt) => sum + attempt.percent, 0);
+    const avgPercent = attempts === 0 ? 0 : Math.round((totalPercent / attempts) * 10) / 10;
+
+    return {
+      rank: index + 1,
+      id: profile.id,
+      name: profile.name,
+      xp: profile.xp,
+      level: profile.level,
+      streak: profile.streak,
+      bestStreak: profile.bestStreak,
+      attempts,
+      accuracy: avgPercent,
+      lastActiveAt: profile.lastActiveAt?.toISOString() ?? null,
+    };
+  });
+};
+
+const buildActivity = async (profileId: string) => {
+  const rows = await prisma.activityDay.findMany({
+    where: { profileId },
+    orderBy: { date: "asc" },
+  });
+
+  return rows.map((row) => ({
+    date: row.date,
+    attempts: row.attempts,
+    correct: row.correct,
+    xp: row.xp,
+  }));
+};
+
+const buildAchievements = async (profileId: string) => {
+  const profile = await prisma.profile.findUnique({
+    where: { id: profileId },
+    include: {
+      attempts: {
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      },
+      achievements: true,
+    },
+  });
+
+  if (!profile) {
+    return [];
+  }
+
+  const totalAnswered = await prisma.attemptItem.count({
+    where: { attempt: { profileId } },
+  });
+  const totalCorrect = await prisma.attemptItem.count({
+    where: { attempt: { profileId }, isCorrect: true },
+  });
+  const hardCorrect = await prisma.attemptItem.count({
+    where: {
+      attempt: { profileId },
+      isCorrect: true,
+      difficulty: "hard",
+    },
+  });
+  const progress = await buildTopicProgress();
+  const masteredTopics = progress.filter((topic) => topic.mastery >= 70).length;
+
+  const unlocked = [];
+  const unlockedAt = new Date();
+  const isEligible = (key: string) =>
+    profile.achievements?.some((achievement) => achievement.key === key) ?? false;
+  const push = async (key: string, title: string, description: string, icon: string, condition: boolean) => {
+    if (!condition || isEligible(key)) {
+      return;
+    }
+    await prisma.profileAchievement.upsert({
+      where: {
+        profileId_key: {
+          profileId,
+          key,
+        },
+      },
+      create: {
+        profileId,
+        key,
+        title,
+        description,
+        icon,
+        unlockedAt,
+      },
+      update: {},
+    });
+    unlocked.push({ key, title, description, icon });
+  };
+
+  await push("first-step", "Первый шаг", "Пройти первый тест", "Sparkles", totalAnswered >= 1);
+  await push("hundred-correct", "Знаток", "Ответить правильно на 100 вопросов", "Award", totalCorrect >= 100);
+  await push("streak-7", "Серия", "Поддержать серию из 7 дней", "Flame", profile.streak >= 7);
+  await push("level-5", "Продвинутый", "Достичь 5 уровня", "Medal", profile.level >= 5);
+  await push("hard-20", "Сложный путь", "Правильно решить 20 сложных вопросов", "ShieldCheck", hardCorrect >= 20);
+  await push("topic-master", "Мастер тем", "Освоить не менее 10 тем", "Brain", masteredTopics >= 10);
+
+  return unlocked;
+};
+
+const weightQuestion = (question: Question & { reviews: Array<{ mastery: number; nextReviewAt: Date | null; timesAnswered: number }> }, seed: string) => {
+  const review = question.reviews[0];
+  const mastery = review?.mastery ?? 0;
+  const answered = review?.timesAnswered ?? 0;
+  const dueBonus = review?.nextReviewAt && review.nextReviewAt <= new Date() ? 2 : 0;
+  const hardBonus = question.difficulty === "hard" ? 1.4 : question.difficulty === "medium" ? 1 : 0.7;
+  const lowMasteryBonus = 1 + (1 - mastery) * 3;
+  const fatigueBonus = 1 + Math.max(0, 5 - answered) * 0.1;
+  const randomBonus = createRandom(`${seed}:${question.id}`)() * 0.5;
+  return lowMasteryBonus * hardBonus * fatigueBonus + dueBonus + randomBonus;
+};
+
+const selectQuestions = async ({
+  profileId,
+  mode,
+  count,
+  topic,
+}: {
+  profileId: string;
+  mode: string;
+  count: number;
+  topic?: string | null;
+}) => {
+  const questions = await prisma.question.findMany({
+    include: {
+      reviews: true,
+    },
+  });
+
+  let pool = questions;
+
+  if (topic) {
+    pool = pool.filter((item) => item.topic === topic);
+  }
+
+  if (mode === "mistakes") {
+    const mistakeItems = await prisma.attemptItem.findMany({
+      where: {
+        isCorrect: false,
+        attempt: {
+          profileId,
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 500,
+      select: {
+        questionId: true,
+      },
+    });
+    const ids = new Set(mistakeItems.map((item) => item.questionId));
+    pool = pool.filter((question) => ids.has(question.id));
+  }
+
+  if (mode === "hardOnly") {
+    pool = pool.filter((question) => {
+      const review = question.reviews[0];
+      return question.difficulty === "hard" || (review?.mastery ?? 0) < 0.45;
+    });
+  }
+
+  if (mode === "review") {
+    const now = new Date();
+    pool = pool.filter((question) => {
+      const review = question.reviews[0];
+      return !review?.nextReviewAt || review.nextReviewAt <= now || (review?.mastery ?? 0) < 0.7;
+    });
+  }
+
+  if (mode === "exam") {
+    const byDifficulty = {
+      easy: shuffle(
+        pool.filter((question) => question.difficulty === "easy"),
+        `${profileId}:exam:easy`,
+      ),
+      medium: shuffle(
+        pool.filter((question) => question.difficulty === "medium"),
+        `${profileId}:exam:medium`,
+      ),
+      hard: shuffle(
+        pool.filter((question) => question.difficulty === "hard"),
+        `${profileId}:exam:hard`,
+      ),
+    };
+
+    const chosen = [
+      ...byDifficulty.easy.slice(0, 9),
+      ...byDifficulty.medium.slice(0, 15),
+      ...byDifficulty.hard.slice(0, 6),
+    ];
+
+    return shuffle(chosen.slice(0, 30), `${profileId}:exam:final`);
+  }
+
+  if (pool.length === 0) {
+    pool = questions;
+  }
+
+  const sizedPool = [...pool];
+  const sorted = sizedPool.sort((a, b) => weightQuestion(b as never, `${profileId}:${mode}`) - weightQuestion(a as never, `${profileId}:${mode}`));
+  const maxCount = Math.min(count, sorted.length);
+  return shuffle(sorted.slice(0, maxCount), `${profileId}:${mode}:picked`);
+};
+
+const gradeByPercent = (percent: number) => {
+  if (percent >= 90) return "5";
+  if (percent >= 75) return "4";
+  if (percent >= 50) return "3";
+  return "2";
+};
+
+const computeXp = (results: Array<{ isCorrect: boolean; difficulty: string }>) =>
+  results.reduce((sum, result) => {
+    if (!result.isCorrect) return sum;
+    if (result.difficulty === "hard") return sum + 25;
+    if (result.difficulty === "medium") return sum + 15;
+    return sum + 10;
+  }, 0);
+
+const computeCoins = (score: number, percent: number) => Math.max(1, Math.round(score * 1.5 + percent / 10));
+
+const updateProfileProgress = async (profileId: string, xpGained: number, coinsGained: number) => {
+  const profile = await prisma.profile.findUnique({ where: { id: profileId } });
+  if (!profile) {
+    throw new Error("Profile not found");
+  }
+
+  const now = new Date();
+  const today = formatDateKey(now);
+  const yesterday = formatDateKey(new Date(now.getTime() - 24 * 60 * 60 * 1000));
+  const lastActive = profile.lastActiveAt ? formatDateKey(profile.lastActiveAt) : null;
+  const streak = lastActive === today ? profile.streak : lastActive === yesterday ? profile.streak + 1 : 1;
+  const xp = profile.xp + xpGained;
+  const level = getLevel(xp);
+
+  const updated = await prisma.profile.update({
+    where: { id: profileId },
+    data: {
+      xp,
+      coins: profile.coins + coinsGained,
+      level,
+      streak,
+      bestStreak: Math.max(profile.bestStreak, streak),
+      lastActiveAt: now,
+    },
+  });
+
+  return updated;
+};
+
+const updateActivity = async (profileId: string, correctCount: number, xpGained: number, durationMs: number) => {
+  const date = formatDateKey(new Date());
+  await prisma.activityDay.upsert({
+    where: {
+      profileId_date: {
+        profileId,
+        date,
+      },
+    },
+    create: {
+      profileId,
+      date,
+      attempts: 1,
+      correct: correctCount,
+      xp: xpGained,
+    },
+    update: {
+      attempts: {
+        increment: 1,
+      },
+      correct: {
+        increment: correctCount,
+      },
+      xp: {
+        increment: xpGained,
+      },
+    },
+  });
+};
+
+const updateQuestionReview = async (question: Question, isCorrect: boolean) => {
+  const review = await prisma.questionReview.upsert({
+    where: { questionId: question.id },
+    create: {
+      questionId: question.id,
+      timesAnswered: 0,
+      correctCount: 0,
+      easeFactor: 2.5,
+      intervalDays: 0,
+      mastery: 0,
+      nextReviewAt: new Date(0),
+    },
+    update: {},
+  });
+
+  const timesAnswered = review.timesAnswered + 1;
+  const correctCount = review.correctCount + (isCorrect ? 1 : 0);
+  const accuracy = correctCount / timesAnswered;
+  const easeFactor = clamp(review.easeFactor + (isCorrect ? 0.08 : -0.18), 1.3, 3);
+  const intervalDays = isCorrect ? Math.max(1, Math.round((review.intervalDays || 1) * easeFactor)) : 1;
+  const nextReviewAt = new Date(Date.now() + intervalDays * 24 * 60 * 60 * 1000);
+
+  await prisma.questionReview.update({
+    where: { questionId: question.id },
+    data: {
+      timesAnswered,
+      correctCount,
+      lastAnsweredAt: new Date(),
+      easeFactor,
+      intervalDays,
+      nextReviewAt,
+      mastery: clamp(isCorrect ? review.mastery + (question.difficulty === "hard" ? 0.08 : 0.12) : review.mastery - 0.14, 0, 1),
+    },
+  });
+};
+
+const getRecommendations = async (profileId: string) => {
+  const wrongTopics = await prisma.attemptItem.findMany({
+    where: {
+      attempt: { profileId },
+      isCorrect: false,
+    },
+    orderBy: { createdAt: "desc" },
+    take: 25,
+    select: {
+      topic: true,
+    },
+  });
+
+  const topicCounts = new Map<string, number>();
+  for (const row of wrongTopics) {
+    topicCounts.set(row.topic, (topicCounts.get(row.topic) ?? 0) + 1);
+  }
+
+  return [...topicCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([topic]) => topic);
+};
+
+const toJsonQuestion = (question: Question) => question;
+
+app.get("/api/health", (_req, res) => {
+  res.json({ ok: true, name: "Exam Prep API" });
+});
+
+app.get("/api/meta", async (req, res) => {
+  const profileName = String(req.query.profileName ?? "Гость");
+  const profile = await ensureProfile(profileName);
+  const [stats, leaderboard, activity, topicProgress, attempts, achievements] = await Promise.all([
+    getProfileStats(profile.id),
+    buildLeaderboard(),
+    buildActivity(profile.id),
+    buildTopicProgress(),
+    prisma.attempt.findMany({
+      where: { profileId: profile.id },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      include: { items: true },
+    }),
+    prisma.profileAchievement.findMany({
+      where: { profileId: profile.id },
+      orderBy: { unlockedAt: "desc" },
+    }),
+  ]);
+
+  res.json({
+    ...dashboardMeta,
+    profile: toProfile(profile),
+    stats,
+    leaderboard,
+    activity,
+    topicProgress,
+    attempts,
+    achievements,
+    questionBank: buildQuestionBankSummary(),
+  });
+});
+
+app.get("/api/questions", async (req, res) => {
+  const topic = req.query.topic ? String(req.query.topic) : undefined;
+  const difficulty = req.query.difficulty ? String(req.query.difficulty) : undefined;
+  const search = req.query.search ? String(req.query.search).toLowerCase() : undefined;
+
+  const questions = await prisma.question.findMany({
+    include: { reviews: true },
+    orderBy: { id: "asc" },
+  });
+
+  const filtered = questions.filter((question) => {
+    if (topic && question.topic !== topic) return false;
+    if (difficulty && question.difficulty !== difficulty) return false;
+    if (search && !question.question.toLowerCase().includes(search) && !question.tags.some((tag) => String(tag).toLowerCase().includes(search))) {
+      return false;
+    }
+    return true;
+  });
+
+  res.json(filtered.map(toJsonQuestion));
+});
+
+app.post("/api/questions", async (req, res) => {
+  const payload = req.body as Question;
+  if (!payload?.id || !payload?.topic || !payload?.question) {
+    return res.status(400).json({ error: "Invalid question payload" });
+  }
+
+  const created = await prisma.question.create({
+    data: {
+      id: payload.id,
+      topic: payload.topic,
+      difficulty: payload.difficulty,
+      type: payload.type,
+      question: payload.question,
+      options: payload.options,
+      correct: payload.correct as never,
+      explanation: payload.explanation,
+      source: payload.source,
+      tags: payload.tags,
+      meta: payload.meta ?? null,
+    },
+  });
+
+  await prisma.questionReview.create({
+    data: {
+      questionId: created.id,
+      timesAnswered: 0,
+      correctCount: 0,
+      easeFactor: 2.5,
+      intervalDays: 0,
+      mastery: 0,
+      nextReviewAt: new Date(0),
+    },
+  });
+
+  res.status(201).json(created);
+});
+
+app.put("/api/questions/:id", async (req, res) => {
+  const id = req.params.id;
+  const payload = req.body as Partial<Question>;
+  const updated = await prisma.question.update({
+    where: { id },
+    data: {
+      topic: payload.topic,
+      difficulty: payload.difficulty,
+      type: payload.type,
+      question: payload.question,
+      options: payload.options,
+      correct: payload.correct as never,
+      explanation: payload.explanation,
+      source: payload.source,
+      tags: payload.tags,
+      meta: payload.meta ?? undefined,
+    },
+  });
+
+  res.json(updated);
+});
+
+app.delete("/api/questions/:id", async (req, res) => {
+  const id = req.params.id;
+  await prisma.question.delete({ where: { id } });
+  res.json({ ok: true });
+});
+
+app.post("/api/questions/import", async (req, res) => {
+  const payload = req.body as Question[] | { questions?: Question[] };
+  const questions = Array.isArray(payload) ? payload : payload.questions ?? [];
+  if (!Array.isArray(questions) || questions.length === 0) {
+    return res.status(400).json({ error: "No questions provided" });
+  }
+
+  await prisma.$transaction([
+    ...questions.flatMap((question) => [
+      prisma.question.upsert({
+        where: { id: question.id },
+        create: {
+          id: question.id,
+          topic: question.topic,
+          difficulty: question.difficulty,
+          type: question.type,
+          question: question.question,
+          options: question.options,
+          correct: question.correct as never,
+          explanation: question.explanation,
+          source: question.source,
+          tags: question.tags,
+          meta: question.meta ?? null,
+        },
+        update: {
+          topic: question.topic,
+          difficulty: question.difficulty,
+          type: question.type,
+          question: question.question,
+          options: question.options,
+          correct: question.correct as never,
+          explanation: question.explanation,
+          source: question.source,
+          tags: question.tags,
+          meta: question.meta ?? null,
+        },
+      }),
+      prisma.questionReview.upsert({
+        where: { questionId: question.id },
+        create: {
+          questionId: question.id,
+          timesAnswered: 0,
+          correctCount: 0,
+          easeFactor: 2.5,
+          intervalDays: 0,
+          mastery: 0,
+          nextReviewAt: new Date(0),
+        },
+        update: {},
+      }),
+    ]),
+  ]);
+
+  res.json({ imported: questions.length });
+});
+
+app.get("/api/questions/export", async (_req, res) => {
+  const questions = await prisma.question.findMany({
+    orderBy: { id: "asc" },
+  });
+  res.json(questions);
+});
+
+app.post("/api/tests/generate", async (req, res) => {
+  const body = req.body as {
+    profileName?: string;
+    mode?: string;
+    count?: number;
+    topic?: string | null;
+  };
+
+  const profile = await ensureProfile(body.profileName);
+  const count = body.mode === "exam" ? 30 : Math.max(1, Math.min(body.count ?? 10, 100));
+  const questions = await selectQuestions({
+    profileId: profile.id,
+    mode: body.mode ?? "practice",
+    count,
+    topic: body.topic ?? null,
+  });
+
+  const test: GeneratedTest = {
+    id: nanoid(),
+    title:
+      body.mode === "exam"
+        ? "Экзамен"
+        : body.topic
+          ? `${body.topic}`
+          : body.mode === "hardOnly"
+            ? "Только сложные"
+            : body.mode === "mistakes"
+              ? "Только мои ошибки"
+              : body.mode === "review"
+                ? "Повторение"
+                : "Практика",
+    mode: body.mode ?? "practice",
+    topic: body.topic ?? null,
+    questions: questions.map((question) => ({
+      ...toJsonQuestion(question),
+      scoreWeight: question.difficulty === "hard" ? 3 : question.difficulty === "medium" ? 2 : 1,
+    })),
+  };
+
+  res.json(test);
+});
+
+app.post("/api/tests/submit", async (req, res) => {
+  const body = req.body as AttemptSubmission;
+  const profile = await ensureProfile(body.profileName);
+  const questions = await prisma.question.findMany({
+    where: {
+      id: {
+        in: body.answers.map((entry) => entry.questionId),
+      },
+    },
+  });
+
+  const questionMap = new Map(questions.map((question) => [question.id, question]));
+  const results = body.answers.map((entry) => {
+    const question = questionMap.get(entry.questionId);
+    if (!question) {
+      return null;
+    }
+    const evaluation = evaluateQuestion(question as Question, entry.answer);
+    return {
+      questionId: question.id,
+      question: question.question,
+      topic: question.topic,
+      difficulty: question.difficulty,
+      type: question.type,
+      isCorrect: evaluation.isCorrect,
+      userAnswer: entry.answer,
+      correctAnswer: getCorrectAnswerPreview(question as Question),
+      explanation: question.explanation,
+      whyWrong: evaluation.whyWrong,
+    };
+  }).filter((item): item is {
+    questionId: string;
+    question: string;
+    topic: string;
+    difficulty: string;
+    type: string;
+    isCorrect: boolean;
+    userAnswer: unknown;
+    correctAnswer: unknown;
+    explanation: string;
+    whyWrong: string;
+  } => Boolean(item));
+
+  const score = results.filter((result) => result.isCorrect).length;
+  const maxScore = results.length;
+  const percent = maxScore === 0 ? 0 : Math.round((score / maxScore) * 1000) / 10;
+  const grade = gradeByPercent(percent);
+  const xpGained = computeXp(results);
+  const coinsGained = computeCoins(score, percent);
+  const durationMs = body.durationMs;
+  const correctCount = results.filter((result) => result.isCorrect).length;
+  const wrongCount = results.length - correctCount;
+  const attemptId = nanoid();
+
+  await prisma.attempt.create({
+    data: {
+      id: attemptId,
+      profileId: profile.id,
+      mode: body.mode,
+      count: body.count,
+      score,
+      maxScore,
+      percent,
+      grade,
+      durationMs,
+      topic: body.topic ?? null,
+      items: {
+        create: results.map((result) => ({
+          questionId: result.questionId,
+          topic: result.topic,
+          difficulty: result.difficulty,
+          isCorrect: result.isCorrect,
+          userAnswer: result.userAnswer as never,
+          correctAnswer: result.correctAnswer as never,
+          explanation: result.explanation,
+        })),
+      },
+    },
+  });
+
+  await Promise.all(
+    results.map((result) =>
+      updateQuestionReview(questionMap.get(result.questionId) as Question, result.isCorrect),
+    ),
+  );
+
+  await updateProfileProgress(profile.id, xpGained, coinsGained);
+  await updateActivity(profile.id, correctCount, xpGained, durationMs);
+
+  const unlocked = await buildAchievements(profile.id);
+  const recommendations = await getRecommendations(profile.id);
+  const updatedProfile = await prisma.profile.findUnique({ where: { id: profile.id } });
+
+  const response: SubmissionResponse = {
+    attemptId,
+    score,
+    maxScore,
+    percent,
+    grade,
+    xpGained,
+    coinsGained,
+    level: updatedProfile?.level ?? 1,
+    streak: updatedProfile?.streak ?? 0,
+    bestStreak: updatedProfile?.bestStreak ?? 0,
+    correctCount,
+    wrongCount,
+    durationMs,
+    results,
+    recommendations,
+    achievements: unlocked,
+  };
+
+  res.json(response);
+});
+
+app.get("/api/ranking", async (_req, res) => {
+  res.json(await buildLeaderboard());
+});
+
+app.get("/api/reviews", async (req, res) => {
+  const profileName = String(req.query.profileName ?? "Гость");
+  const profile = await ensureProfile(profileName);
+  const reviews = await prisma.questionReview.findMany({
+    include: { question: true },
+    orderBy: [{ mastery: "asc" }, { updatedAt: "desc" }],
+  });
+
+  res.json(
+    reviews.map((review) => ({
+      questionId: review.questionId,
+      topic: review.question.topic,
+      difficulty: review.question.difficulty,
+      question: review.question.question,
+      mastery: review.mastery,
+      accuracy: review.timesAnswered === 0 ? 0 : Math.round((review.correctCount / review.timesAnswered) * 1000) / 10,
+      timesAnswered: review.timesAnswered,
+      correctCount: review.correctCount,
+      lastAnsweredAt: review.lastAnsweredAt?.toISOString() ?? null,
+      nextReviewAt: review.nextReviewAt?.toISOString() ?? null,
+      options: review.question.options,
+    })),
+  );
+});
+
+app.get("/api/profile", async (req, res) => {
+  const profile = await ensureProfile(String(req.query.profileName ?? "Гость"));
+  const stats = await getProfileStats(profile.id);
+  res.json({
+    profile: toProfile(profile),
+    stats,
+  });
+});
+
+const clientDist = path.resolve(__dirname, "../dist/client");
+app.use(express.static(clientDist));
+
+app.get("*", (req, res, next) => {
+  if (req.path.startsWith("/api")) {
+    return next();
+  }
+  if (req.accepts("html")) {
+    res.sendFile(path.join(clientDist, "index.html"));
+    return;
+  }
+  next();
+});
+
+export default app;
