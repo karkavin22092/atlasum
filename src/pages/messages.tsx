@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { MessageCircle, Send, UserRound } from "lucide-react";
 import { BackButton, Badge, Button, GlassCard, Panel, TitleBlock } from "@/components/ui";
-import { getConversation, getLatestMessage, sendMessage, subscribeToMessages, type ChatMessage } from "@/lib/chat";
+import { getConversation, getLatestMessage, sendMessage, type ChatMessage } from "@/lib/chat";
 import { useAuth } from "@/lib/auth";
 import type { AppPageProps } from "./types";
 
@@ -23,6 +23,7 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
+  const [isSending, setIsSending] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -30,24 +31,43 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
       setMessages([]);
       return;
     }
-    const refresh = () => setMessages(getConversation(currentProfileId, recipientId));
-    refresh();
-    return subscribeToMessages(refresh);
+    let active = true;
+    const refresh = async () => {
+      try {
+        const nextMessages = await getConversation(currentProfileId, recipientId);
+        if (active) {
+          setMessages(nextMessages);
+          setError("");
+        }
+      } catch (caught) {
+        if (active) setError(caught instanceof Error ? caught.message : "Не удалось получить сообщения");
+      }
+    };
+    void refresh();
+    const interval = window.setInterval(() => void refresh(), 5_000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
   }, [currentProfileId, recipientId, user]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!recipient) return;
     setError("");
+    setIsSending(true);
     try {
-      sendMessage(currentProfileId, recipient.id, draft);
+      const message = await sendMessage(currentProfileId, recipient.id, draft);
+      setMessages((current) => [...current.filter((item) => item.id !== message.id), message]);
       setDraft("");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Не удалось отправить сообщение");
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -139,7 +159,7 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
                       event.currentTarget.form?.requestSubmit();
                     }
                   }} maxLength={1000} rows={1} className="max-h-32 min-h-11 flex-1 resize-none bg-transparent py-2 text-sm text-white outline-none" placeholder="Напишите сообщение..." />
-                  <Button type="submit" disabled={!draft.trim()} className="h-11 w-11 px-0" aria-label="Отправить сообщение"><Send className="h-4 w-4" /></Button>
+                  <Button type="submit" disabled={!draft.trim() || isSending} className="h-11 w-11 px-0" aria-label="Отправить сообщение"><Send className="h-4 w-4" /></Button>
                 </div>
                 <div className="mt-2 text-right text-xs text-slate-500">{draft.length}/1000</div>
               </form>
