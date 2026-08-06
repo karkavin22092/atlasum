@@ -119,7 +119,7 @@ export const Badge = ({
   };
 
   return (
-    <span className={cn("inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium", tones[tone], className)}>
+    <span className={cn("theme-badge inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium", `theme-badge-${tone}`, tones[tone], className)}>
       {children}
     </span>
   );
