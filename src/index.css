@@ -41,13 +41,35 @@ html,
 body,
 #root {
   min-height: 100%;
+  max-width: 100%;
 }
 
 body {
   margin: 0;
+  overflow-x: hidden;
   background: var(--page-bg);
   color: var(--page-text);
   transition: background-color 240ms ease, color 240ms ease;
+}
+
+main,
+.theme-shell {
+  min-width: 0;
+}
+
+img,
+svg {
+  max-width: 100%;
+}
+
+@media (max-width: 639px) {
+  h1,
+  h2,
+  p,
+  button,
+  a {
+    overflow-wrap: anywhere;
+  }
 }
 
 .theme-shell {

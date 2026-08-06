@@ -26,6 +26,23 @@ export type SiteNotification = {
   readAt: string | null;
 };
 
+export type BugCooldown = {
+  remainingSeconds: number;
+  nextAllowedAt: string | null;
+};
+
+export class BugRequestError extends Error {
+  remainingSeconds: number;
+  nextAllowedAt: string | null;
+
+  constructor(message: string, remainingSeconds = 0, nextAllowedAt: string | null = null) {
+    super(message);
+    this.name = "BugRequestError";
+    this.remainingSeconds = remainingSeconds;
+    this.nextAllowedAt = nextAllowedAt;
+  }
+}
+
 const requestBugs = async <T,>(path: string, authToken: string, init?: RequestInit) => {
   const response = await fetch(`/.netlify/functions/bugs${path}`, {
     headers: {
@@ -35,13 +52,26 @@ const requestBugs = async <T,>(path: string, authToken: string, init?: RequestIn
     },
     ...init,
   });
-  const result = await response.json().catch(() => ({})) as T & { error?: string };
-  if (!response.ok) throw new Error(result.error ?? "Сервис обращений временно недоступен");
+  const result = await response.json().catch(() => ({})) as T & {
+    error?: string;
+    remainingSeconds?: number;
+    nextAllowedAt?: string | null;
+  };
+  if (!response.ok) {
+    throw new BugRequestError(
+      result.error ?? "Сервис обращений временно недоступен",
+      result.remainingSeconds,
+      result.nextAllowedAt,
+    );
+  }
   return result;
 };
 
 export const reportBug = (payload: { reporterId: string; title: string; description: string; pageUrl: string }, authToken: string) =>
-  requestBugs<BugReport>("", authToken, { method: "POST", body: JSON.stringify(payload) });
+  requestBugs<BugReport & { nextAllowedAt: string }>("", authToken, { method: "POST", body: JSON.stringify(payload) });
+
+export const getBugReportCooldown = (userId: string, authToken: string) =>
+  requestBugs<BugCooldown>(`?userId=${encodeURIComponent(userId)}&cooldown=1`, authToken);
 
 export const getBugReports = (adminId: string, authToken: string) =>
   requestBugs<BugReport[]>(`?adminId=${encodeURIComponent(adminId)}`, authToken);

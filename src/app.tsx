@@ -42,7 +42,7 @@ type AppMeta = DashboardMeta & {
     lastSeenAt: string | null;
   }>;
   activity: Array<{ date: string; attempts: number; correct: number; xp: number }>;
-  topicProgress: Array<{ key: string; title: string; description: string; source: string; color: string; mastery: number; answered: number }>;
+  topicProgress: Array<{ key: string; title: string; description: string; source: string; color: string; subject?: "it-design" | "management"; mastery: number; answered: number }>;
   attempts: Array<{
     id: string;
     mode: string;
@@ -166,20 +166,20 @@ const AppShell = ({ children }: { children: ReactNode }) => {
 
       <header className="theme-header sticky top-0 z-40 border-b backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
-          <Link to="/" className="flex items-center gap-3 transition hover:opacity-90">
-            <div className="theme-brand-mark flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400 via-sky-500 to-violet-500 shadow-glow">
+          <Link to="/" className="flex min-w-0 items-center gap-2.5 transition hover:opacity-90 sm:gap-3">
+            <div className="theme-brand-mark flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400 via-sky-500 to-violet-500 shadow-glow sm:h-11 sm:w-11">
               <Sparkles className="h-5 w-5 text-white" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-semibold uppercase tracking-[0.25em] text-cyan-200/80">Design tests</span>
+                <span className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-200/80 sm:tracking-[0.25em]">Examora</span>
                 <span className="app-version rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-bold tracking-normal text-cyan-200">{APP_VERSION}</span>
               </div>
-              <div className="text-xs text-slate-400">Информационные технологии и компьютерная графика</div>
+              <div className="hidden truncate text-xs text-slate-400 sm:block">ИТ, компьютерная графика и менеджмент</div>
             </div>
           </Link>
 
-          <div className="hidden items-center gap-2 md:flex">
+          <div className="hidden items-center gap-2 xl:flex">
             {user ? (
               <Link to="/messages" className="glass relative inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm text-slate-200 transition hover:bg-white/10">
                 <MessageCircle className="h-4 w-4 text-cyan-300" />
@@ -204,7 +204,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
                 {unreadNotificationCount ? <span className="message-unread-badge absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none">{badgeLabel(unreadNotificationCount)}</span> : null}
               </Link>
             ) : null}
-            {user ? (
+            {user && !admin ? (
               <Link to="/report-bug" state={{ sourcePage }} className="glass inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm text-slate-200 transition hover:bg-white/10">
                 <Send className="h-4 w-4 text-cyan-300" />Сообщить о баге
               </Link>
@@ -237,17 +237,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             </button>
           </div>
 
-          <div className="flex items-center gap-2 md:hidden">
-            {user ? (
-              <Link to="/messages" aria-label={unreadMessageCount ? `Сообщения, новых: ${unreadMessageCount}` : "Сообщения"} className="glass relative inline-flex h-10 w-10 items-center justify-center rounded-full">
-                <MessageCircle className="h-4 w-4 text-cyan-300" />
-                {unreadMessageCount ? (
-                  <span className="message-unread-badge absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full border-2 border-slate-950 bg-rose-500 px-1 text-[10px] font-bold leading-none shadow-[0_0_12px_rgba(244,63,94,0.7)]">
-                    {unreadLabel}
-                  </span>
-                ) : null}
-              </Link>
-            ) : null}
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2 xl:hidden">
             <Link to="/leaderboard" aria-label="Рейтинг" className="glass inline-flex h-10 w-10 items-center justify-center rounded-full">
               <Trophy className="h-4 w-4 text-amber-300" />
             </Link>
@@ -272,7 +262,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 pb-28 pt-6 sm:px-6 md:pb-14 lg:px-8">
+      <main className="mx-auto max-w-7xl px-3 pb-28 pt-4 sm:px-6 sm:pt-6 xl:pb-14 lg:px-8">
         {metaQuery.isLoading ? (
           <div className="mb-4 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-50">
             Загружаю базу вопросов...
@@ -301,7 +291,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
       </main>
 
       {user ? (
-        <nav className="glass-strong fixed inset-x-3 bottom-3 z-50 flex items-center justify-around rounded-3xl px-2 py-2 md:hidden" aria-label="Быстрые действия">
+        <nav className="glass-strong fixed inset-x-2 bottom-2 z-50 flex items-center justify-around rounded-3xl px-1 py-1.5 sm:inset-x-3 sm:bottom-3 sm:px-2 sm:py-2 xl:hidden" aria-label="Быстрые действия">
           <Link to="/messages" className="relative grid min-w-14 place-items-center gap-1 rounded-2xl px-2 py-2 text-[10px] text-slate-300">
             <MessageCircle className="h-5 w-5 text-cyan-300" /><span>Чаты</span>
             {unreadMessageCount ? <span className="message-unread-badge absolute right-1 top-0 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold">{unreadLabel}</span> : null}
@@ -312,12 +302,17 @@ const AppShell = ({ children }: { children: ReactNode }) => {
               {unreadBugCount ? <span className="message-unread-badge absolute right-1 top-0 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold">{badgeLabel(unreadBugCount)}</span> : null}
             </Link>
           ) : null}
-          <Link to="/notifications" className="relative grid min-w-14 place-items-center gap-1 rounded-2xl px-2 py-2 text-[10px] text-slate-300">
+          <Link to="/notifications" className="relative grid min-w-12 place-items-center gap-1 rounded-2xl px-1 py-2 text-[10px] text-slate-300 sm:min-w-14 sm:px-2">
             <Bell className="h-5 w-5 text-cyan-300" /><span>События</span>
             {unreadNotificationCount ? <span className="message-unread-badge absolute right-1 top-0 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold">{badgeLabel(unreadNotificationCount)}</span> : null}
           </Link>
-          <Link to="/report-bug" state={{ sourcePage }} className="grid min-w-14 place-items-center gap-1 rounded-2xl px-2 py-2 text-[10px] text-slate-300">
-            <Send className="h-5 w-5 text-amber-300" /><span>Сообщить</span>
+          {!admin ? (
+            <Link to="/report-bug" state={{ sourcePage }} className="grid min-w-12 place-items-center gap-1 rounded-2xl px-1 py-2 text-[10px] text-slate-300 sm:min-w-14 sm:px-2">
+              <Send className="h-5 w-5 text-amber-300" /><span>Сообщить</span>
+            </Link>
+          ) : null}
+          <Link to="/leaderboard" className="grid min-w-12 place-items-center gap-1 rounded-2xl px-1 py-2 text-[10px] text-slate-300 sm:min-w-14 sm:px-2">
+            <Trophy className="h-5 w-5 text-amber-300" /><span>Рейтинг</span>
           </Link>
         </nav>
       ) : null}

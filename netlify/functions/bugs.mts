@@ -37,9 +37,17 @@ type RewardableLeaderboardEntry = {
   [key: string]: unknown;
 };
 
+type BugSubmissionLimit = {
+  reporterId: string;
+  lastSubmittedAt: string;
+  nextAllowedAt: string;
+};
+
 const ADMIN_ID = "lonexnesss";
 const BUG_REWARD_XP = 200;
+const BUG_REPORT_COOLDOWN_MS = 30 * 60 * 1000;
 const bugsStore = () => getStore({ name: "design-tests-bugs", consistency: "strong" });
+const bugLimitsStore = () => getStore({ name: "design-tests-bug-limits", consistency: "strong" });
 const notificationsStore = () => getStore({ name: "design-tests-notifications", consistency: "strong" });
 const leaderboardStore = () => getStore({ name: "design-tests-leaderboard", consistency: "strong" });
 const sessionsStore = () => getStore({ name: "design-tests-auth-sessions", consistency: "strong" });
@@ -71,6 +79,43 @@ const getLeaderboardUser = async (userId: string) => {
 };
 
 const requireAdmin = async (userId: string) => userId === ADMIN_ID && Boolean(await getLeaderboardUser(userId));
+
+const cooldownState = (limit: BugSubmissionLimit | null) => {
+  const nextAllowedAtMs = limit?.nextAllowedAt ? Date.parse(limit.nextAllowedAt) : 0;
+  const remainingSeconds = Math.max(0, Math.ceil((nextAllowedAtMs - Date.now()) / 1000));
+  return {
+    remainingSeconds,
+    nextAllowedAt: remainingSeconds > 0 && limit ? limit.nextAllowedAt : null,
+  };
+};
+
+const getBugCooldown = async (reporterId: string) => {
+  const limit = await bugLimitsStore().get(reporterId, { type: "json", consistency: "strong" }) as BugSubmissionLimit | null;
+  return cooldownState(limit);
+};
+
+const reserveBugSubmission = async (reporterId: string) => {
+  const store = bugLimitsStore();
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const stored = await store.getWithMetadata(reporterId, { type: "json", consistency: "strong" });
+    const current = cooldownState((stored?.data as BugSubmissionLimit | null) ?? null);
+    if (current.remainingSeconds > 0) return { allowed: false, ...current };
+
+    const now = new Date();
+    const limit: BugSubmissionLimit = {
+      reporterId,
+      lastSubmittedAt: now.toISOString(),
+      nextAllowedAt: new Date(now.getTime() + BUG_REPORT_COOLDOWN_MS).toISOString(),
+    };
+    const result = stored?.etag
+      ? await store.setJSON(reporterId, limit, { onlyIfMatch: stored.etag })
+      : await store.setJSON(reporterId, limit, { onlyIfNew: true });
+    if (result.modified) {
+      return { allowed: true, remainingSeconds: Math.ceil(BUG_REPORT_COOLDOWN_MS / 1000), nextAllowedAt: limit.nextAllowedAt };
+    }
+  }
+  throw new Error("Не удалось проверить интервал отправки обращения");
+};
 
 const listReports = async () => {
   const store = bugsStore();
@@ -153,10 +198,12 @@ export default async (request: Request) => {
       const userId = cleanUserId(url.searchParams.get("userId"));
       const adminId = cleanUserId(url.searchParams.get("adminId"));
       const summary = url.searchParams.get("summary") === "1";
+      const cooldown = url.searchParams.get("cooldown") === "1";
 
       if (userId) {
         if (sessionUserId !== userId) return jsonError("Нет доступа к чужим уведомлениям", 403);
         if (!await getLeaderboardUser(userId)) return jsonError("Пользователь не найден", 403);
+        if (cooldown) return Response.json(await getBugCooldown(userId));
         const notifications = await listNotifications(userId);
         return summary
           ? Response.json({ count: notifications.filter((item) => !item.readAt).length })
@@ -174,6 +221,7 @@ export default async (request: Request) => {
       const payload = await request.json() as { reporterId?: string; title?: string; description?: string; pageUrl?: string };
       const reporterId = cleanUserId(payload.reporterId);
       if (sessionUserId !== reporterId) return jsonError("Нельзя отправить обращение от имени другого пользователя", 403);
+      if (reporterId === ADMIN_ID) return jsonError("Администратор принимает обращения и не создаёт заявки", 403);
       const reporter = await getLeaderboardUser(reporterId);
       if (!reporter) return jsonError("Войдите в аккаунт перед отправкой обращения", 403);
       const title = String(payload.title ?? "").trim().slice(0, 120);
@@ -181,6 +229,19 @@ export default async (request: Request) => {
       const pageUrl = String(payload.pageUrl ?? "").trim().slice(0, 500);
       if (title.length < 5) return jsonError("Кратко назовите проблему", 400);
       if (description.length < 15) return jsonError("Опишите проблему подробнее", 400);
+
+      const reservation = await reserveBugSubmission(reporterId);
+      if (!reservation.allowed) {
+        const minutes = Math.max(1, Math.ceil(reservation.remainingSeconds / 60));
+        return Response.json({
+          error: `Новую заявку можно отправить через ${minutes} мин.`,
+          remainingSeconds: reservation.remainingSeconds,
+          nextAllowedAt: reservation.nextAllowedAt,
+        }, {
+          status: 429,
+          headers: { "Retry-After": String(reservation.remainingSeconds) },
+        });
+      }
 
       const report: BugReport = {
         id: crypto.randomUUID(),
@@ -198,7 +259,7 @@ export default async (request: Request) => {
         rewardedAt: null,
       };
       await bugsStore().setJSON(report.id, report, { onlyIfNew: true });
-      return Response.json(report, { status: 201 });
+      return Response.json({ ...report, nextAllowedAt: reservation.nextAllowedAt }, { status: 201 });
     }
 
     if (request.method === "PATCH") {

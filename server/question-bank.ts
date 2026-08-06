@@ -174,7 +174,10 @@ export const generateQuestionBank = (): Question[] => {
       const serial = String(index + 1).padStart(2, "0");
       const id = `q-${topic.key}-${serial}`;
       const seed = `${topic.key}:${id}`;
-      const promptVariant = Math.floor(index / QUESTION_TYPE_CYCLE.length) % 5;
+      const promptVariant = Array.from({ length: index }, (_, previousIndex) => previousIndex)
+        .filter((previousIndex) => QUESTION_TYPE_CYCLE[previousIndex % QUESTION_TYPE_CYCLE.length] === template
+          && (["sequence", "matching"].includes(template) || previousIndex % concepts.length === index % concepts.length))
+        .length % (["single", "multiple", "trueFalse", "scenario"].includes(template) ? 6 : 5);
       const otherConcepts = concepts.filter((item) => item.term !== concept.term);
       const commonTags = [
         topic.key,
@@ -199,6 +202,7 @@ export const generateQuestionBank = (): Question[] => {
             `Что означает понятие «${concept.term}»?`,
             `Как следует понимать термин «${concept.term}»?`,
             `Какова точная характеристика понятия «${concept.term}»?`,
+            `Какое утверждение наиболее точно раскрывает понятие «${concept.term}»?`,
           ];
           question = {
             id,
@@ -247,6 +251,7 @@ export const generateQuestionBank = (): Question[] => {
               `Какие формулировки правильно раскрывают термин «${concept.term}»?`,
               `Какие утверждения точно относятся к термину «${concept.term}»?`,
               `Что можно верно сказать о понятии «${concept.term}»?`,
+              `Какие два утверждения корректно описывают понятие «${concept.term}»?`,
             ][promptVariant],
             options,
             correct: options.filter((option) => option.isCorrect).map((option) => option.id),
@@ -277,6 +282,7 @@ export const generateQuestionBank = (): Question[] => {
               `Соответствует ли истине утверждение: «${statement}»?`,
               `Правильно ли дано определение: «${statement}»?`,
               `Можно ли считать верным утверждение: «${statement}»?`,
+              `Верно ли определено понятие в утверждении: «${statement}»?`,
             ][promptVariant],
             options,
             correct: isTrue,
@@ -337,6 +343,7 @@ export const generateQuestionBank = (): Question[] => {
               `${scenarioClue} Как называется показанное здесь понятие?`,
               `${scenarioClue} Какое понятие иллюстрирует этот пример?`,
               `${scenarioClue} Какой термин следует применить к этой ситуации?`,
+              `${scenarioClue} Как называется соответствующее этой ситуации понятие?`,
             ][promptVariant],
             options,
             correct: getCorrectOptionId(options),
@@ -437,15 +444,15 @@ export const validateQuestionBank = (questions: Question[]) => {
   }
 
   const ids = new Set<string>();
-  const prompts = new Set<string>();
+  const prompts = new Map<string, string>();
 
   for (const question of questions) {
     requireValid(!ids.has(question.id), question.id, "идентификатор должен быть уникальным");
-    requireValid(!prompts.has(question.question), question.id, "текст вопроса должен быть уникальным");
+    requireValid(!prompts.has(question.question), question.id, `текст вопроса должен быть уникальным; совпадает с ${prompts.get(question.question) ?? "неизвестным вопросом"}`);
     requireValid(!/Раздел «.+», вариант \d+/iu.test(question.question), question.id, "в тексте осталась служебная приписка");
     requireValid(question.question.trim().endsWith("?"), question.id, "текст должен содержать только вопрос");
     ids.add(question.id);
-    prompts.add(question.question);
+    prompts.set(question.question, question.id);
 
     const topic = topicCatalog.find((item) => item.title === question.topic);
     requireValid(Boolean(topic), question.id, "неизвестная тема");
@@ -662,6 +669,34 @@ export const getCorrectAnswerPreview = (question: Question) => {
       return (question.correct as SequenceQuestion).correctOrder;
     default:
       return "";
+  }
+};
+
+export const getUserAnswerPreview = (question: Question, answer: unknown): unknown => {
+  switch (question.type) {
+    case "single":
+    case "scenario":
+    case "imageChoice":
+      return question.options.find((option) => option.id === String(answer))?.text ?? String(answer ?? "");
+    case "trueFalse":
+      return answer === true ? "Верно" : answer === false ? "Неверно" : "Нет ответа";
+    case "multiple": {
+      const selectedIds = Array.isArray(answer) ? answer.map(String) : [];
+      return selectedIds.map((id) => question.options.find((option) => option.id === id)?.text ?? id);
+    }
+    case "fill":
+      return String(answer ?? "");
+    case "matching":
+      return Array.isArray(answer)
+        ? answer.map((item) => {
+            const pair = item as Partial<MatchingItem>;
+            return `${pair.left ?? ""} → ${pair.right ?? ""}`;
+          })
+        : [];
+    case "sequence":
+      return Array.isArray(answer) ? answer.map(String) : [];
+    default:
+      return answer;
   }
 };
 

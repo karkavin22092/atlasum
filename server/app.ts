@@ -10,6 +10,7 @@ import {
   createRandom,
   evaluateQuestion,
   getCorrectAnswerPreview,
+  getUserAnswerPreview,
   getTopicByTitle,
   normalizeText,
   shuffle,
@@ -22,6 +23,7 @@ import type {
   Profile,
   ProfileStats,
   Question,
+  SubjectId,
   SubmissionResponse,
 } from "@shared/types";
 import { sanitizeQuestionText } from "@shared/question-text";
@@ -323,12 +325,14 @@ const selectQuestions = async ({
   mode,
   count,
   topic,
+  subject,
   questionType,
 }: {
   profileId: string;
   mode: string;
   count: number;
   topic?: string | null;
+  subject?: SubjectId;
   questionType?: Question["type"];
 }) => {
   const questions = await prisma.question.findMany({
@@ -339,6 +343,11 @@ const selectQuestions = async ({
 
   let pool = questions;
 
+  if (subject) {
+    const subjectTopics = new Set(dashboardMeta.topics.filter((item) => item.subject === subject).map((item) => item.title));
+    pool = pool.filter((item) => subjectTopics.has(item.topic));
+  }
+
   if (topic) {
     pool = pool.filter((item) => item.topic === topic);
   }
@@ -346,6 +355,8 @@ const selectQuestions = async ({
   if (questionType) {
     pool = pool.filter((item) => item.type === questionType);
   }
+
+  const basePool = pool;
 
   if (mode === "mistakes") {
     const mistakeItems = await prisma.attemptItem.findMany({
@@ -408,7 +419,7 @@ const selectQuestions = async ({
   }
 
   if (pool.length === 0) {
-    pool = questions;
+    pool = basePool;
   }
 
   const sizedPool = [...pool];
@@ -748,6 +759,7 @@ app.post("/api/tests/generate", async (req, res) => {
     mode?: string;
     count?: number;
     topic?: string | null;
+    subject?: SubjectId;
     questionType?: Question["type"];
   };
 
@@ -758,6 +770,7 @@ app.post("/api/tests/generate", async (req, res) => {
     mode: body.mode ?? "practice",
     count,
     topic: body.topic ?? null,
+    subject: body.subject,
     questionType: body.questionType,
   });
 
@@ -820,7 +833,7 @@ app.post("/api/tests/submit", async (req, res) => {
       difficulty: question.difficulty,
       type: question.type,
       isCorrect: evaluation.isCorrect,
-      userAnswer: entry.answer,
+      userAnswer: getUserAnswerPreview(question, entry.answer),
       correctAnswer: getCorrectAnswerPreview(question),
       explanation: question.explanation,
       whyWrong: evaluation.whyWrong,

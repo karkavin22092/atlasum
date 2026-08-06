@@ -1,4 +1,5 @@
 import type { DashboardMeta, GameId, QuizMode, TopicMeta } from "@shared/types";
+import { managementTopicCatalog } from "./management-content";
 
 export type TopicConcept = {
   term: string;
@@ -17,7 +18,7 @@ export type TopicBlueprint = TopicMeta & {
 
 const makeTopic = (topic: TopicBlueprint) => topic;
 
-export const topicCatalog = [
+const technologyTopicCatalog = [
   makeTopic({
     key: "information",
     title: "Информация",
@@ -1402,15 +1403,20 @@ export const topicCatalog = [
   }),
 ] satisfies TopicBlueprint[];
 
+export const topicCatalog: TopicBlueprint[] = [
+  ...technologyTopicCatalog.map((topic) => ({ ...topic, subject: "it-design" as const })),
+  ...managementTopicCatalog,
+];
+
 export const dashboardMeta: DashboardMeta = {
   topics: topicCatalog.map(({ concepts, process, imageSet, ...topic }) => topic),
   modes: [
     { key: "practice", title: "Свободная практика", description: "Любые вопросы с гибкой настройкой." },
-    { key: "exam", title: "Экзамен", description: "30 уникальных случайных вопросов из всех тем." },
+    { key: "exam", title: "Экзамен", description: "30 уникальных вопросов по выбранной дисциплине." },
     { key: "hardOnly", title: "Только сложные", description: "Фокус на вопросах с низкой точностью." },
     { key: "mistakes", title: "Только мои ошибки", description: "Вопросы, где вы чаще ошибались." },
     { key: "topic", title: "По теме", description: "Тренировка по конкретному разделу." },
-    { key: "random", title: "Случайные вопросы", description: "Смешанный набор из всей базы." },
+    { key: "random", title: "Случайные вопросы", description: "Смешанный набор из тем выбранной дисциплины." },
     { key: "review", title: "Повторение", description: "Вопросы, которым пора появиться снова." },
   ] satisfies Array<{ key: QuizMode; title: string; description: string }>,
   games: [
@@ -1426,4 +1432,3 @@ export const dashboardMeta: DashboardMeta = {
     { key: "blitz", title: "Блиц", description: "20 секунд на каждый вопрос." },
   ],
 };
-

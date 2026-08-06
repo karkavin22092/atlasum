@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { useNavigate, useParams, Link } from "react-router-dom";
+import { useNavigate, useParams, Link, useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { BackButton, Badge, Button, GlassCard, Panel, ProgressBar, TitleBlock } from "@/components/ui";
 import { QuestionRenderer, type AnswerValue } from "@/components/question-renderer";
@@ -9,26 +9,43 @@ import { shuffleArray, formatDuration } from "@/lib/utils";
 import { hasAnswer } from "@/lib/answers";
 import { ArrowLeft, ArrowRight, Shuffle, TimerReset, Trophy, RotateCcw, WandSparkles } from "lucide-react";
 import type { AppPageProps } from "./types";
-import type { GeneratedTest, QuestionType, SubmissionResponse } from "@shared/types";
+import type { FillQuestion, GeneratedTest, Question, QuestionType, SequenceQuestion, SubmissionResponse } from "@shared/types";
 
 const GAME_LABELS: Record<string, { title: string; mode: string; duration: number; questions: number; subtitle: string; questionType?: QuestionType }> = {
-  cards: { title: "Карточки", mode: "practice", duration: 0, questions: 12, subtitle: "Переворот терминов и определений." },
+  cards: { title: "Карточки", mode: "practice", duration: 0, questions: 12, subtitle: "Переворот терминов и определений.", questionType: "single" },
   speed: { title: "Кто быстрее", mode: "random", duration: 60_000, questions: 20, subtitle: "Максимум ответов за 60 секунд." },
   millionaire: { title: "Миллионер", mode: "random", duration: 0, questions: 15, subtitle: "15 вопросов с подсказками." },
   wheel: { title: "Колесо тем", mode: "random", duration: 0, questions: 8, subtitle: "Случайная тема и быстрый старт." },
-  matching: { title: "Собери соответствия", mode: "topic", duration: 0, questions: 10, subtitle: "Соедините понятия и определения." },
+  matching: { title: "Собери соответствия", mode: "topic", duration: 0, questions: 10, subtitle: "Соедините понятия и определения.", questionType: "matching" },
   truth: { title: "Правда или ложь", mode: "random", duration: 30_000, questions: 18, subtitle: "Молниеносные верно/неверно.", questionType: "trueFalse" },
   puzzle: { title: "Пазл знаний", mode: "random", duration: 0, questions: 9, subtitle: "Правильные ответы открывают изображение." },
-  memory: { title: "Memory", mode: "topic", duration: 0, questions: 8, subtitle: "Найдите пары терминов и определений." },
-  timeline: { title: "Хронология", mode: "topic", duration: 0, questions: 6, subtitle: "Соберите этапы жизненного цикла." },
+  memory: { title: "Memory", mode: "topic", duration: 0, questions: 8, subtitle: "Найдите пары терминов и определений.", questionType: "single" },
+  timeline: { title: "Хронология", mode: "topic", duration: 0, questions: 6, subtitle: "Соберите этапы процесса.", questionType: "sequence" },
   blitz: { title: "Блиц", mode: "random", duration: 20_000, questions: 10, subtitle: "20 секунд на вопрос." },
+};
+
+const correctAnswerText = (question: Question) => {
+  if (["single", "scenario", "imageChoice"].includes(question.type)) {
+    return question.options.find((option) => option.id === question.correct)?.text ?? "";
+  }
+  if (question.type === "trueFalse") return question.correct ? "Верно" : "Неверно";
+  if (question.type === "multiple") {
+    const ids = Array.isArray(question.correct) ? question.correct : [];
+    return question.options.filter((option) => ids.includes(option.id)).map((option) => option.text).join("; ");
+  }
+  if (question.type === "fill") return (question.correct as FillQuestion).answer;
+  if (question.type === "sequence") return (question.correct as SequenceQuestion).correctOrder.join(" → ");
+  return question.explanation;
 };
 
 export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
   const params = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const gameId = params.gameId ?? "cards";
   const game = GAME_LABELS[gameId] ?? GAME_LABELS.cards;
+  const subject = searchParams.get("subject") === "management" ? "management" : "it-design";
+  const subjectTopics = meta?.topics.filter((topic) => topic.subject === subject) ?? [];
 
   const [deck, setDeck] = useState<GeneratedTest | null>(null);
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
@@ -52,6 +69,7 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
         profileName,
         mode: game.mode,
         count: game.questions,
+        subject,
         topic: selectedTopic,
         questionType: game.questionType,
       }),
@@ -76,7 +94,7 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
   useEffect(() => {
     generateMutation.mutate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameId, profileName, selectedTopic]);
+  }, [gameId, profileName, selectedTopic, subject]);
 
   useEffect(() => {
     if (!game.duration || submitted) return;
@@ -133,31 +151,26 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
   };
 
   useEffect(() => {
-    if (isAbandoning) navigate("/games");
-  }, [isAbandoning, navigate]);
+    if (isAbandoning) navigate(`/games?subject=${subject}`);
+  }, [isAbandoning, navigate, subject]);
 
   const gameBody = useMemo(() => {
     if (!current || submitted) return null;
 
     if (gameId === "cards") {
-      const correctPreview =
-        typeof current.correct === "object"
-          ? JSON.stringify(current.correct, null, 2)
-          : Array.isArray(current.correct)
-            ? current.correct.join(", ")
-            : String(current.correct);
+      const correctPreview = correctAnswerText(current);
       return (
-        <GlassCard className="min-h-[460px] p-0">
+        <GlassCard className="min-h-[320px] p-0 sm:min-h-[460px]">
           <button
             type="button"
-            className="flex min-h-[460px] w-full flex-col items-center justify-center gap-4 rounded-3xl bg-gradient-to-br from-slate-950/80 via-slate-900/90 to-slate-950 p-8 text-center transition hover:scale-[1.01]"
+            className="flex min-h-[320px] w-full flex-col items-center justify-center gap-4 rounded-3xl bg-gradient-to-br from-slate-950/80 via-slate-900/90 to-slate-950 p-5 text-center transition hover:scale-[1.01] sm:min-h-[460px] sm:p-8"
             onClick={() => setFlipped((value) => !value)}
           >
             <div className="text-xs uppercase tracking-[0.32em] text-cyan-200/80">Карточка</div>
-            <div className="max-w-2xl whitespace-pre-wrap text-3xl font-semibold leading-tight text-white">
+            <div className="max-w-2xl whitespace-pre-wrap text-2xl font-semibold leading-tight text-white sm:text-3xl">
               {flipped ? correctPreview : current.question}
             </div>
-            <div className="text-sm text-slate-400">{flipped ? "Нажмите, чтобы увидеть термин" : "Нажмите, чтобы перевернуть"}</div>
+            <div className="text-sm text-slate-400">{flipped ? "Нажмите, чтобы вернуться к вопросу" : "Нажмите, чтобы перевернуть"}</div>
           </button>
         </GlassCard>
       );
@@ -222,7 +235,7 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
           eyebrow="Игра завершена"
           title={game.title}
           description="Результат игры записан в статистику и учитывается в прогрессе."
-          right={<Link to="/games"><Button variant="secondary">Назад к играм</Button></Link>}
+          right={<Link to={`/games?subject=${subject}`}><Button variant="secondary">Назад к играм</Button></Link>}
         />
         <Panel>
           <div className="grid gap-4 md:grid-cols-3">
@@ -265,11 +278,11 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
         description={game.subtitle}
         right={
           <div className="flex flex-wrap gap-2">
-            <BackButton to="/games" />
+            <BackButton to={`/games?subject=${subject}`} />
             {gameId === "wheel" ? (
               <Button variant="secondary" onClick={() => {
                 if (!confirmDiscardAttempt(hasActiveAttempt)) return;
-                const topic = meta?.topics[Math.floor(Math.random() * meta.topics.length)]?.title ?? null;
+                const topic = subjectTopics[Math.floor(Math.random() * subjectTopics.length)]?.title ?? null;
                 setSelectedTopic(topic);
                 setWheelSpin((value) => value + 720);
               }}>
@@ -355,7 +368,7 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
             {shuffleArray(
               questions.slice(0, 8).flatMap((question) => [
                 { key: `${question.id}-term`, text: question.question },
-                { key: `${question.id}-def`, text: Array.isArray(question.correct) ? question.correct.join(", ") : String(question.correct) },
+                { key: `${question.id}-def`, text: correctAnswerText(question) },
               ]),
               gameId,
             ).map((card) => (

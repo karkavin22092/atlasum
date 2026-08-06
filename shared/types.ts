@@ -1,4 +1,5 @@
 export type Difficulty = "easy" | "medium" | "hard";
+export type SubjectId = "it-design" | "management";
 
 export type QuestionType =
   | "single"
@@ -112,6 +113,7 @@ export type TopicMeta = {
   description: string;
   source: string;
   color: string;
+  subject?: SubjectId;
 };
 
 export type DashboardMeta = {

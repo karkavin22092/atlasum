@@ -6,6 +6,7 @@ import type {
   ProfileStats,
   Question,
   QuestionType,
+  SubjectId,
   SubmissionResponse,
 } from "@shared/types";
 import { localApi } from "./local-api";
@@ -55,12 +56,12 @@ export const api = {
     };
     leaderboard: Array<{ rank: number; id: string; name: string; xp: number; level: number; streak: number; bestStreak: number; attempts: number; accuracy: number; lastActiveAt: string | null; lastSeenAt: string | null }>;
     activity: Array<{ date: string; attempts: number; correct: number; xp: number }>;
-    topicProgress: Array<{ key: string; title: string; description: string; source: string; color: string; mastery: number; answered: number }>;
+    topicProgress: Array<{ key: string; title: string; description: string; source: string; color: string; subject?: SubjectId; mastery: number; answered: number }>;
     attempts: Array<{ id: string; mode: string; count: number; score: number; maxScore: number; percent: number; grade: string; durationMs: number; topic: string | null; createdAt: string; items: Array<{ questionId: string; topic: string; difficulty: string; isCorrect: boolean; userAnswer: unknown; correctAnswer: unknown; explanation: string }>; }>;
     achievements: Array<{ key: string; title: string; description: string; icon: string; unlockedAt: string }>;
     questionBank: { total: number; topics: Array<{ key: string; title: string; questions: number }> };
   }>(`/api/meta?profileName=${encodeURIComponent(profileName)}`), () => localApi.meta(profileName)),
-  generateTest: (payload: { profileName: string; mode: string; count: number; topic?: string | null; questionType?: QuestionType }) =>
+  generateTest: (payload: { profileName: string; mode: string; count: number; topic?: string | null; subject?: SubjectId; questionType?: QuestionType }) =>
     withLocalFallback(() => request<GeneratedTest>("/api/tests/generate", {
       method: "POST",
       body: JSON.stringify(payload),

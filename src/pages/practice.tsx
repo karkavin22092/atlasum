@@ -10,7 +10,7 @@ import { hasAnswer } from "@/lib/answers";
 import { ArrowLeft, ArrowRight, RefreshCcw, Shuffle, Sparkles } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import type { AppPageProps } from "./types";
-import type { GeneratedTest, SubmissionResponse } from "@shared/types";
+import type { GeneratedTest, SubjectId, SubmissionResponse } from "@shared/types";
 
 const COUNT_OPTIONS = [10, 20, 30, 50, 100];
 
@@ -19,6 +19,7 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedMode, setSelectedMode] = useState(searchParams.get("mode") ?? "practice");
   const [selectedCount, setSelectedCount] = useState(Number(searchParams.get("count") ?? 10));
+  const [selectedSubject, setSelectedSubject] = useState<SubjectId>(searchParams.get("subject") === "management" ? "management" : "it-design");
   const [selectedTopic, setSelectedTopic] = useState(searchParams.get("topic") ?? "");
   const [test, setTest] = useState<GeneratedTest | null>(null);
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
@@ -32,6 +33,7 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
         profileName,
         mode: selectedMode,
         count: selectedMode === "exam" ? 30 : selectedCount,
+        subject: selectedSubject,
         topic: selectedTopic || null,
       }),
     onSuccess: (value) => {
@@ -58,18 +60,19 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
       (params) => {
         params.set("mode", selectedMode);
         params.set("count", String(selectedCount));
+        params.set("subject", selectedSubject);
         if (selectedTopic) params.set("topic", selectedTopic);
         else params.delete("topic");
         return params;
       },
       { replace: true },
     );
-  }, [selectedCount, selectedMode, selectedTopic, setSearchParams]);
+  }, [selectedCount, selectedMode, selectedSubject, selectedTopic, setSearchParams]);
 
   useEffect(() => {
     generateMutation.mutate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMode, selectedCount, selectedTopic, profileName]);
+  }, [selectedMode, selectedCount, selectedSubject, selectedTopic, profileName]);
 
   const questions = test?.questions ?? [];
   const currentQuestion = questions[currentIndex];
@@ -99,11 +102,21 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
 
   const weakTopics = useMemo(() => {
     if (!meta) return [];
+    const subjectTitles = new Set(meta.topics.filter((topic) => topic.subject === selectedSubject).map((topic) => topic.title));
     return meta.topicProgress
+      .filter((topic) => subjectTitles.has(topic.title))
       .filter((topic) => topic.mastery < 60)
       .sort((a, b) => a.mastery - b.mastery)
       .slice(0, 4);
-  }, [meta]);
+  }, [meta, selectedSubject]);
+
+  const filteredTopics = meta?.topics.filter((topic) => topic.subject === selectedSubject) ?? [];
+
+  useEffect(() => {
+    if (selectedTopic && meta && !meta.topics.some((topic) => topic.subject === selectedSubject && topic.title === selectedTopic)) {
+      setSelectedTopic("");
+    }
+  }, [meta, selectedSubject, selectedTopic]);
 
   if (result) {
     return (
@@ -111,12 +124,18 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
         result={result}
         onRetry={() => generateMutation.mutate()}
         onReviewMistakes={() => {
+          if (selectedMode === "mistakes" && !selectedTopic) {
+            generateMutation.mutate();
+            return;
+          }
           setSelectedMode("mistakes");
           setSelectedTopic("");
-          generateMutation.mutate();
         }}
         onNewTest={() => {
-          setSelectedMode((current) => (current === "exam" ? "practice" : current));
+          if (selectedMode === "exam") {
+            setSelectedMode("practice");
+            return;
+          }
           generateMutation.mutate();
         }}
       />
@@ -153,6 +172,31 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
 
       <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
         <Panel className="space-y-5">
+          <div>
+            <div className="mb-3 text-xs uppercase tracking-[0.24em] text-slate-400">Дисциплина</div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {([
+                { key: "it-design", title: "ИТ и графика" },
+                { key: "management", title: "Менеджмент" },
+              ] as const).map((subject) => (
+                <button
+                  key={subject.key}
+                  type="button"
+                  onClick={() => {
+                    if (!confirmDiscardAttempt(hasActiveAttempt)) return;
+                    setSelectedSubject(subject.key);
+                    setSelectedTopic("");
+                  }}
+                  className={selectedSubject === subject.key
+                    ? "rounded-2xl border border-cyan-300/40 bg-cyan-400/15 px-4 py-3 text-left text-white"
+                    : "rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-slate-300 transition hover:bg-white/10"}
+                >
+                  <div className="text-sm font-medium">{subject.title}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div>
             <div className="mb-3 text-xs uppercase tracking-[0.24em] text-slate-400">Режим</div>
             <div className="grid gap-2 sm:grid-cols-2">
@@ -212,7 +256,7 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
               }}
             >
               <option value="">Все темы</option>
-              {meta?.topics.map((topic) => (
+              {filteredTopics.map((topic) => (
                 <option key={topic.key} value={topic.title}>
                   {topic.title}
                 </option>

@@ -14,6 +14,7 @@ import type {
   ProfileStats,
   Question,
   QuestionType,
+  SubjectId,
   SequenceQuestion,
   SubmissionResponse,
 } from "@shared/types";
@@ -309,6 +310,30 @@ const correctAnswerPreview = (question: Question): unknown => {
   return "";
 };
 
+const userAnswerPreview = (question: Question, answer: unknown): unknown => {
+  if (["single", "scenario", "imageChoice"].includes(question.type)) {
+    return question.options.find((option) => option.id === String(answer))?.text ?? String(answer ?? "");
+  }
+  if (question.type === "trueFalse") {
+    return answer === true ? "Верно" : answer === false ? "Неверно" : "Нет ответа";
+  }
+  if (question.type === "multiple") {
+    const selectedIds = Array.isArray(answer) ? answer.map(String) : [];
+    return selectedIds.map((id) => question.options.find((option) => option.id === id)?.text ?? id);
+  }
+  if (question.type === "fill") return String(answer ?? "");
+  if (question.type === "matching") {
+    return Array.isArray(answer)
+      ? answer.map((item) => {
+          const pair = item as Partial<MatchingItem>;
+          return `${pair.left ?? ""} → ${pair.right ?? ""}`;
+        })
+      : [];
+  }
+  if (question.type === "sequence") return Array.isArray(answer) ? answer.map(String) : [];
+  return answer;
+};
+
 const weightedSample = (questions: Question[], profile: StoredProfile, count: number) =>
   questions
     .map((question) => {
@@ -462,12 +487,16 @@ export const localApi = {
     };
   },
 
-  async generateTest(payload: { profileName: string; mode: string; count: number; topic?: string | null; questionType?: QuestionType }): Promise<GeneratedTest> {
+  async generateTest(payload: { profileName: string; mode: string; count: number; topic?: string | null; subject?: SubjectId; questionType?: QuestionType }): Promise<GeneratedTest> {
     const database = readDatabase();
     const profile = ensureProfile(database, payload.profileName);
     const source = allQuestions(database);
-    let pool = payload.topic ? source.filter((question) => question.topic === payload.topic) : source;
+    const subjectTopics = payload.subject
+      ? new Set(dashboardMeta.topics.filter((topic) => topic.subject === payload.subject).map((topic) => topic.title))
+      : null;
+    let pool = source.filter((question) => (!subjectTopics || subjectTopics.has(question.topic)) && (!payload.topic || question.topic === payload.topic));
     if (payload.questionType) pool = pool.filter((question) => question.type === payload.questionType);
+    const basePool = pool;
     if (payload.mode === "mistakes") pool = pool.filter((question) => {
       const review = profile.reviews[question.id];
       return review && review.correctCount < review.timesAnswered;
@@ -478,7 +507,7 @@ export const localApi = {
       return review && (!review.nextReviewAt || new Date(review.nextReviewAt).getTime() <= Date.now() || review.mastery < 0.7);
     });
     if (!pool.length) {
-      pool = source.filter((question) => (!payload.topic || question.topic === payload.topic) && (!payload.questionType || question.type === payload.questionType));
+      pool = basePool;
     }
 
     let selected: Question[];
@@ -514,7 +543,7 @@ export const localApi = {
       const evaluation = evaluateQuestion(question, entry.answer);
       return [{
         questionId: question.id, question: question.question, topic: question.topic, difficulty: question.difficulty, type: question.type,
-        isCorrect: evaluation.isCorrect, userAnswer: entry.answer, correctAnswer: correctAnswerPreview(question), explanation: question.explanation, whyWrong: evaluation.whyWrong,
+        isCorrect: evaluation.isCorrect, userAnswer: userAnswerPreview(question, entry.answer), correctAnswer: correctAnswerPreview(question), explanation: question.explanation, whyWrong: evaluation.whyWrong,
       } satisfies AttemptResult];
     });
     const score = results.filter((result) => result.isCorrect).length;

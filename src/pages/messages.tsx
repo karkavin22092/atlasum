@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, CheckCheck, CircleAlert, Clock3, LoaderCircle, MessageCircle, RotateCcw, Send, SmilePlus, Sparkles, UserRound } from "lucide-react";
+import { ArrowLeft, Check, CheckCheck, CircleAlert, Clock3, LoaderCircle, MessageCircle, RotateCcw, Send, SmilePlus, Sparkles, UserRound } from "lucide-react";
 import { BackButton, Button, GlassCard, Panel, TitleBlock } from "@/components/ui";
 import {
   getConversation,
@@ -31,7 +31,7 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
   const queryClient = useQueryClient();
   const { recipientId } = useParams();
   const location = useLocation();
-  const currentProfileId = meta?.profile.id ?? "guest";
+  const currentProfileId = user?.id ?? "guest";
   const contacts = (meta?.leaderboard ?? []).filter((entry) => entry.id !== currentProfileId);
   const recipient = contacts.find((entry) => entry.id === recipientId) ?? null;
   const recipientPresence = getPresence(recipient?.lastSeenAt);
@@ -42,7 +42,9 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [reactionTargetId, setReactionTargetId] = useState<string | null>(null);
   const [reactingTo, setReactingTo] = useState<string | null>(null);
-  const endRef = useRef<HTMLDivElement>(null);
+  const messagesViewportRef = useRef<HTMLDivElement>(null);
+  const lastScrolledMessageIdRef = useRef("");
+  const initialScrollCompleteRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -52,6 +54,8 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
     }
     setShowEmojiPicker(false);
     setReactionTargetId(null);
+    lastScrolledMessageIdRef.current = "";
+    initialScrollCompleteRef.current = false;
     let active = true;
     const refresh = async () => {
       try {
@@ -78,7 +82,15 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
   }, [currentProfileId, queryClient, recipientId, user]);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
+    const lastMessageId = messages.at(-1)?.id ?? "";
+    const viewport = messagesViewportRef.current;
+    if (!viewport || !lastMessageId || lastMessageId === lastScrolledMessageIdRef.current) return;
+    const behavior = initialScrollCompleteRef.current ? "smooth" : "auto";
+    lastScrolledMessageIdRef.current = lastMessageId;
+    window.requestAnimationFrame(() => {
+      viewport.scrollTo({ top: viewport.scrollHeight, behavior });
+      initialScrollCompleteRef.current = true;
+    });
   }, [messages]);
 
   const submit = async (event: FormEvent) => {
@@ -153,9 +165,11 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
 
   return (
     <div className="space-y-6">
-      <TitleBlock eyebrow="Общение" title="Личные сообщения" description="Общайтесь, отправляйте эмодзи и оставляйте реакции на сообщения." right={<BackButton to="/leaderboard" />} />
-      <div className="grid min-h-[68vh] gap-5 lg:grid-cols-[320px_1fr]">
-        <Panel className="p-3 sm:p-4">
+      <div className={recipient ? "hidden lg:block" : "block"}>
+        <TitleBlock eyebrow="Общение" title="Личные сообщения" description="Общайтесь, отправляйте эмодзи и оставляйте реакции на сообщения." right={<BackButton to="/leaderboard" />} />
+      </div>
+      <div className="grid min-h-0 gap-3 lg:min-h-[68vh] lg:grid-cols-[320px_1fr] lg:gap-5">
+        <Panel className={`${recipient ? "hidden lg:block" : "block"} p-3 sm:p-4`}>
           <div className="mb-3 px-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Участники</div>
           <div className="space-y-2">
             {contacts.length ? contacts.map((contact) => {
@@ -185,15 +199,18 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
           </div>
         </Panel>
 
-        <Panel className="flex min-h-[560px] flex-col overflow-hidden p-0">
+        <Panel className={`${recipient ? "flex" : "hidden lg:flex"} h-[calc(100dvh-11.5rem)] min-h-[430px] flex-col overflow-hidden p-0 lg:h-[68vh] lg:min-h-[560px]`}>
           {recipient ? (
             <>
-              <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-cyan-400 to-sky-500 text-slate-950"><UserRound className="h-5 w-5" /></div>
-                  <div>
-                    <div className="font-semibold text-white">{recipient.name}</div>
-                    <div className="text-xs text-slate-400">Уровень {recipient.level} · {recipient.xp} XP</div>
+              <div className="flex items-center justify-between gap-2 border-b border-white/10 px-3 py-3 sm:px-5 sm:py-4">
+                <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                  <Link to="/messages" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/5 text-slate-300 lg:hidden" aria-label="Вернуться к участникам">
+                    <ArrowLeft className="h-4 w-4" />
+                  </Link>
+                  <div className="hidden h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-cyan-400 to-sky-500 text-slate-950 sm:grid"><UserRound className="h-5 w-5" /></div>
+                  <div className="min-w-0">
+                    <div className="truncate font-semibold text-white">{recipient.name}</div>
+                    <div className="truncate text-xs text-slate-400">Уровень {recipient.level} · {recipient.xp} XP</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -201,11 +218,11 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
                     {recipientPresence.online ? <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" /> : null}
                     <span className={recipientPresence.online ? "relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400" : "relative inline-flex h-2.5 w-2.5 rounded-full bg-slate-500"} />
                   </span>
-                  <span className={recipientPresence.online ? "text-xs font-medium text-emerald-400" : "max-w-52 text-right text-xs text-slate-400"}>{recipientPresence.label}</span>
+                  <span className={recipientPresence.online ? "max-w-24 truncate text-xs font-medium text-emerald-400 sm:max-w-52" : "max-w-24 truncate text-right text-xs text-slate-400 sm:max-w-52"}>{recipientPresence.label}</span>
                 </div>
               </div>
 
-              <div className="scrollbar-thin flex-1 space-y-3 overflow-y-auto px-4 py-5 sm:px-6">
+              <div ref={messagesViewportRef} className="scrollbar-thin min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 py-4 sm:px-6 sm:py-5">
                 <AnimatePresence initial={false}>
                 {messages.length ? messages.map((message) => {
                   const own = message.senderId === currentProfileId;
@@ -213,7 +230,6 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
                   return (
                     <motion.div
                       key={message.id}
-                      layout
                       initial={{ opacity: 0, x: own ? 24 : -24, scale: 0.96 }}
                       animate={{ opacity: 1, x: 0, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.96 }}
@@ -244,7 +260,6 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
                             const selected = users.includes(currentProfileId);
                             return (
                               <motion.button
-                                layout
                                 whileTap={{ scale: 0.88 }}
                                 type="button"
                                 key={emoji}
@@ -311,10 +326,9 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
                   </motion.div>
                 )}
                 </AnimatePresence>
-                <div ref={endRef} />
               </div>
 
-              <form onSubmit={submit} className="border-t border-white/10 p-4 sm:p-5">
+              <form onSubmit={submit} className="border-t border-white/10 p-3 sm:p-5">
                 <AnimatePresence>
                   {error ? (
                     <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mb-3 rounded-xl bg-rose-400/10 px-3 py-2 text-sm text-rose-300">
@@ -329,7 +343,7 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
                       initial={{ opacity: 0, y: 12, scale: 0.97 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 8, scale: 0.97 }}
-                      className="glass mb-3 grid grid-cols-8 gap-1 rounded-2xl p-2 sm:w-fit"
+                      className="glass mb-3 grid grid-cols-6 gap-1 rounded-2xl p-2 sm:w-fit sm:grid-cols-8"
                     >
                       {MESSAGE_EMOJIS.map((emoji) => (
                         <motion.button
@@ -366,7 +380,7 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
                       event.preventDefault();
                       event.currentTarget.form?.requestSubmit();
                     }
-                  }} maxLength={1000} rows={1} className="max-h-32 min-h-11 flex-1 resize-none bg-transparent py-2 text-sm text-white outline-none" placeholder="Сообщение или эмодзи..." />
+                  }} maxLength={1000} rows={1} className="max-h-32 min-h-11 min-w-0 flex-1 resize-none bg-transparent py-2 text-sm text-white outline-none" placeholder="Сообщение или эмодзи..." />
                   <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.94 }}>
                     <Button type="submit" disabled={!draft.trim() || isSending} className="h-11 w-11 px-0" aria-label="Отправить сообщение">
                       {isSending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -374,7 +388,7 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
                   </motion.div>
                 </div>
                 <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
-                  <span className="flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5 text-cyan-300" /> Реакции синхронизируются автоматически</span>
+                  <span className="hidden items-center gap-1.5 sm:flex"><Sparkles className="h-3.5 w-3.5 text-cyan-300" /> Реакции синхронизируются автоматически</span>
                   <span>{draft.length}/1000</span>
                 </div>
               </form>

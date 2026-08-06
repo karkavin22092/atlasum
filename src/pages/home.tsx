@@ -3,8 +3,9 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Badge, Button, GlassCard, Panel, ProgressBar, StatCard, TitleBlock } from "@/components/ui";
-import { BookOpen, Brain, Gamepad2, LineChart, Medal, ShieldCheck, Sparkles, Target, Trophy } from "lucide-react";
+import { BookOpen, Brain, BriefcaseBusiness, Gamepad2, Laptop2, LineChart, Medal, Send, ShieldCheck, Sparkles, Target, Trophy } from "lucide-react";
 import type { AppPageProps } from "./types";
+import type { SubjectId } from "@shared/types";
 import { levelLabel } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { isAdminUser } from "@/lib/permissions";
@@ -13,14 +14,18 @@ export const HomePage = ({ meta }: AppPageProps) => {
   const { user } = useAuth();
   const profile = meta?.profile;
   const stats = meta?.stats;
+  const admin = isAdminUser(user);
+  const [selectedSubject, setSelectedSubject] = useState<SubjectId>("it-design");
   const [selectedTopic, setSelectedTopic] = useState("");
-  const firstTopic = meta?.topics[0]?.title ?? "";
+  const filteredTopics = meta?.topics.filter((topic) => topic.subject === selectedSubject) ?? [];
+  const firstTopic = filteredTopics[0]?.title ?? "";
+  const subjectProgress = meta?.topicProgress.filter((progress) => filteredTopics.some((topic) => topic.title === progress.title)) ?? [];
 
   useEffect(() => {
-    if (!selectedTopic && firstTopic) {
+    if ((!selectedTopic || !filteredTopics.some((topic) => topic.title === selectedTopic)) && firstTopic) {
       setSelectedTopic(firstTopic);
     }
-  }, [firstTopic, selectedTopic]);
+  }, [filteredTopics, firstTopic, selectedTopic]);
 
   const previewQuery = useQuery({
     queryKey: ["topic-preview", selectedTopic],
@@ -37,7 +42,7 @@ export const HomePage = ({ meta }: AppPageProps) => {
         <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
           <div>
             <div className="mb-4 flex flex-wrap gap-2">
-              <Badge tone="cyan">1500+ вопросов</Badge>
+              <Badge tone="cyan">2100 вопросов</Badge>
               <Badge tone="violet">Интервальное повторение</Badge>
               <Badge tone="emerald">Экзамен и игры</Badge>
             </div>
@@ -46,28 +51,32 @@ export const HomePage = ({ meta }: AppPageProps) => {
               <span className="gradient-text"> понятный и живой</span> процесс.
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
-              Практика, экзамен, повторение, статистика по темам и игровые режимы для дисциплины
-              «Информационные технологии и компьютерная графика».
+              Практика, экзамены, повторение и игровые режимы для подготовки по ИТ, компьютерной графике и менеджменту.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
-              <Link to="/practice?mode=exam">
+              <Link to={`/practice?mode=exam&subject=${selectedSubject}`}>
                 <Button>
                   <Target className="h-4 w-4" />
                   Начать экзамен
                 </Button>
               </Link>
-              <Link to="/practice?mode=practice">
+              <Link to={`/practice?mode=practice&subject=${selectedSubject}`}>
                 <Button variant="secondary">
                   <BookOpen className="h-4 w-4" />
                   Свободная практика
                 </Button>
               </Link>
-              <Link to="/games">
+              <Link to={`/games?subject=${selectedSubject}`}>
                 <Button variant="secondary">
                   <Gamepad2 className="h-4 w-4" />
                   Мини-игры
                 </Button>
               </Link>
+              {user && !admin ? (
+                <Link to="/report-bug" state={{ sourcePage: "/" }}>
+                  <Button variant="secondary"><Send className="h-4 w-4" />Сообщить о баге</Button>
+                </Link>
+              ) : null}
             </div>
           </div>
 
@@ -104,6 +113,22 @@ export const HomePage = ({ meta }: AppPageProps) => {
       </div>
 
       <Panel>
+        <TitleBlock eyebrow="Направление" title="Выберите дисциплину" description="Темы, экзамены и мини-игры будут собраны только из выбранного направления." />
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <button type="button" onClick={() => { setSelectedSubject("it-design"); setSelectedTopic(""); }} className={selectedSubject === "it-design" ? "rounded-3xl border border-cyan-300/40 bg-cyan-400/15 p-5 text-left shadow-glow" : "rounded-3xl border border-white/10 bg-white/5 p-5 text-left transition hover:-translate-y-1 hover:bg-white/10"}>
+            <Laptop2 className="h-7 w-7 text-cyan-300" />
+            <div className="mt-4 text-xl font-semibold text-white">ИТ и компьютерная графика</div>
+            <div className="mt-2 text-sm leading-6 text-slate-400">26 тем · 1560 вопросов</div>
+          </button>
+          <button type="button" onClick={() => { setSelectedSubject("management"); setSelectedTopic(""); }} className={selectedSubject === "management" ? "rounded-3xl border border-amber-300/40 bg-amber-400/10 p-5 text-left shadow-glow" : "rounded-3xl border border-white/10 bg-white/5 p-5 text-left transition hover:-translate-y-1 hover:bg-white/10"}>
+            <BriefcaseBusiness className="h-7 w-7 text-amber-300" />
+            <div className="mt-4 text-xl font-semibold text-white">Менеджмент</div>
+            <div className="mt-2 text-sm leading-6 text-slate-400">9 разделов · 540 вопросов</div>
+          </button>
+        </div>
+      </Panel>
+
+      <Panel>
         <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
           <div className="space-y-4">
             <TitleBlock
@@ -112,7 +137,7 @@ export const HomePage = ({ meta }: AppPageProps) => {
               description="Это локальная база проекта. Выберите тему и сразу увидите живые вопросы с вариантами ответа."
             />
             <div className="flex flex-wrap gap-2">
-              {meta?.topics.map((topic) => (
+              {filteredTopics.map((topic) => (
                 <button
                   key={topic.key}
                   type="button"
@@ -126,13 +151,13 @@ export const HomePage = ({ meta }: AppPageProps) => {
               ))}
             </div>
             <div className="flex flex-wrap gap-3">
-              <Link to={`/practice?mode=topic&topic=${encodeURIComponent(selectedTopic)}`}>
+              <Link to={`/practice?mode=topic&subject=${selectedSubject}&topic=${encodeURIComponent(selectedTopic)}`}>
                 <Button>
                   <BookOpen className="h-4 w-4" />
                   Открыть тему в практике
                 </Button>
               </Link>
-              {isAdminUser(user) ? (
+              {admin ? (
                 <Link to="/admin">
                   <Button variant="secondary">
                     <Brain className="h-4 w-4" />
@@ -176,13 +201,13 @@ export const HomePage = ({ meta }: AppPageProps) => {
       <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <Panel>
           <TitleBlock
-            eyebrow="РРµжимы"
+            eyebrow="Режимы"
             title="Выберите сценарий подготовки"
             description="Каждый режим использует локальную базу вопросов и статистику повторения."
           />
           <div className="grid gap-3 sm:grid-cols-2">
             {meta?.modes.map((mode) => (
-              <Link key={mode.key} to={`/practice?mode=${mode.key}`}>
+              <Link key={mode.key} to={`/practice?mode=${mode.key}&subject=${selectedSubject}`}>
                 <GlassCard className="h-full transition hover:-translate-y-1 hover:border-cyan-300/20">
                   <div className="text-lg font-semibold text-white">{mode.title}</div>
                   <div className="mt-2 text-sm leading-6 text-slate-400">{mode.description}</div>
@@ -195,7 +220,7 @@ export const HomePage = ({ meta }: AppPageProps) => {
         <Panel>
           <TitleBlock eyebrow="Путь" title="Прогресс по темам" description="Больше точности и регулярности там, где есть слабые места." />
           <div className="space-y-4">
-            {meta?.topicProgress.slice(0, 8).map((topic) => (
+            {subjectProgress.slice(0, 8).map((topic) => (
               <GlassCard key={topic.key}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -218,7 +243,7 @@ export const HomePage = ({ meta }: AppPageProps) => {
           <TitleBlock eyebrow="Игры" title="Мини-игры для закрепления" description="Тот же контент, но с другой скоростью и другой подачей." />
           <div className="grid gap-3 sm:grid-cols-2">
             {meta?.games.map((game) => (
-              <Link key={game.key} to={`/games/${game.key}`}>
+              <Link key={game.key} to={`/games/${game.key}?subject=${selectedSubject}`}>
                 <GlassCard className="h-full transition hover:-translate-y-1 hover:border-violet-300/20">
                   <div className="text-base font-semibold text-white">{game.title}</div>
                   <div className="mt-2 text-sm leading-6 text-slate-400">{game.description}</div>
