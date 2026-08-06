@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { Badge, Button, GlassCard, Panel, ProgressBar, StatCard, TitleBlock } from "@/components/ui";
+import { BackButton, Badge, Button, GlassCard, Panel, ProgressBar, StatCard, TitleBlock } from "@/components/ui";
 import { QuestionRenderer, type AnswerValue } from "@/components/question-renderer";
 import { ResultPanel } from "@/components/result-panel";
 import { formatDuration, shuffleArray } from "@/lib/utils";
@@ -52,13 +52,16 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
   });
 
   useEffect(() => {
-    setSearchParams((params) => {
-      params.set("mode", selectedMode);
-      params.set("count", String(selectedCount));
-      if (selectedTopic) params.set("topic", selectedTopic);
-      else params.delete("topic");
-      return params;
-    }, { replace: true });
+    setSearchParams(
+      (params) => {
+        params.set("mode", selectedMode);
+        params.set("count", String(selectedCount));
+        if (selectedTopic) params.set("topic", selectedTopic);
+        else params.delete("topic");
+        return params;
+      },
+      { replace: true },
+    );
   }, [selectedCount, selectedMode, selectedTopic, setSearchParams]);
 
   useEffect(() => {
@@ -120,19 +123,20 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
   return (
     <div className="space-y-6">
       <TitleBlock
-        eyebrow="Тренажер"
-        title={selectedMode === "exam" ? "Экзамен" : "Практика"}
-        description="Соберите свой набор вопросов и проходите его в комфортном темпе или на время."
+        eyebrow="РўСЂРµРЅР°Р¶РµСЂ"
+        title={selectedMode === "exam" ? "Р­РєР·Р°РјРµРЅ" : "РџСЂР°РєС‚РёРєР°"}
+        description="РЎРѕР±РµСЂРёС‚Рµ СЃРІРѕР№ РЅР°Р±РѕСЂ РІРѕРїСЂРѕСЃРѕРІ Рё РїСЂРѕС…РѕРґРёС‚Рµ РµРіРѕ РІ РєРѕРјС„РѕСЂС‚РЅРѕРј С‚РµРјРїРµ РёР»Рё РЅР° РІСЂРµРјСЏ."
         right={
           <div className="flex flex-wrap gap-2">
+            <BackButton to="/" />
             <Button variant="secondary" onClick={() => generateMutation.mutate()} disabled={generateMutation.isPending}>
               <RefreshCcw className={generateMutation.isPending ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
-              Новый набор
+              РќРѕРІС‹Р№ РЅР°Р±РѕСЂ
             </Button>
             <Link to="/review">
               <Button variant="secondary">
                 <Sparkles className="h-4 w-4" />
-                Повторение
+                РџРѕРІС‚РѕСЂРµРЅРёРµ
               </Button>
             </Link>
           </div>
@@ -142,7 +146,7 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
       <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
         <Panel className="space-y-5">
           <div>
-            <div className="mb-3 text-xs uppercase tracking-[0.24em] text-slate-400">Режим</div>
+            <div className="mb-3 text-xs uppercase tracking-[0.24em] text-slate-400">Р РµР¶РёРј</div>
             <div className="grid gap-2 sm:grid-cols-2">
               {meta?.modes.map((mode) => (
                 <button
@@ -159,7 +163,7 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
           </div>
 
           <div>
-            <div className="mb-3 text-xs uppercase tracking-[0.24em] text-slate-400">Количество</div>
+            <div className="mb-3 text-xs uppercase tracking-[0.24em] text-slate-400">РљРѕР»РёС‡РµСЃС‚РІРѕ</div>
             <div className="flex flex-wrap gap-2">
               {COUNT_OPTIONS.map((count) => (
                 <button
@@ -179,19 +183,19 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
                 onClick={() => setSelectedMode("exam")}
                 className={selectedMode === "exam" ? "rounded-full border border-violet-300/40 bg-violet-400/15 px-4 py-2 text-sm text-white" : "rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300 transition hover:bg-white/10"}
               >
-                Экзамен
+                Р­РєР·Р°РјРµРЅ
               </button>
             </div>
           </div>
 
           <div>
-            <div className="mb-3 text-xs uppercase tracking-[0.24em] text-slate-400">Тема</div>
+            <div className="mb-3 text-xs uppercase tracking-[0.24em] text-slate-400">РўРµРјР°</div>
             <select
               className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
               value={selectedTopic}
               onChange={(event) => setSelectedTopic(event.target.value)}
             >
-              <option value="">Все темы</option>
+              <option value="">Р’СЃРµ С‚РµРјС‹</option>
               {meta?.topics.map((topic) => (
                 <option key={topic.key} value={topic.title}>
                   {topic.title}
@@ -201,20 +205,20 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <StatCard label="Вопросов" value={questions.length} hint={selectedMode === "exam" ? "Экзамен всегда на 30" : "Под выбранный режим"} accent="from-cyan-400 to-sky-500" />
-            <StatCard label="Отвечено" value={answeredCount} hint="Прогресс по сессии" accent="from-violet-400 to-fuchsia-500" />
+            <StatCard label="Р’РѕРїСЂРѕСЃРѕРІ" value={questions.length} hint={selectedMode === "exam" ? "Р­РєР·Р°РјРµРЅ РІСЃРµРіРґР° РЅР° 30" : "РџРѕРґ РІС‹Р±СЂР°РЅРЅС‹Р№ СЂРµР¶РёРј"} accent="from-cyan-400 to-sky-500" />
+            <StatCard label="РћС‚РІРµС‡РµРЅРѕ" value={answeredCount} hint="РџСЂРѕРіСЂРµСЃСЃ РїРѕ СЃРµСЃСЃРёРё" accent="from-violet-400 to-fuchsia-500" />
           </div>
 
           <div className="space-y-3">
             <div className="flex items-center justify-between text-sm text-slate-400">
-              <span>Прогресс теста</span>
+              <span>РџСЂРѕРіСЂРµСЃСЃ С‚РµСЃС‚Р°</span>
               <span>{Math.round(progress)}%</span>
             </div>
             <ProgressBar value={progress} />
           </div>
 
           <div className="space-y-3">
-            <div className="text-xs uppercase tracking-[0.24em] text-slate-400">Слабые темы</div>
+            <div className="text-xs uppercase tracking-[0.24em] text-slate-400">РЎР»Р°Р±С‹Рµ С‚РµРјС‹</div>
             {weakTopics.length ? (
               weakTopics.map((topic) => (
                 <GlassCard key={topic.key} className="flex items-center justify-between">
@@ -223,12 +227,12 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
                     <div className="text-xs text-slate-400">{topic.mastery}% mastery</div>
                   </div>
                   <Link to={`/practice?mode=topic&topic=${encodeURIComponent(topic.title)}`}>
-                    <Button variant="secondary">Повторить</Button>
+                    <Button variant="secondary">РџРѕРІС‚РѕСЂРёС‚СЊ</Button>
                   </Link>
                 </GlassCard>
               ))
             ) : (
-              <GlassCard className="text-sm text-slate-400">Пока нет слабых тем. Отличный старт.</GlassCard>
+              <GlassCard className="text-sm text-slate-400">РџРѕРєР° РЅРµС‚ СЃР»Р°Р±С‹С… С‚РµРј. РћС‚Р»РёС‡РЅС‹Р№ СЃС‚Р°СЂС‚.</GlassCard>
             )}
           </div>
         </Panel>
@@ -238,7 +242,7 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
             <div className="grid min-h-[55vh] place-items-center">
               <div className="space-y-3 text-center">
                 <div className="mx-auto h-14 w-14 animate-spin rounded-full border-4 border-cyan-400/20 border-t-cyan-400" />
-                <div className="text-sm text-slate-300">Подбираем вопросы под ваш режим...</div>
+                <div className="text-sm text-slate-300">РџРѕРґР±РёСЂР°РµРј РІРѕРїСЂРѕСЃС‹ РїРѕРґ РІР°С€ СЂРµР¶РёРј...</div>
               </div>
             </div>
           ) : currentQuestion ? (
@@ -278,28 +282,28 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
                     disabled={currentIndex === 0}
                   >
                     <ArrowLeft className="h-4 w-4" />
-                    Назад
+                    РќР°Р·Р°Рґ
                   </Button>
                   <Button
                     variant="secondary"
                     onClick={() => setCurrentIndex((current) => Math.min(questions.length - 1, current + 1))}
                     disabled={currentIndex === questions.length - 1}
                   >
-                    Вперёд
+                    Р’РїРµСЂС‘Рґ
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 </div>
                 <Button onClick={submit} disabled={!canSubmit}>
                   <Shuffle className="h-4 w-4" />
-                  Отправить ответы
+                  РћС‚РїСЂР°РІРёС‚СЊ РѕС‚РІРµС‚С‹
                 </Button>
               </div>
             </div>
           ) : (
             <div className="grid min-h-[55vh] place-items-center text-center">
               <div className="space-y-3">
-                <div className="text-lg font-semibold text-white">Нет вопросов для отображения</div>
-                <Button onClick={() => generateMutation.mutate()}>Сгенерировать снова</Button>
+                <div className="text-lg font-semibold text-white">РќРµС‚ РІРѕРїСЂРѕСЃРѕРІ РґР»СЏ РѕС‚РѕР±СЂР°Р¶РµРЅРёСЏ</div>
+                <Button onClick={() => generateMutation.mutate()}>РЎРіРµРЅРµСЂРёСЂРѕРІР°С‚СЊ СЃРЅРѕРІР°</Button>
               </div>
             </div>
           )}

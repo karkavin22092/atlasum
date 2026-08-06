@@ -1,5 +1,5 @@
 import React, { type ReactNode } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Link, Navigate, Route, Routes } from "react-router-dom";
 import { useTheme } from "./lib/theme";
 import { useLocalStorageState } from "./lib/storage";
 import { useQuery } from "@tanstack/react-query";
@@ -118,7 +118,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
 
       <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/60 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
+          <Link to="/" className="flex items-center gap-3 transition hover:opacity-90">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400 via-sky-500 to-violet-500 shadow-glow">
               <Sparkles className="h-5 w-5 text-white" />
             </div>
@@ -128,7 +128,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
               </div>
               <div className="text-xs text-slate-400">Информационные технологии и компьютерная графика</div>
             </div>
-          </div>
+          </Link>
 
           <div className="hidden items-center gap-3 md:flex">
             <label className="glass flex items-center gap-2 rounded-full px-4 py-2 text-sm text-slate-200">

@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Badge, Button, GlassCard, Panel, TitleBlock } from "@/components/ui";
+import { BackButton, Button, GlassCard, Panel, TitleBlock } from "@/components/ui";
 import type { AppPageProps } from "./types";
 import { Gamepad2, Play } from "lucide-react";
 
@@ -7,10 +7,13 @@ export const GamesPage = ({ meta }: AppPageProps) => {
   return (
     <div className="space-y-6">
       <TitleBlock
-        eyebrow="Мини-игры"
-        title="Быстрое закрепление без скуки"
-        description="Каждая игра использует ту же локальную базу вопросов, но подает её в другом темпе и с другой механикой."
+        eyebrow="РњРёРЅРё-РёРіСЂС‹"
+        title="Р‘С‹СЃС‚СЂРѕРµ Р·Р°РєСЂРµРїР»РµРЅРёРµ Р±РµР· СЃРєСѓРєРё"
+        description="РљР°Р¶РґР°СЏ РёРіСЂР° РёСЃРїРѕР»СЊР·СѓРµС‚ С‚Сѓ Р¶Рµ Р»РѕРєР°Р»СЊРЅСѓСЋ Р±Р°Р·Сѓ РІРѕРїСЂРѕСЃРѕРІ, РЅРѕ РїРѕРґР°РµС‚ РµС‘ РІ РґСЂСѓРіРѕРј С‚РµРјРїРµ Рё СЃ РґСЂСѓРіРѕР№ РјРµС…Р°РЅРёРєРѕР№."
       />
+      <div className="mb-2">
+        <BackButton to="/" />
+      </div>
 
       <Panel>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -28,7 +31,7 @@ export const GamesPage = ({ meta }: AppPageProps) => {
                 </div>
                 <div className="mt-4 flex items-center gap-2 text-sm text-slate-300">
                   <Play className="h-4 w-4" />
-                  Играть сейчас
+                  РРіСЂР°С‚СЊ СЃРµР№С‡Р°СЃ
                 </div>
               </GlassCard>
             </Link>
@@ -38,4 +41,3 @@ export const GamesPage = ({ meta }: AppPageProps) => {
     </div>
   );
 };
-

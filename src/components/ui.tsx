@@ -1,6 +1,8 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
+import { ArrowLeft } from "lucide-react";
+import { Link } from "react-router-dom";
 
 export const GlassCard = ({
   children,
@@ -132,4 +134,25 @@ export const ProgressBar = ({ value }: { value: number }) => (
       transition={{ duration: 0.6, ease: "easeOut" }}
     />
   </div>
+);
+
+export const BackButton = ({
+  to,
+  children = "Назад",
+  className,
+}: {
+  to: string;
+  children?: ReactNode;
+  className?: string;
+}) => (
+  <Link
+    to={to}
+    className={cn(
+      "inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:-translate-y-0.5 hover:bg-white/10 hover:text-white",
+      className,
+    )}
+  >
+    <ArrowLeft className="h-4 w-4" />
+    {children}
+  </Link>
 );

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useParams, Link } from "react-router-dom";
 import { api } from "@/lib/api";
-import { Badge, Button, GlassCard, Panel, ProgressBar, TitleBlock } from "@/components/ui";
+import { BackButton, Badge, Button, GlassCard, Panel, ProgressBar, TitleBlock } from "@/components/ui";
 import { QuestionRenderer, type AnswerValue } from "@/components/question-renderer";
 import { shuffleArray, formatDuration } from "@/lib/utils";
 import { ArrowLeft, ArrowRight, Shuffle, TimerReset, Trophy, RotateCcw, WandSparkles } from "lucide-react";
@@ -246,6 +246,7 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
         description={game.subtitle}
         right={
           <div className="flex flex-wrap gap-2">
+            <BackButton to="/games" />
             {gameId === "wheel" ? (
               <Button variant="secondary" onClick={() => {
                 const topic = meta?.topics[Math.floor(Math.random() * meta.topics.length)]?.title ?? null;
