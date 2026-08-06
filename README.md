@@ -33,6 +33,16 @@ npm run dev
 - Frontend: `http://localhost:5173`
 - Backend: `http://localhost:4000`
 
+## Netlify
+
+Для деплоя фронтенда на Netlify уже добавлены:
+
+- `netlify.toml`
+- SPA redirect на `index.html`
+- publish directory `dist/client`
+
+Важно: текущий проект содержит отдельный Express backend. Netlify может раздать фронтенд, но сам по себе не поднимет этот сервер и SQLite-процесс как постоянное приложение. Для полной full-stack-работы backend нужно держать отдельно или переносить в serverless-функции.
+
 ## Полезные команды
 
 ```bash
@@ -64,4 +74,3 @@ npm run db:push
 ## Примечание
 
 База вопросов и статистика хранятся локально. Никакие платные API не используются.
-
