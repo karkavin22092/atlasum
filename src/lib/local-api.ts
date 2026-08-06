@@ -311,6 +311,8 @@ const correctAnswerPreview = (question: Question): unknown => {
 };
 
 const userAnswerPreview = (question: Question, answer: unknown): unknown => {
+  if (answer === "__skipped__") return "Вопрос пропущен";
+  if (answer === "__timeout__") return "Время вышло";
   if (["single", "scenario", "imageChoice"].includes(question.type)) {
     return question.options.find((option) => option.id === String(answer))?.text ?? String(answer ?? "");
   }
@@ -345,6 +347,18 @@ const weightedSample = (questions: Question[], profile: StoredProfile, count: nu
     .sort((left, right) => right.score - left.score)
     .slice(0, count)
     .map((entry) => entry.question);
+
+const uniqueQuestionPool = (questions: Question[]) => {
+  const ids = new Set<string>();
+  const prompts = new Set<string>();
+  return questions.filter((question) => {
+    const prompt = question.question.toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ").trim();
+    if (ids.has(question.id) || prompts.has(prompt)) return false;
+    ids.add(question.id);
+    prompts.add(prompt);
+    return true;
+  });
+};
 
 const titleForMode = (mode: string, topic?: string | null) => {
   if (mode === "exam") return "Экзамен";
@@ -490,7 +504,7 @@ export const localApi = {
   async generateTest(payload: { profileName: string; mode: string; count: number; topic?: string | null; subject?: SubjectId; questionType?: QuestionType }): Promise<GeneratedTest> {
     const database = readDatabase();
     const profile = ensureProfile(database, payload.profileName);
-    const source = allQuestions(database);
+    const source = uniqueQuestionPool(allQuestions(database));
     const subjectTopics = payload.subject
       ? new Set(dashboardMeta.topics.filter((topic) => topic.subject === payload.subject).map((topic) => topic.title))
       : null;

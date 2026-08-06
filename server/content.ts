@@ -1408,6 +1408,13 @@ export const topicCatalog: TopicBlueprint[] = [
   ...managementTopicCatalog,
 ];
 
+export const questionCountForTopic = (topic: Pick<TopicBlueprint, "key" | "subject">) => {
+  if (topic.subject !== "management") return 60;
+  return topic.key === managementTopicCatalog[0].key ? 112 : 111;
+};
+
+export const QUESTION_BANK_TOTAL = topicCatalog.reduce((total, topic) => total + questionCountForTopic(topic), 0);
+
 export const dashboardMeta: DashboardMeta = {
   topics: topicCatalog.map(({ concepts, process, imageSet, ...topic }) => topic),
   modes: [

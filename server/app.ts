@@ -320,6 +320,18 @@ const weightQuestion = (question: Question & { reviews: Array<{ mastery: number;
   return lowMasteryBonus * hardBonus * fatigueBonus + dueBonus + randomBonus;
 };
 
+const uniqueQuestionPool = <T extends { id: string; question: string }>(questions: T[]) => {
+  const ids = new Set<string>();
+  const prompts = new Set<string>();
+  return questions.filter((question) => {
+    const prompt = question.question.toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ").trim();
+    if (ids.has(question.id) || prompts.has(prompt)) return false;
+    ids.add(question.id);
+    prompts.add(prompt);
+    return true;
+  });
+};
+
 const selectQuestions = async ({
   profileId,
   mode,
@@ -335,13 +347,14 @@ const selectQuestions = async ({
   subject?: SubjectId;
   questionType?: Question["type"];
 }) => {
+  const selectionSeed = `${profileId}:${mode}:${nanoid()}`;
   const questions = await prisma.question.findMany({
     include: {
       reviews: true,
     },
   });
 
-  let pool = questions;
+  let pool = uniqueQuestionPool(questions);
 
   if (subject) {
     const subjectTopics = new Set(dashboardMeta.topics.filter((item) => item.subject === subject).map((item) => item.title));
@@ -397,15 +410,15 @@ const selectQuestions = async ({
     const byDifficulty = {
       easy: shuffle(
         pool.filter((question) => question.difficulty === "easy"),
-        `${profileId}:exam:easy`,
+        `${selectionSeed}:exam:easy`,
       ),
       medium: shuffle(
         pool.filter((question) => question.difficulty === "medium"),
-        `${profileId}:exam:medium`,
+        `${selectionSeed}:exam:medium`,
       ),
       hard: shuffle(
         pool.filter((question) => question.difficulty === "hard"),
-        `${profileId}:exam:hard`,
+        `${selectionSeed}:exam:hard`,
       ),
     };
 
@@ -415,7 +428,7 @@ const selectQuestions = async ({
       ...byDifficulty.hard.slice(0, 6),
     ];
 
-    return shuffle(chosen.slice(0, 30), `${profileId}:exam:final`);
+    return shuffle(uniqueQuestionPool(chosen).slice(0, 30), `${selectionSeed}:exam:final`);
   }
 
   if (pool.length === 0) {
@@ -423,9 +436,9 @@ const selectQuestions = async ({
   }
 
   const sizedPool = [...pool];
-  const sorted = sizedPool.sort((a, b) => weightQuestion(b as never, `${profileId}:${mode}`) - weightQuestion(a as never, `${profileId}:${mode}`));
+  const sorted = sizedPool.sort((a, b) => weightQuestion(b as never, selectionSeed) - weightQuestion(a as never, selectionSeed));
   const maxCount = Math.min(count, sorted.length);
-  return shuffle(sorted.slice(0, maxCount), `${profileId}:${mode}:picked`);
+  return shuffle(uniqueQuestionPool(sorted).slice(0, maxCount), `${selectionSeed}:picked`);
 };
 
 const gradeByPercent = (percent: number) => {

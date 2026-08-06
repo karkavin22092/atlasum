@@ -42,7 +42,7 @@ export const HomePage = ({ meta }: AppPageProps) => {
         <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
           <div>
             <div className="mb-4 flex flex-wrap gap-2">
-              <Badge tone="cyan">2100 вопросов</Badge>
+              <Badge tone="cyan">2560 вопросов</Badge>
               <Badge tone="violet">Интервальное повторение</Badge>
               <Badge tone="emerald">Экзамен и игры</Badge>
             </div>
@@ -123,7 +123,7 @@ export const HomePage = ({ meta }: AppPageProps) => {
           <button type="button" onClick={() => { setSelectedSubject("management"); setSelectedTopic(""); }} className={selectedSubject === "management" ? "rounded-3xl border border-amber-300/40 bg-amber-400/10 p-5 text-left shadow-glow" : "rounded-3xl border border-white/10 bg-white/5 p-5 text-left transition hover:-translate-y-1 hover:bg-white/10"}>
             <BriefcaseBusiness className="h-7 w-7 text-amber-300" />
             <div className="mt-4 text-xl font-semibold text-white">Менеджмент</div>
-            <div className="mt-2 text-sm leading-6 text-slate-400">9 разделов · 540 вопросов</div>
+            <div className="mt-2 text-sm leading-6 text-slate-400">9 разделов · 1000 вопросов</div>
           </button>
         </div>
       </Panel>

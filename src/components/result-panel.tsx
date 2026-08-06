@@ -18,6 +18,12 @@ type Props = {
   onRetry: () => void;
   onReviewMistakes: () => void;
   onNewTest: () => void;
+  resultTitle?: string;
+  resultEyebrow?: string;
+  backTo?: string;
+  backLabel?: string;
+  retryLabel?: string;
+  newTestLabel?: string;
 };
 
 type AnswerTone = "neutral" | "correct" | "wrong";
@@ -157,7 +163,18 @@ const ReportCard = ({ item, index, total }: { item: AttemptResult; index: number
   </motion.article>
 );
 
-export const ResultPanel = ({ result, onRetry, onReviewMistakes, onNewTest }: Props) => {
+export const ResultPanel = ({
+  result,
+  onRetry,
+  onReviewMistakes,
+  onNewTest,
+  resultTitle = "Тест завершён",
+  resultEyebrow = "Результат",
+  backTo = "/",
+  backLabel = "Назад",
+  retryLabel = "Пройти снова",
+  newTestLabel = "Новый тест",
+}: Props) => {
   const [view, setView] = useState<"summary" | "report">("summary");
 
   if (view === "report") {
@@ -196,7 +213,7 @@ export const ResultPanel = ({ result, onRetry, onReviewMistakes, onNewTest }: Pr
               Повторить ошибки
             </Button>
           ) : null}
-          <BackButton to="/" />
+          <BackButton to={backTo}>{backLabel}</BackButton>
         </Panel>
       </div>
     );
@@ -206,8 +223,8 @@ export const ResultPanel = ({ result, onRetry, onReviewMistakes, onNewTest }: Pr
     <div className="space-y-6">
       <Panel>
         <TitleBlock
-          eyebrow="Результат"
-          title="Тест завершён"
+          eyebrow={resultEyebrow}
+          title={resultTitle}
           description="Выберите полный отчёт, чтобы сразу увидеть каждый вопрос, свой ответ и правильное решение."
           right={<Badge tone="violet">Оценка {result.grade}</Badge>}
         />
@@ -260,13 +277,13 @@ export const ResultPanel = ({ result, onRetry, onReviewMistakes, onNewTest }: Pr
         <div className="mt-6 flex flex-wrap gap-3">
           <Button variant="secondary" onClick={onRetry}>
             <RotateCcw className="h-4 w-4" />
-            Пройти снова
+            {retryLabel}
           </Button>
           <Button variant="secondary" onClick={onNewTest}>
             <Sparkles className="h-4 w-4" />
-            Новый тест
+            {newTestLabel}
           </Button>
-          <BackButton to="/" />
+          <BackButton to={backTo}>{backLabel}</BackButton>
         </div>
       </Panel>
     </div>

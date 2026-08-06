@@ -11,6 +11,7 @@ type Props = {
   value: AnswerValue | undefined;
   onChange: (value: AnswerValue) => void;
   locked?: boolean;
+  hiddenOptionIds?: string[];
 };
 
 const optionClasses = (selected: boolean, correct?: boolean) =>
@@ -22,7 +23,7 @@ const optionClasses = (selected: boolean, correct?: boolean) =>
     correct ? "ring-2 ring-emerald-400/30" : "",
   );
 
-export const QuestionRenderer = ({ question, value, onChange, locked }: Props) => {
+export const QuestionRenderer = ({ question, value, onChange, locked, hiddenOptionIds = [] }: Props) => {
   const meta = (question.meta ?? {}) as Record<string, unknown>;
   const [fillText, setFillText] = useState(typeof value === "string" ? value : "");
 
@@ -209,7 +210,7 @@ export const QuestionRenderer = ({ question, value, onChange, locked }: Props) =
 
   return (
     <div className="grid gap-3 md:grid-cols-2">
-      {question.options.map((option) => {
+      {question.options.filter((option) => !hiddenOptionIds.includes(option.id)).map((option) => {
         const selected = typeof value === "string" ? value === option.id : selectedIds.includes(option.id);
         const handleClick = () => {
           if (locked) return;

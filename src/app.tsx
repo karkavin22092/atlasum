@@ -17,7 +17,7 @@ import { MessagesPage } from "./pages/messages";
 import { BugsPage } from "./pages/bugs";
 import { NotificationsPage } from "./pages/notifications";
 import { ReportBugPage } from "./pages/report-bug";
-import { dashboardMeta } from "@server/content";
+import { QUESTION_BANK_TOTAL, dashboardMeta, questionCountForTopic } from "@server/content";
 import type { DashboardMeta, Profile, ProfileStats } from "@shared/types";
 import { useAuth } from "./lib/auth";
 import { getUnreadMessageSummary } from "./lib/chat";
@@ -101,11 +101,11 @@ const fallbackMeta: AppMeta = {
   attempts: [],
   achievements: [],
   questionBank: {
-    total: dashboardMeta.topics.length * 60,
+    total: QUESTION_BANK_TOTAL,
     topics: dashboardMeta.topics.map((topic) => ({
       key: topic.key,
       title: topic.title,
-      questions: 60,
+      questions: questionCountForTopic(topic),
     })),
   },
 };
@@ -308,7 +308,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
           </Link>
           {!admin ? (
             <Link to="/report-bug" state={{ sourcePage }} className="grid min-w-12 place-items-center gap-1 rounded-2xl px-1 py-2 text-[10px] text-slate-300 sm:min-w-14 sm:px-2">
-              <Send className="h-5 w-5 text-amber-300" /><span>Сообщить</span>
+              <Send className="h-5 w-5 text-amber-300" /><span className="text-center leading-3">Сообщить<br />о баге</span>
             </Link>
           ) : null}
           <Link to="/leaderboard" className="grid min-w-12 place-items-center gap-1 rounded-2xl px-1 py-2 text-[10px] text-slate-300 sm:min-w-14 sm:px-2">

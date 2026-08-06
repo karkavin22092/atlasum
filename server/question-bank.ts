@@ -1,4 +1,4 @@
-import { topicCatalog } from "./content";
+import { QUESTION_BANK_TOTAL, questionCountForTopic, topicCatalog } from "./content";
 import type {
   Difficulty,
   FillQuestion,
@@ -164,8 +164,9 @@ export const generateQuestionBank = (): Question[] => {
   for (const topic of topicCatalog) {
     const concepts = topic.concepts;
     const termPairs = concepts.map((concept) => ({ term: concept.term, definition: concept.definition }));
+    const questionCount = questionCountForTopic(topic);
 
-    for (let index = 0; index < 60; index += 1) {
+    for (let index = 0; index < questionCount; index += 1) {
       const concept = concepts[index % concepts.length];
       const secondary = concepts[(index + 1) % concepts.length];
       const tertiary = concepts[(index + 2) % concepts.length];
@@ -174,10 +175,13 @@ export const generateQuestionBank = (): Question[] => {
       const serial = String(index + 1).padStart(2, "0");
       const id = `q-${topic.key}-${serial}`;
       const seed = `${topic.key}:${id}`;
-      const promptVariant = Array.from({ length: index }, (_, previousIndex) => previousIndex)
+      const promptVariantCount = ["single", "multiple", "trueFalse", "scenario"].includes(template) ? 6 : 5;
+      const promptOccurrence = Array.from({ length: index }, (_, previousIndex) => previousIndex)
         .filter((previousIndex) => QUESTION_TYPE_CYCLE[previousIndex % QUESTION_TYPE_CYCLE.length] === template
           && (["sequence", "matching"].includes(template) || previousIndex % concepts.length === index % concepts.length))
-        .length % (["single", "multiple", "trueFalse", "scenario"].includes(template) ? 6 : 5);
+        .length;
+      const promptVariant = promptOccurrence % promptVariantCount;
+      const promptRound = Math.floor(promptOccurrence / promptVariantCount);
       const otherConcepts = concepts.filter((item) => item.term !== concept.term);
       const commonTags = [
         topic.key,
@@ -389,11 +393,11 @@ export const generateQuestionBank = (): Question[] => {
             difficulty,
             type: template,
             question: [
-              `В каком порядке должны выполняться этапы «${listedSteps}»?`,
-              `Какова правильная последовательность действий «${listedSteps}»?`,
-              `Как расположить от первого к последнему этапы «${listedSteps}»?`,
-              `Какая последовательность верна для этапов «${listedSteps}»?`,
-              `В каком порядке следует расположить шаги «${listedSteps}»?`,
+              `В каком порядке должны выполняться этапы «${listedSteps}» при изучении понятия «${concept.term}»?`,
+              `Какова правильная последовательность действий «${listedSteps}» в контексте понятия «${concept.term}»?`,
+              `Как расположить от первого к последнему этапы «${listedSteps}», связанные с понятием «${concept.term}»?`,
+              `Какая последовательность верна для этапов «${listedSteps}» в задаче о понятии «${concept.term}»?`,
+              `В каком порядке следует расположить шаги «${listedSteps}» применительно к понятию «${concept.term}»?`,
             ][promptVariant],
             options: sequence.options,
             correct: sequence.correct,
@@ -420,6 +424,18 @@ export const generateQuestionBank = (): Question[] => {
           };
       }
 
+      if (promptRound > 0) {
+        const followUps = [
+          "Какой ответ будет наиболее точным в этой формулировке",
+          "Как следует решить это задание с опорой на определение",
+          "Какой ответ соответствует профессиональной терминологии",
+          "Какое решение учитывает смысл всех приведённых понятий",
+        ];
+        question.question = `${question.question.slice(0, -1)}. ${followUps[(promptRound - 1) % followUps.length]}?`;
+      }
+
+      question.meta = { ...(question.meta ?? {}), concept: concept.term, hint: concept.hint };
+
       questions.push(question);
     }
   }
@@ -438,7 +454,7 @@ const requireValid = (condition: boolean, questionId: string, message: string) =
 };
 
 export const validateQuestionBank = (questions: Question[]) => {
-  const expectedTotal = topicCatalog.length * 60;
+  const expectedTotal = QUESTION_BANK_TOTAL;
   if (questions.length !== expectedTotal) {
     throw new Error(`Ожидалось ${expectedTotal} вопросов, получено ${questions.length}.`);
   }
@@ -673,6 +689,8 @@ export const getCorrectAnswerPreview = (question: Question) => {
 };
 
 export const getUserAnswerPreview = (question: Question, answer: unknown): unknown => {
+  if (answer === "__skipped__") return "Вопрос пропущен";
+  if (answer === "__timeout__") return "Время вышло";
   switch (question.type) {
     case "single":
     case "scenario":
@@ -701,11 +719,11 @@ export const getUserAnswerPreview = (question: Question, answer: unknown): unkno
 };
 
 export const buildQuestionBankSummary = () => ({
-  total: topicCatalog.length * 60,
+  total: QUESTION_BANK_TOTAL,
   topics: topicCatalog.map((topic) => ({
     key: topic.key,
     title: topic.title,
-    questions: 60,
+    questions: questionCountForTopic(topic),
   })),
 });
 

@@ -42,38 +42,63 @@ const ensureProfile = async () => {
 };
 
 const ensureQuestionBank = async () => {
-  const count = await prisma.question.count();
-  if (count > 0) {
-    return;
+  const existingQuestions = new Set((await prisma.question.findMany({ select: { id: true } })).map((question) => question.id));
+  const missingQuestions = questions.filter((question) => !existingQuestions.has(question.id));
+
+  if (missingQuestions.length > 0) {
+    await prisma.question.createMany({
+      data: missingQuestions.map((question) => ({
+        id: question.id,
+        topic: question.topic,
+        difficulty: question.difficulty,
+        type: question.type,
+        question: question.question,
+        options: question.options as never,
+        correct: question.correct as never,
+        explanation: question.explanation,
+        source: question.source,
+        tags: question.tags as never,
+        meta: (question.meta ?? null) as never,
+      })),
+    });
   }
 
-  await prisma.question.createMany({
-    data: questions.map((question) => ({
-      id: question.id,
-      topic: question.topic,
-      difficulty: question.difficulty,
-      type: question.type,
-      question: question.question,
-      options: question.options as never,
-      correct: question.correct as never,
-      explanation: question.explanation,
-      source: question.source,
-      tags: question.tags as never,
-      meta: (question.meta ?? null) as never,
-    })),
-  });
+  if (existingQuestions.size !== questions.length) {
+    const existingGeneratedQuestions = questions.filter((question) => existingQuestions.has(question.id));
+    for (let index = 0; index < existingGeneratedQuestions.length; index += 100) {
+      await prisma.$transaction(existingGeneratedQuestions.slice(index, index + 100).map((question) => prisma.question.update({
+        where: { id: question.id },
+        data: {
+          topic: question.topic,
+          difficulty: question.difficulty,
+          type: question.type,
+          question: question.question,
+          options: question.options as never,
+          correct: question.correct as never,
+          explanation: question.explanation,
+          source: question.source,
+          tags: question.tags as never,
+          meta: (question.meta ?? null) as never,
+        },
+      })));
+    }
+  }
 
-  await prisma.questionReview.createMany({
-    data: questions.map((question) => ({
-      questionId: question.id,
-      timesAnswered: 0,
-      correctCount: 0,
-      easeFactor: 2.5,
-      intervalDays: 0,
-      mastery: 0,
-      nextReviewAt: new Date(0),
-    })),
-  });
+  const existingReviews = new Set((await prisma.questionReview.findMany({ select: { questionId: true } })).map((review) => review.questionId));
+  const missingReviews = questions.filter((question) => !existingReviews.has(question.id));
+  if (missingReviews.length > 0) {
+    await prisma.questionReview.createMany({
+      data: missingReviews.map((question) => ({
+        questionId: question.id,
+        timesAnswered: 0,
+        correctCount: 0,
+        easeFactor: 2.5,
+        intervalDays: 0,
+        mastery: 0,
+        nextReviewAt: new Date(0),
+      })),
+    });
+  }
 };
 
 await ensureProfile();
