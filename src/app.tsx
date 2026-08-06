@@ -1,3 +1,4 @@
+import React, { type ReactNode } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useTheme } from "./lib/theme";
 import { useLocalStorageState } from "./lib/storage";
@@ -5,24 +6,110 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "./lib/api";
 import { AnimatePresence, motion } from "framer-motion";
 import { Menu, MoonStar, SunMedium, Sparkles } from "lucide-react";
-import { cn } from "./lib/utils";
 import { HomePage } from "./pages/home";
 import { PracticePage } from "./pages/practice";
 import { GamesPage } from "./pages/games";
 import { GameRunnerPage } from "./pages/game-runner";
 import { AdminPage } from "./pages/admin";
 import { ReviewPage } from "./pages/review";
+import { dashboardMeta } from "@server/content";
+import type { DashboardMeta, Profile, ProfileStats } from "@shared/types";
 
-const AppShell = ({ children }: { children: React.ReactNode }) => {
+type AppMeta = DashboardMeta & {
+  profile: Profile;
+  stats: ProfileStats;
+  leaderboard: Array<{
+    rank: number;
+    id: string;
+    name: string;
+    xp: number;
+    level: number;
+    streak: number;
+    bestStreak: number;
+    attempts: number;
+    accuracy: number;
+    lastActiveAt: string | null;
+  }>;
+  activity: Array<{ date: string; attempts: number; correct: number; xp: number }>;
+  topicProgress: Array<{ key: string; title: string; description: string; source: string; color: string; mastery: number; answered: number }>;
+  attempts: Array<{
+    id: string;
+    mode: string;
+    count: number;
+    score: number;
+    maxScore: number;
+    percent: number;
+    grade: string;
+    durationMs: number;
+    topic: string | null;
+    createdAt: string;
+    items: Array<{
+      questionId: string;
+      topic: string;
+      difficulty: string;
+      isCorrect: boolean;
+      userAnswer: unknown;
+      correctAnswer: unknown;
+      explanation: string;
+    }>;
+  }>;
+  achievements: Array<{ key: string; title: string; description: string; icon: string; unlockedAt: string }>;
+  questionBank: { total: number; topics: Array<{ key: string; title: string; questions: number }> };
+};
+
+const fallbackMeta: AppMeta = {
+  ...dashboardMeta,
+  profile: {
+    id: "local-user",
+    name: "Гость",
+    xp: 0,
+    coins: 0,
+    level: 1,
+    streak: 0,
+    bestStreak: 0,
+    lastActiveAt: null,
+  },
+  stats: {
+    totalQuestionsAnswered: 0,
+    totalCorrect: 0,
+    accuracy: 0,
+    xpPerLevel: 250,
+    nextLevelXp: 250,
+    levelProgress: 0,
+    reviewDue: 0,
+    mastered: 0,
+    weak: 0,
+  },
+  leaderboard: [],
+  activity: [],
+  topicProgress: dashboardMeta.topics.map((topic) => ({
+    ...topic,
+    mastery: 0,
+    answered: 0,
+  })),
+  attempts: [],
+  achievements: [],
+  questionBank: {
+    total: dashboardMeta.topics.length * 60,
+    topics: dashboardMeta.topics.map((topic) => ({
+      key: topic.key,
+      title: topic.title,
+      questions: 60,
+    })),
+  },
+};
+
+const AppShell = ({ children }: { children: ReactNode }) => {
   const { theme, setTheme } = useTheme();
   const [profileName, setProfileName] = useLocalStorageState("it-graphics-profile", "Гость");
 
   const metaQuery = useQuery({
     queryKey: ["meta", profileName],
     queryFn: () => api.meta(profileName),
+    retry: 0,
   });
 
-  const meta = metaQuery.data;
+  const meta = (metaQuery.data ?? fallbackMeta) as AppMeta;
 
   return (
     <div className="min-h-screen text-slate-100">
@@ -37,7 +124,7 @@ const AppShell = ({ children }: { children: React.ReactNode }) => {
             </div>
             <div>
               <div className="text-sm font-semibold uppercase tracking-[0.25em] text-cyan-200/80">
-                Exam Quest
+                Design tests
               </div>
               <div className="text-xs text-slate-400">Информационные технологии и компьютерная графика</div>
             </div>
@@ -79,26 +166,31 @@ const AppShell = ({ children }: { children: React.ReactNode }) => {
 
       <main className="mx-auto max-w-7xl px-4 pb-14 pt-6 sm:px-6 lg:px-8">
         {metaQuery.isLoading ? (
-          <div className="grid min-h-[60vh] place-items-center">
-            <div className="glass rounded-3xl px-6 py-5 text-sm text-slate-300">Загружаем базу вопросов...</div>
+          <div className="mb-4 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-50">
+            Загружаю данные. Если backend недоступен, откроется локальная версия интерфейса.
           </div>
-        ) : (
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={profileName}
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -18 }}
-              transition={{ duration: 0.35 }}
-            >
-              {React.cloneElement(children as React.ReactElement, {
-                meta,
-                profileName,
-                setProfileName,
-              })}
-            </motion.div>
-          </AnimatePresence>
-        )}
+        ) : null}
+        {metaQuery.isError ? (
+          <div className="mb-4 rounded-2xl border border-amber-300/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-50">
+            Backend недоступен, показываю локальную оболочку сайта.
+          </div>
+        ) : null}
+
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={profileName}
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -18 }}
+            transition={{ duration: 0.35 }}
+          >
+            {React.cloneElement(children as React.ReactElement, {
+              meta,
+              profileName,
+              setProfileName,
+            })}
+          </motion.div>
+        </AnimatePresence>
       </main>
     </div>
   );
@@ -119,4 +211,3 @@ const App = () => {
 };
 
 export default App;
-
