@@ -24,6 +24,7 @@ import type {
   Question,
   SubmissionResponse,
 } from "@shared/types";
+import { sanitizeQuestionText } from "@shared/question-text";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -216,6 +217,7 @@ const buildLeaderboard = async () => {
       attempts,
       accuracy: avgPercent,
       lastActiveAt: profile.lastActiveAt?.toISOString() ?? null,
+      lastSeenAt: null,
     };
   });
 };
@@ -551,7 +553,7 @@ const getRecommendations = async (profileId: string) => {
     .map(([topic]) => topic);
 };
 
-const toJsonQuestion = (question: unknown) => question as Question;
+const toJsonQuestion = (question: unknown) => sanitizeQuestionText(question as Question);
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, name: "Exam Prep API" });

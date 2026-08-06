@@ -52,10 +52,7 @@ export const QuestionRenderer = ({ question, value, onChange, locked }: Props) =
 
   if (question.type === "fill") {
     return (
-      <div className="space-y-4">
-        <GlassCard className="bg-slate-950/40">
-          <div className="text-base leading-7 text-slate-100">{question.question}</div>
-        </GlassCard>
+      <div>
         <input
           className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-base text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300/40 focus:bg-white/10"
           placeholder="Введите ответ"
@@ -137,9 +134,6 @@ export const QuestionRenderer = ({ question, value, onChange, locked }: Props) =
 
     return (
       <div className="space-y-4">
-        <GlassCard>
-          <div className="text-base leading-7 text-slate-100">{question.question}</div>
-        </GlassCard>
         <div className="grid gap-3 md:grid-cols-2">
           <GlassCard className="space-y-3">
             <div className="text-sm font-medium text-slate-300">Элементы</div>

@@ -1,6 +1,7 @@
 import { Award, Crown, Medal, MessageCircle, Trophy } from "lucide-react";
 import { Link } from "react-router-dom";
 import { BackButton, Badge, Button, GlassCard, Panel, TitleBlock } from "@/components/ui";
+import { getPresence } from "@/lib/presence";
 import type { AppPageProps } from "./types";
 
 const rankIcon = (rank: number) => {
@@ -29,6 +30,7 @@ export const LeaderboardPage = ({ meta, profileName }: AppPageProps) => (
       <div className="space-y-3">
         {meta?.leaderboard.length ? meta.leaderboard.map((entry) => {
           const isCurrent = entry.name === profileName;
+          const presence = getPresence(entry.lastSeenAt);
           return (
             <GlassCard key={entry.id} className={isCurrent ? "border-cyan-300/35 bg-cyan-400/10" : ""}>
               <div className="grid items-center gap-3 sm:grid-cols-[44px_1fr_auto_auto_auto]">
@@ -39,6 +41,10 @@ export const LeaderboardPage = ({ meta, profileName }: AppPageProps) => (
                     {isCurrent ? <Badge tone="cyan">Это вы</Badge> : null}
                   </div>
                   <div className="mt-1 text-xs text-slate-400">{entry.attempts} тестов · точность {entry.accuracy}% · серия {entry.streak}</div>
+                  <div className={presence.online ? "mt-1.5 flex items-center gap-1.5 text-xs font-medium text-emerald-400" : "mt-1.5 flex items-center gap-1.5 text-xs text-slate-500"}>
+                    <span className={presence.online ? "h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" : "h-2 w-2 rounded-full bg-slate-500"} />
+                    {presence.label}
+                  </div>
                 </div>
                 <Badge tone="violet">Уровень {entry.level}</Badge>
                 <div className="text-right text-lg font-semibold text-cyan-200">{entry.xp} XP</div>

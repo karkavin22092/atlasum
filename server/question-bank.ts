@@ -76,6 +76,14 @@ const slugify = (value: string) =>
 
 const unique = <T,>(values: T[]) => Array.from(new Set(values));
 
+const containsAnswerTerm = (text: string, term: string) => {
+  const normalizedText = text.toLowerCase().replace(/ё/g, "е");
+  const normalizedTerm = term.toLowerCase().replace(/ё/g, "е");
+  if (normalizedTerm.length >= 4) return normalizedText.includes(normalizedTerm);
+  const escapedTerm = normalizedTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^a-zа-я0-9])${escapedTerm}([^a-zа-я0-9]|$)`, "iu").test(normalizedText);
+};
+
 const sentenceCase = (value: string) => value[0].toUpperCase() + value.slice(1);
 
 const pick = <T,>(values: T[], seed: string) => values[Math.floor(createRandom(seed)() * values.length)];
@@ -311,6 +319,8 @@ export const generateQuestionBank = (): Question[] => {
           break;
         }
         case "scenario": {
+          const scenarioClue = [concept.scenario, concept.hint, concept.definition]
+            .find((text) => !containsAnswerTerm(text, concept.term)) ?? concept.definition;
           const options = buildOptions(
             concept.term,
             otherConcepts.map((item) => item.term),
@@ -322,11 +332,11 @@ export const generateQuestionBank = (): Question[] => {
             difficulty,
             type: template,
             question: [
-              `${concept.scenario} Какое понятие описано в этой ситуации?`,
-              `${concept.scenario} Какой термин точнее всего подходит к примеру?`,
-              `${concept.scenario} Как называется показанное здесь понятие?`,
-              `${concept.scenario} Какое понятие иллюстрирует этот пример?`,
-              `${concept.scenario} Какой термин следует применить к этой ситуации?`,
+              `${scenarioClue} Какое понятие описано в этой ситуации?`,
+              `${scenarioClue} Какой термин точнее всего подходит к примеру?`,
+              `${scenarioClue} Как называется показанное здесь понятие?`,
+              `${scenarioClue} Какое понятие иллюстрирует этот пример?`,
+              `${scenarioClue} Какой термин следует применить к этой ситуации?`,
             ][promptVariant],
             options,
             correct: getCorrectOptionId(options),
@@ -463,6 +473,7 @@ export const validateQuestionBank = (questions: Question[]) => {
         requireValid(correctOption.text === concept.definition, question.id, "правильный ответ не совпадает с определением понятия");
       } else if (question.type === "scenario") {
         requireValid(correctOption.text === concept.term, question.id, "ответ на ситуацию не совпадает с исходным понятием");
+        requireValid(!containsAnswerTerm(question.question, concept.term), question.id, "правильный термин указан прямо в условии");
       }
       continue;
     }
@@ -500,6 +511,7 @@ export const validateQuestionBank = (questions: Question[]) => {
       requireValid(answer.answer === concept?.term, question.id, "ответ не совпадает с термином из определения");
       requireValid((answer.acceptable ?? []).every((item) => item === answer.answer), question.id, "в допустимые ответы попал посторонний термин");
       requireValid(Boolean(concept && question.question.includes(concept.definition)), question.id, "вопрос не содержит проверяемое определение");
+      requireValid(!containsAnswerTerm(question.question, answer.answer), question.id, "ответ указан прямо в вопросе с вводом текста");
       continue;
     }
 

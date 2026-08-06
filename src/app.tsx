@@ -1,10 +1,10 @@
 import React, { type ReactNode } from "react";
-import { Link, Navigate, Route, Routes } from "react-router-dom";
+import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useTheme } from "./lib/theme";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./lib/api";
 import { AnimatePresence, motion } from "framer-motion";
-import { LogIn, LogOut, MessageCircle, MoonStar, SunMedium, Sparkles, Trophy } from "lucide-react";
+import { Bell, Bug, LogIn, LogOut, MessageCircle, MoonStar, Send, SunMedium, Sparkles, Trophy } from "lucide-react";
 import { HomePage } from "./pages/home";
 import { PracticePage } from "./pages/practice";
 import { GamesPage } from "./pages/games";
@@ -14,10 +14,16 @@ import { ReviewPage } from "./pages/review";
 import { AuthPage } from "./pages/auth";
 import { LeaderboardPage } from "./pages/leaderboard";
 import { MessagesPage } from "./pages/messages";
+import { BugsPage } from "./pages/bugs";
+import { NotificationsPage } from "./pages/notifications";
+import { ReportBugPage } from "./pages/report-bug";
 import { dashboardMeta } from "@server/content";
 import type { DashboardMeta, Profile, ProfileStats } from "@shared/types";
 import { useAuth } from "./lib/auth";
 import { getUnreadMessageSummary } from "./lib/chat";
+import { APP_VERSION } from "./lib/version";
+import { getUnreadBugCount, getUnreadNotificationCount } from "./lib/bugs";
+import { isAdminUser } from "./lib/permissions";
 
 type AppMeta = DashboardMeta & {
   profile: Profile;
@@ -33,6 +39,7 @@ type AppMeta = DashboardMeta & {
     attempts: number;
     accuracy: number;
     lastActiveAt: string | null;
+    lastSeenAt: string | null;
   }>;
   activity: Array<{ date: string; attempts: number; correct: number; xp: number }>;
   topicProgress: Array<{ key: string; title: string; description: string; source: string; color: string; mastery: number; answered: number }>;
@@ -106,7 +113,11 @@ const fallbackMeta: AppMeta = {
 const AppShell = ({ children }: { children: ReactNode }) => {
   const { theme, setTheme } = useTheme();
   const { user, logout } = useAuth();
+  const location = useLocation();
   const profileName = user?.name ?? "Гость";
+  const admin = isAdminUser(user);
+  const authToken = user?.authToken ?? "";
+  const authenticatedUserId = user?.id ?? "guest";
 
   const metaQuery = useQuery({
     queryKey: ["meta", profileName],
@@ -127,6 +138,26 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   });
   const unreadMessageCount = unreadMessagesQuery.data?.count ?? 0;
   const unreadLabel = unreadMessageCount > 99 ? "99+" : String(unreadMessageCount);
+  const unreadNotificationsQuery = useQuery({
+    queryKey: ["unread-notifications", authenticatedUserId, authToken],
+    queryFn: () => getUnreadNotificationCount(authenticatedUserId, authToken),
+    enabled: Boolean(user && authToken && authenticatedUserId !== "guest"),
+    retry: 0,
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
+  });
+  const unreadBugsQuery = useQuery({
+    queryKey: ["unread-bugs", authenticatedUserId, authToken],
+    queryFn: () => getUnreadBugCount(authenticatedUserId, authToken),
+    enabled: Boolean(admin && authToken && authenticatedUserId === "lonexnesss"),
+    retry: 0,
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
+  });
+  const unreadNotificationCount = unreadNotificationsQuery.data?.count ?? 0;
+  const unreadBugCount = unreadBugsQuery.data?.count ?? 0;
+  const badgeLabel = (count: number) => count > 99 ? "99+" : String(count);
+  const sourcePage = `${location.pathname}${location.search}`;
 
   return (
     <div className="theme-shell min-h-screen text-slate-100">
@@ -140,8 +171,9 @@ const AppShell = ({ children }: { children: ReactNode }) => {
               <Sparkles className="h-5 w-5 text-white" />
             </div>
             <div>
-              <div className="text-sm font-semibold uppercase tracking-[0.25em] text-cyan-200/80">
-                Design tests
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-semibold uppercase tracking-[0.25em] text-cyan-200/80">Design tests</span>
+                <span className="app-version rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-bold tracking-normal text-cyan-200">{APP_VERSION}</span>
               </div>
               <div className="text-xs text-slate-400">Информационные технологии и компьютерная графика</div>
             </div>
@@ -157,6 +189,24 @@ const AppShell = ({ children }: { children: ReactNode }) => {
                     {unreadLabel}
                   </span>
                 ) : null}
+              </Link>
+            ) : null}
+            {admin ? (
+              <Link to="/bugs" className="glass relative inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm text-slate-200 transition hover:bg-white/10">
+                <Bug className="h-4 w-4 text-rose-300" />
+                Баги
+                {unreadBugCount ? <span className="message-unread-badge inline-flex min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[11px] font-bold leading-none">{badgeLabel(unreadBugCount)}</span> : null}
+              </Link>
+            ) : null}
+            {user ? (
+              <Link to="/notifications" aria-label={unreadNotificationCount ? `Уведомления, новых: ${unreadNotificationCount}` : "Уведомления"} className="glass relative inline-flex h-11 w-11 items-center justify-center rounded-full text-slate-200 transition hover:bg-white/10">
+                <Bell className="h-4 w-4 text-cyan-300" />
+                {unreadNotificationCount ? <span className="message-unread-badge absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none">{badgeLabel(unreadNotificationCount)}</span> : null}
+              </Link>
+            ) : null}
+            {user ? (
+              <Link to="/report-bug" state={{ sourcePage }} className="glass inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm text-slate-200 transition hover:bg-white/10">
+                <Send className="h-4 w-4 text-cyan-300" />Сообщить о баге
               </Link>
             ) : null}
             <Link to="/leaderboard" className="glass inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm text-slate-200 transition hover:bg-white/10">
@@ -222,7 +272,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 pb-14 pt-6 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-7xl px-4 pb-28 pt-6 sm:px-6 md:pb-14 lg:px-8">
         {metaQuery.isLoading ? (
           <div className="mb-4 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-50">
             Загружаю базу вопросов...
@@ -249,6 +299,28 @@ const AppShell = ({ children }: { children: ReactNode }) => {
           </motion.div>
         </AnimatePresence>
       </main>
+
+      {user ? (
+        <nav className="glass-strong fixed inset-x-3 bottom-3 z-50 flex items-center justify-around rounded-3xl px-2 py-2 md:hidden" aria-label="Быстрые действия">
+          <Link to="/messages" className="relative grid min-w-14 place-items-center gap-1 rounded-2xl px-2 py-2 text-[10px] text-slate-300">
+            <MessageCircle className="h-5 w-5 text-cyan-300" /><span>Чаты</span>
+            {unreadMessageCount ? <span className="message-unread-badge absolute right-1 top-0 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold">{unreadLabel}</span> : null}
+          </Link>
+          {admin ? (
+            <Link to="/bugs" className="relative grid min-w-14 place-items-center gap-1 rounded-2xl px-2 py-2 text-[10px] text-slate-300">
+              <Bug className="h-5 w-5 text-rose-300" /><span>Баги</span>
+              {unreadBugCount ? <span className="message-unread-badge absolute right-1 top-0 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold">{badgeLabel(unreadBugCount)}</span> : null}
+            </Link>
+          ) : null}
+          <Link to="/notifications" className="relative grid min-w-14 place-items-center gap-1 rounded-2xl px-2 py-2 text-[10px] text-slate-300">
+            <Bell className="h-5 w-5 text-cyan-300" /><span>События</span>
+            {unreadNotificationCount ? <span className="message-unread-badge absolute right-1 top-0 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold">{badgeLabel(unreadNotificationCount)}</span> : null}
+          </Link>
+          <Link to="/report-bug" state={{ sourcePage }} className="grid min-w-14 place-items-center gap-1 rounded-2xl px-2 py-2 text-[10px] text-slate-300">
+            <Send className="h-5 w-5 text-amber-300" /><span>Сообщить</span>
+          </Link>
+        </nav>
+      ) : null}
     </div>
   );
 };
@@ -265,6 +337,9 @@ const App = () => {
       <Route path="/leaderboard" element={<AppShell><LeaderboardPage /></AppShell>} />
       <Route path="/messages" element={<AppShell><MessagesPage /></AppShell>} />
       <Route path="/messages/:recipientId" element={<AppShell><MessagesPage /></AppShell>} />
+      <Route path="/bugs" element={<AppShell><BugsPage /></AppShell>} />
+      <Route path="/notifications" element={<AppShell><NotificationsPage /></AppShell>} />
+      <Route path="/report-bug" element={<AppShell><ReportBugPage /></AppShell>} />
       <Route path="/auth" element={<AuthPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

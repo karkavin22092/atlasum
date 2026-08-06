@@ -1,0 +1,275 @@
+import { getStore } from "@netlify/blobs";
+
+type BugReport = {
+  id: string;
+  reporterId: string;
+  reporterName: string;
+  title: string;
+  description: string;
+  pageUrl: string;
+  status: "open" | "fixed" | "rejected";
+  createdAt: string;
+  adminReadAt: string | null;
+  fixedAt: string | null;
+  rejectedAt: string | null;
+  rejectionReason: string | null;
+  rewardedAt: string | null;
+};
+
+type SiteNotification = {
+  id: string;
+  userId: string;
+  type: "bug-fixed" | "bug-rejected";
+  title: string;
+  message: string;
+  bugId: string;
+  xpAwarded: number;
+  createdAt: string;
+  readAt: string | null;
+};
+
+type RewardableLeaderboardEntry = {
+  id: string;
+  name: string;
+  xp: number;
+  level: number;
+  rewardedBugIds?: string[];
+  [key: string]: unknown;
+};
+
+const ADMIN_ID = "lonexnesss";
+const BUG_REWARD_XP = 200;
+const bugsStore = () => getStore({ name: "design-tests-bugs", consistency: "strong" });
+const notificationsStore = () => getStore({ name: "design-tests-notifications", consistency: "strong" });
+const leaderboardStore = () => getStore({ name: "design-tests-leaderboard", consistency: "strong" });
+const sessionsStore = () => getStore({ name: "design-tests-auth-sessions", consistency: "strong" });
+
+const cleanUserId = (value: unknown) =>
+  String(value ?? "").trim().toLowerCase().replace(/[^a-zа-я0-9-]+/giu, "-").slice(0, 80);
+const jsonError = (message: string, status: number) => Response.json({ error: message }, { status });
+
+const hashHex = async (value: string) => {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+};
+
+const getSessionUserId = async (request: Request) => {
+  const authorization = request.headers.get("authorization") ?? "";
+  const token = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
+  if (!token) return "";
+  const session = await sessionsStore().get(await hashHex(token), { type: "json", consistency: "strong" }) as {
+    userId?: string;
+    expiresAt?: string;
+  } | null;
+  if (!session?.userId || !session.expiresAt || Date.parse(session.expiresAt) <= Date.now()) return "";
+  return cleanUserId(session.userId);
+};
+
+const getLeaderboardUser = async (userId: string) => {
+  if (!userId) return null;
+  return leaderboardStore().get(userId, { type: "json", consistency: "strong" }) as Promise<RewardableLeaderboardEntry | null>;
+};
+
+const requireAdmin = async (userId: string) => userId === ADMIN_ID && Boolean(await getLeaderboardUser(userId));
+
+const listReports = async () => {
+  const store = bugsStore();
+  const { blobs } = await store.list();
+  const reports = await Promise.all(blobs.map((blob) => store.get(blob.key, { type: "json", consistency: "strong" })));
+  return reports
+    .filter((report): report is BugReport => Boolean(report && typeof report === "object"))
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+};
+
+const listNotifications = async (userId: string) => {
+  const store = notificationsStore();
+  const { blobs } = await store.list({ prefix: `${userId}/` });
+  const notifications = await Promise.all(blobs.map((blob) => store.get(blob.key, { type: "json", consistency: "strong" })));
+  return notifications
+    .filter((notification): notification is SiteNotification => Boolean(notification && typeof notification === "object"))
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+    .slice(0, 200);
+};
+
+const awardBugReward = async (report: BugReport) => {
+  const leaderboard = leaderboardStore();
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const stored = await leaderboard.getWithMetadata(report.reporterId, { type: "json", consistency: "strong" });
+    if (!stored?.etag || !stored.data) throw new Error("Профиль автора обращения не найден");
+    const entry = stored.data as RewardableLeaderboardEntry;
+    const rewardedBugIds = Array.isArray(entry.rewardedBugIds) ? entry.rewardedBugIds.map(String) : [];
+    if (rewardedBugIds.includes(report.id)) return false;
+
+    const xp = Math.max(0, Number(entry.xp) || 0) + BUG_REWARD_XP;
+    const updated = {
+      ...entry,
+      xp,
+      level: Math.floor(xp / 250) + 1,
+      rewardedBugIds: [...rewardedBugIds, report.id].slice(-1000),
+    };
+    const result = await leaderboard.setJSON(report.reporterId, updated, { onlyIfMatch: stored.etag });
+    if (result.modified) return true;
+  }
+  throw new Error("Не удалось начислить награду из-за одновременного обновления профиля");
+};
+
+const notifyReporter = async (report: BugReport) => {
+  const notification: SiteNotification = {
+    id: `bug-fixed-${report.id}`,
+    userId: report.reporterId,
+    type: "bug-fixed",
+    title: "Ваш баг исправлен",
+    message: `Исправлено обращение «${report.title}». Спасибо за помощь проекту!`,
+    bugId: report.id,
+    xpAwarded: BUG_REWARD_XP,
+    createdAt: new Date().toISOString(),
+    readAt: null,
+  };
+  await notificationsStore().setJSON(`${report.reporterId}/${notification.id}`, notification, { onlyIfNew: true });
+};
+
+const notifyRejectedReport = async (report: BugReport, reason: string) => {
+  const notification: SiteNotification = {
+    id: `bug-rejected-${report.id}`,
+    userId: report.reporterId,
+    type: "bug-rejected",
+    title: "Обращение отклонено",
+    message: `Обращение «${report.title}» отклонено. Причина: ${reason}`,
+    bugId: report.id,
+    xpAwarded: 0,
+    createdAt: new Date().toISOString(),
+    readAt: null,
+  };
+  await notificationsStore().setJSON(`${report.reporterId}/${notification.id}`, notification, { onlyIfNew: true });
+};
+
+export default async (request: Request) => {
+  try {
+    const url = new URL(request.url);
+    const sessionUserId = await getSessionUserId(request);
+    if (!sessionUserId) return jsonError("Войдите в аккаунт заново", 401);
+
+    if (request.method === "GET") {
+      const userId = cleanUserId(url.searchParams.get("userId"));
+      const adminId = cleanUserId(url.searchParams.get("adminId"));
+      const summary = url.searchParams.get("summary") === "1";
+
+      if (userId) {
+        if (sessionUserId !== userId) return jsonError("Нет доступа к чужим уведомлениям", 403);
+        if (!await getLeaderboardUser(userId)) return jsonError("Пользователь не найден", 403);
+        const notifications = await listNotifications(userId);
+        return summary
+          ? Response.json({ count: notifications.filter((item) => !item.readAt).length })
+          : Response.json(notifications);
+      }
+
+      if (sessionUserId !== adminId || !await requireAdmin(adminId)) return jsonError("Доступ разрешён только администратору", 403);
+      const reports = await listReports();
+      return summary
+        ? Response.json({ count: reports.filter((report) => !report.adminReadAt).length })
+        : Response.json(reports);
+    }
+
+    if (request.method === "POST") {
+      const payload = await request.json() as { reporterId?: string; title?: string; description?: string; pageUrl?: string };
+      const reporterId = cleanUserId(payload.reporterId);
+      if (sessionUserId !== reporterId) return jsonError("Нельзя отправить обращение от имени другого пользователя", 403);
+      const reporter = await getLeaderboardUser(reporterId);
+      if (!reporter) return jsonError("Войдите в аккаунт перед отправкой обращения", 403);
+      const title = String(payload.title ?? "").trim().slice(0, 120);
+      const description = String(payload.description ?? "").trim().slice(0, 3000);
+      const pageUrl = String(payload.pageUrl ?? "").trim().slice(0, 500);
+      if (title.length < 5) return jsonError("Кратко назовите проблему", 400);
+      if (description.length < 15) return jsonError("Опишите проблему подробнее", 400);
+
+      const report: BugReport = {
+        id: crypto.randomUUID(),
+        reporterId,
+        reporterName: String(reporter.name ?? reporterId).slice(0, 40),
+        title,
+        description,
+        pageUrl,
+        status: "open",
+        createdAt: new Date().toISOString(),
+        adminReadAt: null,
+        fixedAt: null,
+        rejectedAt: null,
+        rejectionReason: null,
+        rewardedAt: null,
+      };
+      await bugsStore().setJSON(report.id, report, { onlyIfNew: true });
+      return Response.json(report, { status: 201 });
+    }
+
+    if (request.method === "PATCH") {
+      const payload = await request.json() as { action?: string; adminId?: string; userId?: string; bugId?: string; reason?: string };
+      if (payload.action === "readNotifications") {
+        const userId = cleanUserId(payload.userId);
+        if (sessionUserId !== userId) return jsonError("Нет доступа к чужим уведомлениям", 403);
+        if (!await getLeaderboardUser(userId)) return jsonError("Пользователь не найден", 403);
+        const notifications = await listNotifications(userId);
+        const readAt = new Date().toISOString();
+        await Promise.all(notifications.filter((item) => !item.readAt).map((item) =>
+          notificationsStore().setJSON(`${userId}/${item.id}`, { ...item, readAt })));
+        return Response.json({ ok: true });
+      }
+
+      const adminId = cleanUserId(payload.adminId);
+      if (sessionUserId !== adminId || !await requireAdmin(adminId)) return jsonError("Доступ разрешён только администратору", 403);
+
+      if (payload.action === "markRead") {
+        const reports = await listReports();
+        const adminReadAt = new Date().toISOString();
+        await Promise.all(reports.filter((report) => !report.adminReadAt).map((report) =>
+          bugsStore().setJSON(report.id, { ...report, adminReadAt })));
+        return Response.json({ ok: true });
+      }
+
+      if (payload.action === "fix") {
+        const bugId = String(payload.bugId ?? "").trim();
+        const report = await bugsStore().get(bugId, { type: "json", consistency: "strong" }) as BugReport | null;
+        if (!report) return jsonError("Обращение не найдено", 404);
+        if (report.status !== "open") return jsonError("Обращение уже обработано", 409);
+
+        const rewarded = await awardBugReward(report);
+        await notifyReporter(report);
+        const now = new Date().toISOString();
+        const fixedReport: BugReport = {
+          ...report,
+          status: "fixed",
+          adminReadAt: report.adminReadAt ?? now,
+          fixedAt: now,
+          rewardedAt: now,
+        };
+        await bugsStore().setJSON(report.id, fixedReport);
+        return Response.json({ report: fixedReport, rewarded });
+      }
+
+      if (payload.action === "reject") {
+        const bugId = String(payload.bugId ?? "").trim();
+        const report = await bugsStore().get(bugId, { type: "json", consistency: "strong" }) as BugReport | null;
+        if (!report) return jsonError("Обращение не найдено", 404);
+        if (report.status !== "open") return jsonError("Обращение уже обработано", 409);
+        const reason = String(payload.reason ?? "").trim().slice(0, 300) || "Проблема не подтверждена";
+        const now = new Date().toISOString();
+        const rejectedReport: BugReport = {
+          ...report,
+          status: "rejected",
+          adminReadAt: report.adminReadAt ?? now,
+          rejectedAt: now,
+          rejectionReason: reason,
+        };
+        await notifyRejectedReport(rejectedReport, reason);
+        await bugsStore().setJSON(report.id, rejectedReport);
+        return Response.json({ report: rejectedReport });
+      }
+
+      return jsonError("Неизвестная операция", 400);
+    }
+
+    return new Response("Method not allowed", { status: 405, headers: { Allow: "GET, POST, PATCH" } });
+  } catch (error) {
+    console.error("Bugs function failed", error);
+    return jsonError("Не удалось обработать обращение", 500);
+  }
+};

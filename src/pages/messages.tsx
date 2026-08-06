@@ -2,19 +2,21 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { LoaderCircle, MessageCircle, Send, SmilePlus, Sparkles, UserRound } from "lucide-react";
-import { BackButton, Badge, Button, GlassCard, Panel, TitleBlock } from "@/components/ui";
+import { Check, CheckCheck, CircleAlert, Clock3, LoaderCircle, MessageCircle, RotateCcw, Send, SmilePlus, Sparkles, UserRound } from "lucide-react";
+import { BackButton, Button, GlassCard, Panel, TitleBlock } from "@/components/ui";
 import {
   getConversation,
   getLatestMessage,
   markConversationRead,
   MESSAGE_EMOJIS,
   REACTION_EMOJIS,
+  createPendingMessage,
   sendMessage,
   toggleMessageReaction,
   type ChatMessage,
 } from "@/lib/chat";
 import { useAuth } from "@/lib/auth";
+import { getPresence } from "@/lib/presence";
 import type { AppPageProps } from "./types";
 
 const formatMessageTime = (value: string) => new Intl.DateTimeFormat("ru-RU", {
@@ -32,6 +34,7 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
   const currentProfileId = meta?.profile.id ?? "guest";
   const contacts = (meta?.leaderboard ?? []).filter((entry) => entry.id !== currentProfileId);
   const recipient = contacts.find((entry) => entry.id === recipientId) ?? null;
+  const recipientPresence = getPresence(recipient?.lastSeenAt);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
@@ -54,8 +57,11 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
       try {
         const nextMessages = await getConversation(currentProfileId, recipientId);
         if (active) {
-          setMessages(nextMessages);
-          markConversationRead(currentProfileId, recipientId, nextMessages);
+          const readMessages = markConversationRead(currentProfileId, recipientId, nextMessages);
+          setMessages((current) => [
+            ...readMessages,
+            ...current.filter((message) => message.clientStatus && !readMessages.some((stored) => stored.id === message.id)),
+          ].sort((left, right) => left.createdAt.localeCompare(right.createdAt)));
           void queryClient.invalidateQueries({ queryKey: ["unread-messages", currentProfileId] });
           setError("");
         }
@@ -78,17 +84,35 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!recipient) return;
+    const text = draft.trim();
+    if (!text) return;
+    const pending = createPendingMessage(currentProfileId, recipient.id, text);
     setError("");
     setIsSending(true);
+    setMessages((current) => [...current, pending]);
+    setDraft("");
+    setShowEmojiPicker(false);
     try {
-      const message = await sendMessage(currentProfileId, recipient.id, draft);
+      const message = await sendMessage(currentProfileId, recipient.id, text, pending);
       setMessages((current) => [...current.filter((item) => item.id !== message.id), message]);
-      setDraft("");
-      setShowEmojiPicker(false);
     } catch (caught) {
+      setMessages((current) => current.map((message) => message.id === pending.id ? { ...message, clientStatus: "failed" } : message));
       setError(caught instanceof Error ? caught.message : "Не удалось отправить сообщение");
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const retryMessage = async (message: ChatMessage) => {
+    if (message.clientStatus !== "failed") return;
+    setMessages((current) => current.map((item) => item.id === message.id ? { ...item, clientStatus: "sending" } : item));
+    setError("");
+    try {
+      const delivered = await sendMessage(message.senderId, message.recipientId, message.text, { ...message, clientStatus: "sending" });
+      setMessages((current) => current.map((item) => item.id === delivered.id ? delivered : item));
+    } catch (caught) {
+      setMessages((current) => current.map((item) => item.id === message.id ? { ...item, clientStatus: "failed" } : item));
+      setError(caught instanceof Error ? caught.message : "Не удалось повторно отправить сообщение");
     }
   };
 
@@ -137,14 +161,19 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
             {contacts.length ? contacts.map((contact) => {
               const latest = getLatestMessage(currentProfileId, contact.id);
               const active = contact.id === recipientId;
+              const presence = getPresence(contact.lastSeenAt);
               return (
                 <motion.div key={contact.id} layout initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}>
                   <Link to={`/messages/${contact.id}`} className={active ? "block rounded-2xl border border-cyan-300/35 bg-cyan-400/10 p-3" : "block rounded-2xl border border-white/10 bg-white/5 p-3 transition hover:bg-white/10"}>
                     <div className="flex items-center gap-3">
                       <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-cyan-400/15 text-cyan-200"><UserRound className="h-4 w-4" /></div>
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-semibold text-white">{contact.name}</div>
+                        <div className="flex items-center gap-2">
+                          <span className={presence.online ? "h-2 w-2 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" : "h-2 w-2 shrink-0 rounded-full bg-slate-500"} />
+                          <div className="truncate text-sm font-semibold text-white">{contact.name}</div>
+                        </div>
                         <div className="mt-1 truncate text-xs text-slate-400">{latest?.text ?? "Начать диалог"}</div>
+                        <div className={presence.online ? "mt-1 truncate text-[10px] font-medium text-emerald-400" : "mt-1 truncate text-[10px] text-slate-500"}>{presence.label}</div>
                       </div>
                     </div>
                   </Link>
@@ -169,10 +198,10 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="relative flex h-2.5 w-2.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400" />
+                    {recipientPresence.online ? <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" /> : null}
+                    <span className={recipientPresence.online ? "relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400" : "relative inline-flex h-2.5 w-2.5 rounded-full bg-slate-500"} />
                   </span>
-                  <Badge tone="emerald">Автообновление</Badge>
+                  <span className={recipientPresence.online ? "text-xs font-medium text-emerald-400" : "max-w-52 text-right text-xs text-slate-400"}>{recipientPresence.label}</span>
                 </div>
               </div>
 
@@ -192,9 +221,22 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
                       className={own ? "flex justify-end" : "flex justify-start"}
                     >
                       <div className={own ? "relative max-w-[86%] sm:max-w-[78%]" : "relative max-w-[86%] sm:max-w-[78%]"}>
-                        <div className={own ? "rounded-3xl rounded-br-md bg-gradient-to-br from-cyan-400 to-sky-500 px-4 py-3 text-slate-950 shadow-lg" : "glass rounded-3xl rounded-bl-md px-4 py-3"}>
+                        <div className={own
+                          ? `rounded-3xl rounded-br-md bg-gradient-to-br from-cyan-400 to-sky-500 px-4 py-3 text-slate-950 shadow-lg ${message.clientStatus === "failed" ? "ring-2 ring-rose-500/70" : ""}`
+                          : "glass rounded-3xl rounded-bl-md px-4 py-3"}>
                           <div className="whitespace-pre-wrap break-words text-sm leading-6">{message.text}</div>
-                          <div className={own ? "mt-1 text-right text-[11px] text-slate-700" : "mt-1 text-[11px] text-slate-400"}>{formatMessageTime(message.createdAt)}</div>
+                          <div className={own ? "mt-1 flex flex-wrap items-center justify-end gap-1.5 text-[11px] text-slate-700" : "mt-1 text-[11px] text-slate-400"}>
+                            <span>{formatMessageTime(message.createdAt)}</span>
+                            {own && message.clientStatus === "sending" ? <span className="inline-flex items-center gap-1"><Clock3 className="h-3 w-3 animate-pulse" /> Отправляется</span> : null}
+                            {own && message.clientStatus === "failed" ? (
+                              <button type="button" onClick={() => void retryMessage(message)} className="inline-flex items-center gap-1 font-semibold text-rose-950 underline decoration-rose-700/50 underline-offset-2" title="Повторить отправку">
+                                <CircleAlert className="h-3 w-3" /> Не отправлено <RotateCcw className="h-3 w-3" />
+                              </button>
+                            ) : null}
+                            {own && !message.clientStatus && message.readAt ? <span className="inline-flex items-center gap-1 font-semibold text-sky-950" title={`Прочитано ${formatMessageTime(message.readAt)}`}><CheckCheck className="h-3.5 w-3.5" /> Прочитано</span> : null}
+                            {own && !message.clientStatus && !message.readAt && message.deliveredAt ? <span className="inline-flex items-center gap-1"><CheckCheck className="h-3.5 w-3.5" /> Доставлено</span> : null}
+                            {own && !message.clientStatus && !message.readAt && !message.deliveredAt ? <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5" /> Отправлено</span> : null}
+                          </div>
                         </div>
 
                         <div className={own ? "mt-1.5 flex flex-wrap items-center justify-end gap-1" : "mt-1.5 flex flex-wrap items-center gap-1"}>
@@ -220,7 +262,8 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
                           <button
                             type="button"
                             onClick={() => setReactionTargetId((current) => current === message.id ? null : message.id)}
-                            className="grid h-7 w-7 place-items-center rounded-full border border-white/10 bg-white/5 text-slate-400 transition hover:scale-110 hover:bg-white/10 hover:text-cyan-200"
+                            disabled={Boolean(message.clientStatus)}
+                            className="grid h-7 w-7 place-items-center rounded-full border border-white/10 bg-white/5 text-slate-400 transition hover:scale-110 hover:bg-white/10 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-40"
                             aria-label="Добавить реакцию"
                           >
                             <SmilePlus className="h-3.5 w-3.5" />

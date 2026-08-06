@@ -5,6 +5,7 @@ import { AtSign, LockKeyhole, MoonStar, Sparkles, SunMedium, UserRound } from "l
 import { Button, GlassCard } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
+import { APP_VERSION } from "@/lib/version";
 
 export const AuthPage = () => {
   const { user, login, register } = useAuth();
@@ -54,7 +55,10 @@ export const AuthPage = () => {
             <Sparkles className="h-5 w-5" />
           </div>
           <div>
-            <div className="text-sm font-semibold uppercase tracking-[0.24em] text-cyan-200">Design tests</div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold uppercase tracking-[0.24em] text-cyan-200">Design tests</span>
+              <span className="app-version rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-bold tracking-normal text-cyan-200">{APP_VERSION}</span>
+            </div>
             <div className="text-xs text-slate-400">Подготовка к экзамену</div>
           </div>
         </Link>
@@ -101,7 +105,7 @@ export const AuthPage = () => {
             </Button>
           </form>
 
-          <div className="mt-5 text-center text-xs leading-5 text-slate-500">На Netlify профиль хранится локально в этом браузере и не передаётся сторонним сервисам.</div>
+          <div className="mt-5 text-center text-xs leading-5 text-slate-500">Аккаунт синхронизируется через защищённое хранилище сайта и доступен с телефона и компьютера.</div>
         </GlassCard>
       </motion.div>
     </div>

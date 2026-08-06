@@ -164,7 +164,6 @@ export const HomePage = ({ meta }: AppPageProps) => {
                       </div>
                     ))}
                   </div>
-                  <div className="text-sm text-slate-400">{question.explanation}</div>
                 </GlassCard>
               ))
             ) : (

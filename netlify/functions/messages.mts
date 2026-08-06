@@ -6,6 +6,8 @@ type ChatMessage = {
   recipientId: string;
   text: string;
   createdAt: string;
+  deliveredAt?: string;
+  readAt?: string;
   reactions?: Record<string, string[]>;
 };
 
@@ -23,6 +25,11 @@ const conversationKey = (firstUserId: string, secondUserId: string) =>
   [firstUserId, secondUserId].sort((left, right) => left.localeCompare(right)).join("--");
 
 const jsonError = (message: string, status: number) => Response.json({ error: message }, { status });
+
+const normalizeStoredMessage = (value: ChatMessage): ChatMessage => ({
+  ...value,
+  deliveredAt: value.deliveredAt ?? value.createdAt,
+});
 
 const requireParticipants = async (firstUserId: string, secondUserId: string) => {
   if (!firstUserId || !secondUserId || firstUserId === secondUserId || DELETED_USER_IDS.has(firstUserId) || DELETED_USER_IDS.has(secondUserId)) return false;
@@ -45,6 +52,7 @@ const listInbox = async (userId: string) => {
   const values = await Promise.all(blobs.map((blob) => inbox.get(blob.key, { type: "json", consistency: "strong" })));
   return values
     .filter((value): value is ChatMessage => Boolean(value && typeof value === "object"))
+    .map(normalizeStoredMessage)
     .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
     .slice(-300);
 };
@@ -56,8 +64,26 @@ const listConversation = async (firstUserId: string, secondUserId: string) => {
   const values = await Promise.all(blobs.map((blob) => messages.get(blob.key, { type: "json", consistency: "strong" })));
   return values
     .filter((value): value is ChatMessage => Boolean(value && typeof value === "object"))
+    .map(normalizeStoredMessage)
     .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
     .slice(-300);
+};
+
+const markIncomingMessagesRead = async (viewerId: string, messages: ChatMessage[]) => {
+  const readAt = new Date().toISOString();
+  const messageStore = messagesStore();
+  const inbox = inboxStore();
+  return Promise.all(messages.map(async (message) => {
+    if (message.recipientId !== viewerId || message.readAt) return message;
+    const updated = { ...message, readAt };
+    const key = `${conversationKey(message.senderId, message.recipientId)}/${message.createdAt}-${message.id}`;
+    const inboxKey = `${message.recipientId}/${message.createdAt}-${message.id}`;
+    await Promise.all([
+      messageStore.setJSON(key, updated),
+      inbox.setJSON(inboxKey, updated),
+    ]);
+    return updated;
+  }));
 };
 
 export default async (request: Request) => {
@@ -71,10 +97,13 @@ export default async (request: Request) => {
       }
       const firstUserId = cleanUserId(url.searchParams.get("firstUserId"));
       const secondUserId = cleanUserId(url.searchParams.get("secondUserId"));
+      const viewerId = cleanUserId(url.searchParams.get("viewerId"));
       if (!await requireParticipants(firstUserId, secondUserId)) {
         return jsonError("Участники диалога не найдены в рейтинге", 403);
       }
-      return Response.json(await listConversation(firstUserId, secondUserId));
+      if (viewerId !== firstUserId && viewerId !== secondUserId) return jsonError("Нельзя открыть чужой диалог", 403);
+      const conversation = await listConversation(firstUserId, secondUserId);
+      return Response.json(await markIncomingMessagesRead(viewerId, conversation));
     }
 
     if (request.method === "POST") {
@@ -82,17 +111,24 @@ export default async (request: Request) => {
       const senderId = cleanUserId(payload.senderId);
       const recipientId = cleanUserId(payload.recipientId);
       const text = String(payload.text ?? "").trim();
+      const clientId = String(payload.id ?? "").trim();
       if (!text || text.length > 1000) return jsonError("Некорректный текст сообщения", 400);
       if (!await requireParticipants(senderId, recipientId)) {
         return jsonError("Оба пользователя должны быть участниками рейтинга", 403);
       }
 
+      const deliveredAt = new Date().toISOString();
+      const requestedCreatedAt = Date.parse(String(payload.createdAt ?? ""));
+      const createdAt = Number.isFinite(requestedCreatedAt) && Math.abs(Date.now() - requestedCreatedAt) < 300_000
+        ? new Date(requestedCreatedAt).toISOString()
+        : deliveredAt;
       const message: ChatMessage = {
-        id: crypto.randomUUID(),
+        id: /^[a-f0-9-]{36}$/iu.test(clientId) ? clientId : crypto.randomUUID(),
         senderId,
         recipientId,
         text,
-        createdAt: new Date().toISOString(),
+        createdAt,
+        deliveredAt,
         reactions: {},
       };
       const key = `${conversationKey(senderId, recipientId)}/${message.createdAt}-${message.id}`;

@@ -3,6 +3,7 @@ import { dashboardMeta } from "@server/content";
 import { ADMIN_USERNAME } from "./permissions";
 import { hasAnswer } from "./answers";
 import { isDeletedAccountName } from "./deleted-accounts";
+import { hasLegacyQuestionMetadata, sanitizeQuestionText } from "@shared/question-text";
 import type {
   AttemptResult,
   AttemptSubmission,
@@ -64,6 +65,7 @@ type LeaderboardEntry = {
   attempts: number;
   accuracy: number;
   lastActiveAt: string | null;
+  lastSeenAt: string | null;
 };
 
 const STORAGE_KEY = "design-tests-database-v3";
@@ -155,13 +157,23 @@ const removeDeletedProfiles = (database: LocalDatabase) => {
   return deletedIds.length > 0;
 };
 
+const removeLegacyBuiltInOverrides = (database: LocalDatabase) => {
+  const builtInIds = new Set(baseQuestions.map((question) => question.id));
+  const staleIds = Object.entries(database.overrides)
+    .filter(([id, question]) => builtInIds.has(id) && hasLegacyQuestionMetadata(question.question))
+    .map(([id]) => id);
+  staleIds.forEach((id) => delete database.overrides[id]);
+  return staleIds.length > 0;
+};
+
 const readDatabase = (): LocalDatabase => {
   if (typeof window === "undefined") return emptyDatabase();
   try {
     const database = { ...emptyDatabase(), ...JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "{}") } as LocalDatabase;
     const deletedProfiles = removeDeletedProfiles(database);
     const removedAttempts = removeCorruptedAttempts(database);
-    const changed = deletedProfiles || removedAttempts;
+    const removedLegacyQuestions = removeLegacyBuiltInOverrides(database);
+    const changed = deletedProfiles || removedAttempts || removedLegacyQuestions;
     if (changed) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(database));
     return database;
   } catch {
@@ -215,9 +227,11 @@ const allQuestions = (database = readDatabase()) => {
   const deleted = new Set(database.deletedQuestionIds);
   const builtIn = baseQuestions
     .filter((question) => !deleted.has(question.id))
-    .map((question) => database.overrides[question.id] ?? question);
+    .map((question) => sanitizeQuestionText(database.overrides[question.id] ?? question));
   const builtInIds = new Set(baseQuestions.map((question) => question.id));
-  const custom = Object.values(database.overrides).filter((question) => !builtInIds.has(question.id) && !deleted.has(question.id));
+  const custom = Object.values(database.overrides)
+    .filter((question) => !builtInIds.has(question.id) && !deleted.has(question.id))
+    .map(sanitizeQuestionText);
   return [...builtIn, ...custom];
 };
 
@@ -368,21 +382,25 @@ const buildLeaderboard = (database: LocalDatabase) => {
     attempts: profile.attempts.length,
     accuracy: getStats(profile).accuracy,
     lastActiveAt: profile.lastActiveAt,
+    lastSeenAt: null,
   })).sort((left, right) => right.xp - left.xp).map((entry, index) => ({ ...entry, rank: index + 1 }));
 };
 
-const syncLeaderboard = async (localEntries: LeaderboardEntry[]): Promise<LeaderboardEntry[]> => {
+const syncLeaderboard = async (localEntries: LeaderboardEntry[], activeProfileId?: string): Promise<LeaderboardEntry[]> => {
   if (typeof window === "undefined") return localEntries;
+  const heartbeatAt = new Date().toISOString();
+  const activeEntry = localEntries.find((entry) => entry.id === activeProfileId);
+  const localWithPresence = localEntries.map((entry) => entry.id === activeProfileId ? { ...entry, lastSeenAt: heartbeatAt } : entry);
   try {
     const response = await fetch("/.netlify/functions/leaderboard", {
-      method: localEntries.length ? "POST" : "GET",
+      method: activeEntry ? "POST" : "GET",
       headers: { "Content-Type": "application/json" },
-      body: localEntries.length ? JSON.stringify({ entries: localEntries }) : undefined,
+      body: activeEntry ? JSON.stringify({ ...activeEntry, lastSeenAt: heartbeatAt }) : undefined,
     });
     if (!response.ok) throw new Error("Shared leaderboard is unavailable");
     return await response.json() as LeaderboardEntry[];
   } catch {
-    return localEntries;
+    return localWithPresence;
   }
 };
 
@@ -418,7 +436,16 @@ export const localApi = {
       };
     });
     writeDatabase(database);
-    const leaderboard = await syncLeaderboard(buildLeaderboard(database));
+    const leaderboard = await syncLeaderboard(buildLeaderboard(database), profile.id);
+    const sharedProfile = leaderboard.find((entry) => entry.id === profile.id);
+    if (sharedProfile && sharedProfile.xp > profile.xp) {
+      profile.xp = sharedProfile.xp;
+      profile.level = sharedProfile.level;
+      profile.streak = sharedProfile.streak;
+      profile.bestStreak = sharedProfile.bestStreak;
+      profile.lastActiveAt = sharedProfile.lastActiveAt;
+      writeDatabase(database);
+    }
     return {
       ...dashboardMeta,
       profile,

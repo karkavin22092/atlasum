@@ -10,6 +10,8 @@ type LeaderboardEntry = {
   attempts: number;
   accuracy: number;
   lastActiveAt: string | null;
+  lastSeenAt: string | null;
+  rewardedBugIds: string[];
 };
 
 const store = () => getStore({ name: "design-tests-leaderboard", consistency: "strong" });
@@ -46,6 +48,11 @@ const purgeDeletedAccounts = async () => {
 const cleanNumber = (value: unknown, maximum = 10_000_000) =>
   Math.min(maximum, Math.max(0, Number.isFinite(Number(value)) ? Number(value) : 0));
 
+const cleanTimestamp = (value: unknown) => {
+  const text = String(value ?? "");
+  return text && !Number.isNaN(Date.parse(text)) ? new Date(text).toISOString() : null;
+};
+
 const cleanEntry = (value: Partial<LeaderboardEntry>): LeaderboardEntry | null => {
   const id = String(value.id ?? "").trim().toLowerCase().replace(/[^a-zа-я0-9-]+/giu, "-").slice(0, 80);
   const name = String(value.name ?? "").trim().slice(0, 40);
@@ -59,7 +66,11 @@ const cleanEntry = (value: Partial<LeaderboardEntry>): LeaderboardEntry | null =
     bestStreak: Math.round(cleanNumber(value.bestStreak, 100_000)),
     attempts: Math.round(cleanNumber(value.attempts, 1_000_000)),
     accuracy: Math.round(cleanNumber(value.accuracy, 100) * 10) / 10,
-    lastActiveAt: value.lastActiveAt ? String(value.lastActiveAt).slice(0, 40) : null,
+    lastActiveAt: cleanTimestamp(value.lastActiveAt),
+    lastSeenAt: cleanTimestamp(value.lastSeenAt),
+    rewardedBugIds: Array.isArray(value.rewardedBugIds)
+      ? [...new Set(value.rewardedBugIds.map(String).filter(Boolean))].slice(-1000)
+      : [],
   };
 };
 
@@ -86,7 +97,27 @@ export default async (request: Request) => {
       if (!entries.length) return Response.json({ error: "Некорректный профиль" }, { status: 400 });
       const leaderboard = store();
       await Promise.all(entries.map(async (entry) => {
-        await leaderboard.setJSON(entry.id, entry);
+        const stored = await leaderboard.get(entry.id, { type: "json", consistency: "strong" }) as Partial<LeaderboardEntry> | null;
+        const current = stored ? cleanEntry(stored) : null;
+        const incomingHasNewerProgress = !current || entry.xp >= current.xp;
+        const incomingHasMoreAttempts = !current || entry.attempts >= current.attempts;
+        const latestActivity = [current?.lastActiveAt, entry.lastActiveAt]
+          .filter((value): value is string => Boolean(value))
+          .sort()
+          .at(-1) ?? null;
+        const merged: LeaderboardEntry = current ? {
+          ...entry,
+          xp: Math.max(current.xp, entry.xp),
+          level: Math.max(current.level, entry.level),
+          streak: incomingHasNewerProgress ? entry.streak : current.streak,
+          bestStreak: Math.max(current.bestStreak, entry.bestStreak),
+          attempts: Math.max(current.attempts, entry.attempts),
+          accuracy: incomingHasMoreAttempts ? entry.accuracy : current.accuracy,
+          lastActiveAt: latestActivity,
+          lastSeenAt: entry.lastSeenAt ?? current.lastSeenAt,
+          rewardedBugIds: [...new Set([...current.rewardedBugIds, ...entry.rewardedBugIds])].slice(-1000),
+        } : entry;
+        await leaderboard.setJSON(entry.id, merged);
       }));
       return Response.json(await listEntries());
     }

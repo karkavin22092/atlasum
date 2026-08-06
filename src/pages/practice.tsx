@@ -277,7 +277,6 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
               <GlassCard className="space-y-3">
                 <div className="text-xs uppercase tracking-[0.24em] text-slate-400">{currentQuestion.type}</div>
                 <div className="text-xl font-semibold leading-8 text-white">{currentQuestion.question}</div>
-                <div className="text-sm text-slate-400">{currentQuestion.explanation}</div>
               </GlassCard>
 
               {currentQuestion.media ? (
