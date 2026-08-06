@@ -1,6 +1,7 @@
 import questionData from "../../data/questions.json";
 import { dashboardMeta } from "@server/content";
 import { ADMIN_USERNAME } from "./permissions";
+import { hasAnswer } from "./answers";
 import type {
   AttemptResult,
   AttemptSubmission,
@@ -69,10 +70,88 @@ const baseQuestions = questionData as unknown as Question[];
 
 const emptyDatabase = (): LocalDatabase => ({ profiles: {}, overrides: {}, deletedQuestionIds: [] });
 
+const xpForResult = (result: AttemptResult) => {
+  if (!result.isCorrect) return 0;
+  if (result.difficulty === "hard") return 25;
+  if (result.difficulty === "medium") return 15;
+  return 10;
+};
+
+const rebuildProfileProgress = (profile: StoredProfile) => {
+  const attempts = profile.attempts.slice().sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  const reviews: Record<string, ReviewRecord> = {};
+  const activity: StoredProfile["activity"] = {};
+  let xp = 0;
+  let coins = 0;
+
+  attempts.forEach((attempt) => {
+    const attemptXp = attempt.items.reduce((sum, result) => sum + xpForResult(result), 0);
+    xp += attemptXp;
+    coins += Math.max(1, Math.round(attempt.score * 1.5 + attempt.percent / 10));
+    const date = attempt.createdAt.slice(0, 10);
+    const day = activity[date] ?? { attempts: 0, correct: 0, xp: 0 };
+    activity[date] = { attempts: day.attempts + 1, correct: day.correct + attempt.score, xp: day.xp + attemptXp };
+
+    attempt.items.forEach((result) => {
+      const current = reviews[result.questionId] ?? {
+        timesAnswered: 0, correctCount: 0, lastAnsweredAt: null, nextReviewAt: null, intervalDays: 0, easeFactor: 2.5, mastery: 0,
+      };
+      const easeFactor = Math.min(3, Math.max(1.3, current.easeFactor + (result.isCorrect ? 0.08 : -0.18)));
+      const intervalDays = result.isCorrect ? Math.max(1, Math.round((current.intervalDays || 1) * easeFactor)) : 1;
+      const answeredAt = new Date(attempt.createdAt);
+      reviews[result.questionId] = {
+        timesAnswered: current.timesAnswered + 1,
+        correctCount: current.correctCount + (result.isCorrect ? 1 : 0),
+        lastAnsweredAt: attempt.createdAt,
+        nextReviewAt: new Date(answeredAt.getTime() + intervalDays * 86_400_000).toISOString(),
+        intervalDays,
+        easeFactor,
+        mastery: Math.min(1, Math.max(0, current.mastery + (result.isCorrect ? (result.difficulty === "hard" ? 0.08 : 0.12) : -0.14))),
+      };
+    });
+  });
+
+  const activeDates = Object.keys(activity).sort();
+  let bestStreak = 0;
+  let runningStreak = 0;
+  let previousTime: number | null = null;
+  activeDates.forEach((date) => {
+    const currentTime = new Date(`${date}T00:00:00.000Z`).getTime();
+    runningStreak = previousTime !== null && currentTime - previousTime === 86_400_000 ? runningStreak + 1 : 1;
+    bestStreak = Math.max(bestStreak, runningStreak);
+    previousTime = currentTime;
+  });
+
+  profile.reviews = reviews;
+  profile.activity = activity;
+  profile.xp = xp;
+  profile.coins = coins;
+  profile.level = Math.floor(xp / 250) + 1;
+  profile.streak = activeDates.length ? runningStreak : 0;
+  profile.bestStreak = bestStreak;
+  profile.lastActiveAt = attempts.at(-1)?.createdAt ?? null;
+};
+
+const removeCorruptedAttempts = (database: LocalDatabase) => {
+  let changed = false;
+  Object.values(database.profiles).forEach((profile) => {
+    const attempts = Array.isArray(profile.attempts) ? profile.attempts : [];
+    const validAttempts = attempts.filter((attempt) =>
+      Array.isArray(attempt.items) && attempt.items.length > 0 && attempt.items.every((item) => hasAnswer(item.userAnswer)));
+    if (validAttempts.length === attempts.length) return;
+    profile.attempts = validAttempts;
+    rebuildProfileProgress(profile);
+    changed = true;
+  });
+  return changed;
+};
+
 const readDatabase = (): LocalDatabase => {
   if (typeof window === "undefined") return emptyDatabase();
   try {
-    return { ...emptyDatabase(), ...JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "{}") } as LocalDatabase;
+    const database = { ...emptyDatabase(), ...JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "{}") } as LocalDatabase;
+    if (removeCorruptedAttempts(database)) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(database));
+    return database;
   } catch {
     return emptyDatabase();
   }
@@ -295,13 +374,6 @@ const syncLeaderboard = async (localEntries: LeaderboardEntry[]): Promise<Leader
   }
 };
 
-const hasAnswer = (answer: unknown) => {
-  if (answer === undefined || answer === null) return false;
-  if (typeof answer === "string") return answer.trim().length > 0;
-  if (Array.isArray(answer)) return answer.length > 0;
-  return true;
-};
-
 const updateReview = (profile: StoredProfile, question: Question, isCorrect: boolean) => {
   const current = profile.reviews[question.id] ?? {
     timesAnswered: 0, correctCount: 0, lastAnsweredAt: null, nextReviewAt: null, intervalDays: 0, easeFactor: 2.5, mastery: 0,
@@ -394,7 +466,10 @@ export const localApi = {
     const database = readDatabase();
     const profile = ensureProfile(database, payload.profileName);
     const questions = new Map(allQuestions(database).map((question) => [question.id, question]));
-    const results = payload.answers.filter((entry) => hasAnswer(entry.answer)).flatMap((entry) => {
+    const submittedAnswers = payload.answers.filter((entry) => hasAnswer(entry.answer));
+    const testModes = new Set(["practice", "exam", "hardOnly", "mistakes", "topic", "random", "review"]);
+    const incompleteTest = testModes.has(String(payload.mode)) && submittedAnswers.length < payload.count;
+    const results = (incompleteTest ? [] : submittedAnswers).flatMap((entry) => {
       const question = questions.get(entry.questionId);
       if (!question) return [];
       const evaluation = evaluateQuestion(question, entry.answer);

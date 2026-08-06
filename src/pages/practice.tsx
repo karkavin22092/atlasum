@@ -4,7 +4,9 @@ import { api } from "@/lib/api";
 import { BackButton, Badge, Button, GlassCard, Panel, ProgressBar, StatCard, TitleBlock } from "@/components/ui";
 import { QuestionRenderer, type AnswerValue } from "@/components/question-renderer";
 import { ResultPanel } from "@/components/result-panel";
+import { AttemptExitGuard, AttemptExitNotice, confirmDiscardAttempt } from "@/components/attempt-exit-guard";
 import { formatDuration, shuffleArray } from "@/lib/utils";
+import { hasAnswer } from "@/lib/answers";
 import { ArrowLeft, ArrowRight, RefreshCcw, Shuffle, Sparkles } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import type { AppPageProps } from "./types";
@@ -71,9 +73,10 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
 
   const questions = test?.questions ?? [];
   const currentQuestion = questions[currentIndex];
-  const answeredCount = Object.keys(answers).length;
+  const answeredCount = Object.values(answers).filter(hasAnswer).length;
   const progress = questions.length === 0 ? 0 : (answeredCount / questions.length) * 100;
   const canSubmit = questions.length > 0 && answeredCount === questions.length && !submitMutation.isPending;
+  const hasActiveAttempt = questions.length > 0 && !result;
 
   const updateAnswer = (questionId: string, value: AnswerValue) => {
     setAnswers((current) => ({ ...current, [questionId]: value }));
@@ -87,7 +90,7 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
       count: questions.length,
       durationMs: Date.now() - startedAt,
       topic: selectedTopic || null,
-      answers: questions.filter((question) => answers[question.id] !== undefined).map((question) => ({
+      answers: questions.filter((question) => hasAnswer(answers[question.id])).map((question) => ({
         questionId: question.id,
         answer: answers[question.id],
       })),
@@ -122,6 +125,7 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
 
   return (
     <div className="space-y-6">
+      <AttemptExitGuard active={hasActiveAttempt} />
       <TitleBlock
         eyebrow="Тренажер"
         title={selectedMode === "exam" ? "Экзамен" : "Практика"}
@@ -129,7 +133,9 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
         right={
           <div className="flex flex-wrap gap-2">
             <BackButton to="/" />
-            <Button variant="secondary" onClick={() => generateMutation.mutate()} disabled={generateMutation.isPending}>
+            <Button variant="secondary" onClick={() => {
+              if (confirmDiscardAttempt(hasActiveAttempt)) generateMutation.mutate();
+            }} disabled={generateMutation.isPending}>
               <RefreshCcw className={generateMutation.isPending ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
               Новый набор
             </Button>
@@ -143,6 +149,8 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
         }
       />
 
+      <AttemptExitNotice />
+
       <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
         <Panel className="space-y-5">
           <div>
@@ -152,7 +160,9 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
                 <button
                   type="button"
                   key={mode.key}
-                  onClick={() => setSelectedMode(mode.key)}
+                  onClick={() => {
+                    if (mode.key === selectedMode || confirmDiscardAttempt(hasActiveAttempt)) setSelectedMode(mode.key);
+                  }}
                   className={mode.key === selectedMode ? "rounded-2xl border border-cyan-300/40 bg-cyan-400/15 px-4 py-3 text-left text-white" : "rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-slate-300 transition hover:bg-white/10"}
                 >
                   <div className="text-sm font-medium">{mode.title}</div>
@@ -170,7 +180,9 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
                   key={count}
                   type="button"
                   disabled={selectedMode === "exam"}
-                  onClick={() => setSelectedCount(count)}
+                  onClick={() => {
+                    if (count === selectedCount || confirmDiscardAttempt(hasActiveAttempt)) setSelectedCount(count);
+                  }}
                   className={selectedCount === count
                     ? "rounded-full border border-cyan-300/40 bg-cyan-400/15 px-4 py-2 text-sm text-white disabled:opacity-100"
                     : "rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"}
@@ -180,7 +192,9 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
               ))}
               <button
                 type="button"
-                onClick={() => setSelectedMode("exam")}
+                onClick={() => {
+                  if (selectedMode === "exam" || confirmDiscardAttempt(hasActiveAttempt)) setSelectedMode("exam");
+                }}
                 className={selectedMode === "exam" ? "rounded-full border border-violet-300/40 bg-violet-400/15 px-4 py-2 text-sm text-white" : "rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300 transition hover:bg-white/10"}
               >
                 Экзамен
@@ -193,7 +207,9 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
             <select
               className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
               value={selectedTopic}
-              onChange={(event) => setSelectedTopic(event.target.value)}
+              onChange={(event) => {
+                if (confirmDiscardAttempt(hasActiveAttempt)) setSelectedTopic(event.target.value);
+              }}
             >
               <option value="">Все темы</option>
               {meta?.topics.map((topic) => (
@@ -226,7 +242,9 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
                     <div className="text-sm font-medium text-white">{topic.title}</div>
                     <div className="text-xs text-slate-400">{topic.mastery}% mastery</div>
                   </div>
-                  <Link to={`/practice?mode=topic&topic=${encodeURIComponent(topic.title)}`}>
+                  <Link to={`/practice?mode=topic&topic=${encodeURIComponent(topic.title)}`} onClick={(event) => {
+                    if (!confirmDiscardAttempt(hasActiveAttempt)) event.preventDefault();
+                  }}>
                     <Button variant="secondary">Повторить</Button>
                   </Link>
                 </GlassCard>

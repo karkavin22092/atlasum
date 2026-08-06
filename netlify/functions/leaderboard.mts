@@ -57,7 +57,7 @@ export default async (request: Request) => {
       const leaderboard = store();
       await Promise.all(entries.map(async (entry) => {
         const current = await leaderboard.get(entry.id, { type: "json", consistency: "strong" }) as LeaderboardEntry | null;
-        await leaderboard.setJSON(entry.id, current && current.xp > entry.xp ? current : entry);
+        await leaderboard.setJSON(entry.id, entry);
       }));
       return Response.json(await listEntries());
     }

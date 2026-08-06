@@ -793,17 +793,19 @@ app.post("/api/tests/submit", async (req, res) => {
     return true;
   };
   const submittedAnswers = body.answers.filter((entry) => hasAnswer(entry.answer));
+  const testModes = new Set(["practice", "exam", "hardOnly", "mistakes", "topic", "random", "review"]);
+  const answersToEvaluate = testModes.has(String(body.mode)) && submittedAnswers.length < body.count ? [] : submittedAnswers;
   const profile = await ensureProfile(body.profileName);
   const questions = await prisma.question.findMany({
     where: {
       id: {
-        in: submittedAnswers.map((entry) => entry.questionId),
+        in: answersToEvaluate.map((entry) => entry.questionId),
       },
     },
   });
 
   const questionMap = new Map<string, Question>(questions.map((question) => [question.id, toJsonQuestion(question)]));
-  const results: AttemptResult[] = submittedAnswers.flatMap((entry) => {
+  const results: AttemptResult[] = answersToEvaluate.flatMap((entry) => {
     const question = questionMap.get(entry.questionId);
     if (!question) {
       return [];

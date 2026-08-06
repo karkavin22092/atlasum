@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { useParams, Link } from "react-router-dom";
+import { useNavigate, useParams, Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { BackButton, Badge, Button, GlassCard, Panel, ProgressBar, TitleBlock } from "@/components/ui";
 import { QuestionRenderer, type AnswerValue } from "@/components/question-renderer";
+import { AttemptExitGuard, AttemptExitNotice, confirmDiscardAttempt } from "@/components/attempt-exit-guard";
 import { shuffleArray, formatDuration } from "@/lib/utils";
+import { hasAnswer } from "@/lib/answers";
 import { ArrowLeft, ArrowRight, Shuffle, TimerReset, Trophy, RotateCcw, WandSparkles } from "lucide-react";
 import type { AppPageProps } from "./types";
 import type { GeneratedTest, QuestionType, SubmissionResponse } from "@shared/types";
@@ -24,6 +26,7 @@ const GAME_LABELS: Record<string, { title: string; mode: string; duration: numbe
 
 export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
   const params = useParams();
+  const navigate = useNavigate();
   const gameId = params.gameId ?? "cards";
   const game = GAME_LABELS[gameId] ?? GAME_LABELS.cards;
 
@@ -36,6 +39,7 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
   const [flipped, setFlipped] = useState(false);
   const [wheelSpin, setWheelSpin] = useState(0);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+  const [isAbandoning, setIsAbandoning] = useState(false);
   const [lifelines, setLifelines] = useState({
     fifty: true,
     skip: true,
@@ -97,8 +101,9 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
 
   const questions = deck?.questions ?? [];
   const current = questions[index];
-  const answered = Object.keys(answers).length;
+  const answered = Object.values(answers).filter(hasAnswer).length;
   const progress = questions.length ? (answered / questions.length) * 100 : 0;
+  const hasActiveAttempt = questions.length > 0 && !submitted && !isAbandoning;
 
   const updateAnswer = (questionId: string, value: AnswerValue) => {
     setAnswers((currentAnswers) => ({ ...currentAnswers, [questionId]: value }));
@@ -112,12 +117,24 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
       count: questions.length,
       durationMs: Date.now() - startedAt,
       topic: selectedTopic,
-      answers: questions.filter((question) => answers[question.id] !== undefined).map((question) => ({
+      answers: questions.filter((question) => hasAnswer(answers[question.id])).map((question) => ({
         questionId: question.id,
         answer: answers[question.id],
       })),
     });
   };
+
+  const finishGame = () => {
+    if (answered < questions.length) {
+      if (confirmDiscardAttempt(true)) setIsAbandoning(true);
+      return;
+    }
+    void submit();
+  };
+
+  useEffect(() => {
+    if (isAbandoning) navigate("/games");
+  }, [isAbandoning, navigate]);
 
   const gameBody = useMemo(() => {
     if (!current || submitted) return null;
@@ -188,9 +205,9 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
                 </Button>
               </>
             ) : null}
-            <Button onClick={submit}>
+            <Button onClick={finishGame}>
               <Shuffle className="h-4 w-4" />
-              Завершить игру
+              {answered < questions.length ? "Завершить досрочно" : "Завершить игру"}
             </Button>
           </div>
         </div>
@@ -241,6 +258,7 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
 
   return (
     <div className="space-y-6">
+      <AttemptExitGuard active={hasActiveAttempt} />
       <TitleBlock
         eyebrow="Мини-игра"
         title={game.title}
@@ -250,6 +268,7 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
             <BackButton to="/games" />
             {gameId === "wheel" ? (
               <Button variant="secondary" onClick={() => {
+                if (!confirmDiscardAttempt(hasActiveAttempt)) return;
                 const topic = meta?.topics[Math.floor(Math.random() * meta.topics.length)]?.title ?? null;
                 setSelectedTopic(topic);
                 setWheelSpin((value) => value + 720);
@@ -258,13 +277,17 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
                 Крутить колесо
               </Button>
             ) : null}
-            <Button variant="secondary" onClick={() => generateMutation.mutate()}>
+            <Button variant="secondary" onClick={() => {
+              if (confirmDiscardAttempt(hasActiveAttempt)) generateMutation.mutate();
+            }}>
               <RotateCcw className="h-4 w-4" />
               Новый раунд
             </Button>
           </div>
         }
       />
+
+      <AttemptExitNotice />
 
       <div className="grid gap-4 md:grid-cols-4">
         <GlassCard>
