@@ -8,19 +8,19 @@ import { Download, FileUp, Plus, Save, Search, Trash2 } from "lucide-react";
 
 const emptyQuestion = (): Question => ({
   id: `q-custom-${Date.now()}`,
-  topic: "РРЅС„РѕСЂРјР°С†РёСЏ",
+  topic: "Информация",
   difficulty: "easy",
   type: "single",
   question: "",
   options: [
-    { id: "opt-1", text: "Р’Р°СЂРёР°РЅС‚ 1" },
-    { id: "opt-2", text: "Р’Р°СЂРёР°РЅС‚ 2" },
-    { id: "opt-3", text: "Р’Р°СЂРёР°РЅС‚ 3" },
-    { id: "opt-4", text: "Р’Р°СЂРёР°РЅС‚ 4" },
+    { id: "opt-1", text: "Вариант 1" },
+    { id: "opt-2", text: "Вариант 2" },
+    { id: "opt-3", text: "Вариант 3" },
+    { id: "opt-4", text: "Вариант 4" },
   ],
   correct: "opt-1",
   explanation: "",
-  source: "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊСЃРєРёР№ РІРѕРїСЂРѕСЃ",
+  source: "Пользовательский вопрос",
   tags: ["custom"],
 });
 
@@ -47,7 +47,7 @@ export const AdminPage = () => {
       return api.updateQuestion(draft.id, draft);
     },
     onSuccess: async () => {
-      setJsonMessage(mode === "create" ? "Р’РѕРїСЂРѕСЃ СЃРѕР·РґР°РЅ" : "Р’РѕРїСЂРѕСЃ РѕР±РЅРѕРІР»С‘РЅ");
+      setJsonMessage(mode === "create" ? "Вопрос создан" : "Вопрос обновлён");
       await queryClient.invalidateQueries({ queryKey: ["questions"] });
       await queryClient.invalidateQueries({ queryKey: ["meta"] });
       await queryClient.invalidateQueries({ queryKey: ["reviews"] });
@@ -59,7 +59,7 @@ export const AdminPage = () => {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteQuestion(id),
     onSuccess: async () => {
-      setJsonMessage("Р’РѕРїСЂРѕСЃ СѓРґР°Р»С‘РЅ");
+      setJsonMessage("Вопрос удалён");
       await queryClient.invalidateQueries({ queryKey: ["questions"] });
       await queryClient.invalidateQueries({ queryKey: ["meta"] });
     },
@@ -68,7 +68,7 @@ export const AdminPage = () => {
   const importMutation = useMutation({
     mutationFn: (questions: Question[]) => api.importQuestions(questions),
     onSuccess: async (value) => {
-      setJsonMessage(`РРјРїРѕСЂС‚РёСЂРѕРІР°РЅРѕ: ${value.imported}`);
+      setJsonMessage(`Импортировано: ${value.imported}`);
       await queryClient.invalidateQueries({ queryKey: ["questions"] });
       await queryClient.invalidateQueries({ queryKey: ["meta"] });
       await queryClient.invalidateQueries({ queryKey: ["reviews"] });
@@ -103,9 +103,9 @@ export const AdminPage = () => {
   return (
     <div className="space-y-6">
       <TitleBlock
-        eyebrow="РђРґРјРёРЅ-РїР°РЅРµР»СЊ"
-        title="РЈРїСЂР°РІР»РµРЅРёРµ РІРѕРїСЂРѕСЃР°РјРё"
-        description="Р”РѕР±Р°РІР»СЏР№С‚Рµ, СЂРµРґР°РєС‚РёСЂСѓР№С‚Рµ, СѓРґР°Р»СЏР№С‚Рµ Рё РёРјРїРѕСЂС‚РёСЂСѓР№С‚Рµ JSON Р±РµР· РІС‹С…РѕРґР° РёР· РїСЂРёР»РѕР¶РµРЅРёСЏ."
+        eyebrow="Админ-панель"
+        title="Управление вопросами"
+        description="Добавляйте, редактируйте, удаляйте и импортируйте JSON без выхода из приложения."
       />
       <div className="mb-2">
         <BackButton to="/" />
@@ -119,7 +119,7 @@ export const AdminPage = () => {
               setMode("create");
             }}>
               <Plus className="h-4 w-4" />
-              РќРѕРІС‹Р№ РІРѕРїСЂРѕСЃ
+              Новый вопрос
             </Button>
             <Button variant="secondary" onClick={async () => {
               const data = await api.exportQuestions();
@@ -132,35 +132,35 @@ export const AdminPage = () => {
               URL.revokeObjectURL(url);
             }}>
               <Download className="h-4 w-4" />
-              Р­РєСЃРїРѕСЂС‚ JSON
+              Экспорт JSON
             </Button>
             <Button variant="secondary" onClick={() => {
-              const imported = window.prompt("Р’СЃС‚Р°РІСЊС‚Рµ JSON-РјР°СЃСЃРёРІ РІРѕРїСЂРѕСЃРѕРІ:");
+              const imported = window.prompt("Вставьте JSON-массив вопросов:");
               if (!imported) return;
               try {
                 const parsed = JSON.parse(imported) as Question[];
                 importMutation.mutate(parsed);
               } catch {
-                setJsonMessage("РќРµРєРѕСЂСЂРµРєС‚РЅС‹Р№ JSON");
+                setJsonMessage("Некорректный JSON");
               }
             }}>
               <FileUp className="h-4 w-4" />
-              РРјРїРѕСЂС‚ JSON
+              Импорт JSON
             </Button>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="space-y-1 text-sm text-slate-300">
-              <div>РџРѕРёСЃРє</div>
+              <div>Поиск</div>
               <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3">
                 <Search className="h-4 w-4 text-slate-500" />
-                <input value={search} onChange={(event) => setSearch(event.target.value)} className="w-full bg-transparent py-3 text-white outline-none" placeholder="РўРµРєСЃС‚, С‚РµРіРё..." />
+                <input value={search} onChange={(event) => setSearch(event.target.value)} className="w-full bg-transparent py-3 text-white outline-none" placeholder="Текст, теги..." />
               </div>
             </label>
             <label className="space-y-1 text-sm text-slate-300">
-              <div>РўРµРјР°</div>
+              <div>Тема</div>
               <select value={topic} onChange={(event) => setTopic(event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none">
-                <option value="">Р’СЃРµ С‚РµРјС‹</option>
+                <option value="">Все темы</option>
                 {topicOptions.map((value) => (
                   <option key={value} value={value}>{value}</option>
                 ))}
@@ -204,12 +204,12 @@ export const AdminPage = () => {
         <Panel className="space-y-5">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-xs uppercase tracking-[0.24em] text-slate-400">{mode === "create" ? "РЎРѕР·РґР°РЅРёРµ" : "Р РµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ"}</div>
+              <div className="text-xs uppercase tracking-[0.24em] text-slate-400">{mode === "create" ? "Создание" : "Редактирование"}</div>
               <div className="text-xl font-semibold text-white">{draft.id}</div>
             </div>
             <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
               <Save className="h-4 w-4" />
-              РЎРѕС…СЂР°РЅРёС‚СЊ
+              Сохранить
             </Button>
           </div>
 
@@ -221,15 +221,15 @@ export const AdminPage = () => {
               <input value={draft.id} onChange={(event) => setField("id", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none" />
             </label>
             <label className="space-y-1 text-sm text-slate-300">
-              <div>РСЃС‚РѕС‡РЅРёРє</div>
+              <div>Источник</div>
               <input value={draft.source} onChange={(event) => setField("source", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none" />
             </label>
             <label className="space-y-1 text-sm text-slate-300">
-              <div>РўРµРјР°</div>
+              <div>Тема</div>
               <input value={draft.topic} onChange={(event) => setField("topic", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none" />
             </label>
             <label className="space-y-1 text-sm text-slate-300">
-              <div>РЎР»РѕР¶РЅРѕСЃС‚СЊ</div>
+              <div>Сложность</div>
               <select value={draft.difficulty} onChange={(event) => setField("difficulty", event.target.value as Question["difficulty"])} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none">
                 <option value="easy">easy</option>
                 <option value="medium">medium</option>
@@ -237,21 +237,21 @@ export const AdminPage = () => {
               </select>
             </label>
             <label className="space-y-1 text-sm text-slate-300">
-              <div>РўРёРї</div>
+              <div>Тип</div>
               <input value={draft.type} onChange={(event) => setField("type", event.target.value as Question["type"])} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none" />
             </label>
             <label className="space-y-1 text-sm text-slate-300">
-              <div>РўРµРіРё</div>
+              <div>Теги</div>
               <input value={draft.tags.join(", ")} onChange={(event) => setField("tags", event.target.value.split(",").map((item) => item.trim()).filter(Boolean))} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none" />
             </label>
           </div>
 
           <label className="space-y-1 text-sm text-slate-300">
-            <div>Р’РѕРїСЂРѕСЃ</div>
+            <div>Вопрос</div>
             <textarea value={draft.question} onChange={(event) => setField("question", event.target.value)} className="min-h-24 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none" />
           </label>
           <label className="space-y-1 text-sm text-slate-300">
-            <div>РћР±СЉСЏСЃРЅРµРЅРёРµ</div>
+            <div>Объяснение</div>
             <textarea value={draft.explanation} onChange={(event) => setField("explanation", event.target.value)} className="min-h-24 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none" />
           </label>
 

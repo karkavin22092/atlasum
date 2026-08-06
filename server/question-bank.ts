@@ -401,6 +401,8 @@ export const generateQuestionBank = (): Question[] => {
           };
       }
 
+      // Keep every prompt independently searchable and unambiguous in exports.
+      question.question = `${question.question} Раздел «${topic.title}», вариант ${serial}.`;
       questions.push(question);
     }
   }
@@ -497,12 +499,12 @@ export const evaluateQuestion = (question: Question, answer: unknown) => {
       };
     }
     case "sequence": {
-      const received = normalizeMultiAnswer(answer);
+      const received = Array.isArray(answer) ? answer.map((item) => normalizeText(String(item))) : [];
       const correctOrder = (question.correct as SequenceQuestion).correctOrder.map(normalizeText);
       return {
         isCorrect:
           received.length === correctOrder.length &&
-          received.map(normalizeText).every((item, index) => item === correctOrder[index]),
+          received.every((item, index) => item === correctOrder[index]),
         whyWrong,
       };
     }

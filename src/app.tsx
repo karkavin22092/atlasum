@@ -1,19 +1,21 @@
 import React, { type ReactNode } from "react";
 import { Link, Navigate, Route, Routes } from "react-router-dom";
 import { useTheme } from "./lib/theme";
-import { useLocalStorageState } from "./lib/storage";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./lib/api";
 import { AnimatePresence, motion } from "framer-motion";
-import { Menu, MoonStar, SunMedium, Sparkles } from "lucide-react";
+import { LogIn, LogOut, MoonStar, SunMedium, Sparkles, Trophy } from "lucide-react";
 import { HomePage } from "./pages/home";
 import { PracticePage } from "./pages/practice";
 import { GamesPage } from "./pages/games";
 import { GameRunnerPage } from "./pages/game-runner";
 import { AdminPage } from "./pages/admin";
 import { ReviewPage } from "./pages/review";
+import { AuthPage } from "./pages/auth";
+import { LeaderboardPage } from "./pages/leaderboard";
 import { dashboardMeta } from "@server/content";
 import type { DashboardMeta, Profile, ProfileStats } from "@shared/types";
+import { useAuth } from "./lib/auth";
 
 type AppMeta = DashboardMeta & {
   profile: Profile;
@@ -101,7 +103,8 @@ const fallbackMeta: AppMeta = {
 
 const AppShell = ({ children }: { children: ReactNode }) => {
   const { theme, setTheme } = useTheme();
-  const [profileName, setProfileName] = useLocalStorageState("it-graphics-profile", "Гость");
+  const { user, logout } = useAuth();
+  const profileName = user?.name ?? "Гость";
 
   const metaQuery = useQuery({
     queryKey: ["meta", profileName],
@@ -130,16 +133,24 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             </div>
           </Link>
 
-          <div className="hidden items-center gap-3 md:flex">
-            <label className="glass flex items-center gap-2 rounded-full px-4 py-2 text-sm text-slate-200">
-              <span className="text-slate-400">Профиль</span>
-              <input
-                className="w-36 bg-transparent text-right outline-none placeholder:text-slate-500"
-                value={profileName}
-                onChange={(event) => setProfileName(event.target.value)}
-                placeholder="Гость"
-              />
-            </label>
+          <div className="hidden items-center gap-2 md:flex">
+            <Link to="/leaderboard" className="glass inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm text-slate-200 transition hover:bg-white/10">
+              <Trophy className="h-4 w-4 text-amber-300" />
+              Рейтинг
+            </Link>
+            {user ? (
+              <div className="glass flex h-11 items-center gap-3 rounded-full pl-4 pr-2 text-sm">
+                <span className="text-slate-300">{user.name}</span>
+                <button type="button" onClick={logout} title="Выйти" className="grid h-8 w-8 place-items-center rounded-full bg-white/5 text-slate-400 transition hover:bg-white/10 hover:text-white">
+                  <LogOut className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <Link to="/auth" className="glass inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm text-slate-200 transition hover:bg-white/10">
+                <LogIn className="h-4 w-4" />
+                Войти
+              </Link>
+            )}
             <button
               type="button"
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
@@ -150,15 +161,24 @@ const AppShell = ({ children }: { children: ReactNode }) => {
           </div>
 
           <div className="flex items-center gap-2 md:hidden">
+            <Link to="/leaderboard" aria-label="Рейтинг" className="glass inline-flex h-10 w-10 items-center justify-center rounded-full">
+              <Trophy className="h-4 w-4 text-amber-300" />
+            </Link>
+            {user ? (
+              <button type="button" onClick={logout} aria-label={`Выйти из профиля ${user.name}`} className="glass inline-flex h-10 w-10 items-center justify-center rounded-full">
+                <LogOut className="h-4 w-4" />
+              </button>
+            ) : (
+              <Link to="/auth" aria-label="Войти" className="glass inline-flex h-10 w-10 items-center justify-center rounded-full">
+                <LogIn className="h-4 w-4" />
+              </Link>
+            )}
             <button
               type="button"
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
               className="glass inline-flex h-10 w-10 items-center justify-center rounded-full"
             >
               {theme === "dark" ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}
-            </button>
-            <button type="button" className="glass inline-flex h-10 w-10 items-center justify-center rounded-full">
-              <Menu className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -167,12 +187,12 @@ const AppShell = ({ children }: { children: ReactNode }) => {
       <main className="mx-auto max-w-7xl px-4 pb-14 pt-6 sm:px-6 lg:px-8">
         {metaQuery.isLoading ? (
           <div className="mb-4 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-50">
-            Загружаю данные. Если backend недоступен, откроется локальная версия интерфейса.
+            Загружаю базу вопросов...
           </div>
         ) : null}
         {metaQuery.isError ? (
-          <div className="mb-4 rounded-2xl border border-amber-300/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-50">
-            Backend недоступен, показываю локальную оболочку сайта.
+          <div className="mb-4 rounded-2xl border border-rose-300/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-50">
+            Не удалось открыть локальную базу. Обновите страницу.
           </div>
         ) : null}
 
@@ -187,7 +207,6 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             {React.cloneElement(children as React.ReactElement, {
               meta,
               profileName,
-              setProfileName,
             })}
           </motion.div>
         </AnimatePresence>
@@ -205,6 +224,8 @@ const App = () => {
       <Route path="/games" element={<AppShell><GamesPage /></AppShell>} />
       <Route path="/games/:gameId" element={<AppShell><GameRunnerPage /></AppShell>} />
       <Route path="/admin" element={<AppShell><AdminPage /></AppShell>} />
+      <Route path="/leaderboard" element={<AppShell><LeaderboardPage /></AppShell>} />
+      <Route path="/auth" element={<AuthPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

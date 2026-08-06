@@ -18,50 +18,50 @@ export const ResultPanel = ({ result, onRetry, onReviewMistakes, onNewTest }: Pr
     <div className="space-y-6">
       <Panel>
         <TitleBlock
-          eyebrow="Р РµР·СѓР»СЊС‚Р°С‚"
-          title="РўРµСЃС‚ Р·Р°РІРµСЂС€С‘РЅ"
-          description="Р—РґРµСЃСЊ РІРёРґРЅРѕ РЅРµ С‚РѕР»СЊРєРѕ СЃС‡С‘С‚, РЅРѕ Рё РіРґРµ РёРјРµРЅРЅРѕ РµСЃС‚СЊ РїСЂРѕР±РµР»С‹ РґР»СЏ СЃР»РµРґСѓСЋС‰РµРіРѕ РїРѕРІС‚РѕСЂРµРЅРёСЏ."
-          right={<Badge tone="violet">{result.grade} РѕС†РµРЅРєР°</Badge>}
+          eyebrow="Результат"
+          title="Тест завершён"
+          description="Здесь видно не только счёт, но и где именно есть пробелы для следующего повторения."
+          right={<Badge tone="violet">{result.grade} оценка</Badge>}
         />
 
         <div className="grid gap-4 md:grid-cols-4">
           <GlassCard>
-            <div className="text-xs uppercase tracking-[0.24em] text-slate-400">Р‘Р°Р»Р»С‹</div>
+            <div className="text-xs uppercase tracking-[0.24em] text-slate-400">Баллы</div>
             <div className="mt-2 text-3xl font-semibold text-white">
               {result.score}/{result.maxScore}
             </div>
           </GlassCard>
           <GlassCard>
-            <div className="text-xs uppercase tracking-[0.24em] text-slate-400">РџСЂРѕС†РµРЅС‚</div>
+            <div className="text-xs uppercase tracking-[0.24em] text-slate-400">Процент</div>
             <div className="mt-2 text-3xl font-semibold text-white">{result.percent}%</div>
             <div className="mt-3">
               <ProgressBar value={result.percent} />
             </div>
           </GlassCard>
           <GlassCard>
-            <div className="text-xs uppercase tracking-[0.24em] text-slate-400">Р’СЂРµРјСЏ</div>
+            <div className="text-xs uppercase tracking-[0.24em] text-slate-400">Время</div>
             <div className="mt-2 text-3xl font-semibold text-white">{formatDuration(result.durationMs)}</div>
           </GlassCard>
           <GlassCard>
             <div className="text-xs uppercase tracking-[0.24em] text-slate-400">XP</div>
             <div className="mt-2 text-3xl font-semibold text-white">+{result.xpGained}</div>
-            <div className="mt-2 text-sm text-slate-400">РњРѕРЅРµС‚С‹ +{result.coinsGained}</div>
+            <div className="mt-2 text-sm text-slate-400">Монеты +{result.coinsGained}</div>
           </GlassCard>
         </div>
 
         <div className="mt-6 flex flex-wrap gap-3">
           <Button onClick={onRetry}>
             <RotateCcw className="h-4 w-4" />
-            РџСЂРѕР№С‚Рё СЃРЅРѕРІР°
+            Пройти снова
           </Button>
           <BackButton to="/" />
           <Button variant="secondary" onClick={onReviewMistakes}>
             <CircleX className="h-4 w-4" />
-            Р Р°Р·РѕР±СЂР°С‚СЊ РѕС€РёР±РєРё
+            Разобрать ошибки
           </Button>
           <Button variant="secondary" onClick={onNewTest}>
             <Sparkles className="h-4 w-4" />
-            РЎРіРµРЅРµСЂРёСЂРѕРІР°С‚СЊ РЅРѕРІС‹Р№ С‚РµСЃС‚
+            Сгенерировать новый тест
           </Button>
         </div>
       </Panel>
@@ -70,7 +70,7 @@ export const ResultPanel = ({ result, onRetry, onReviewMistakes, onNewTest }: Pr
         <Panel>
           <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
             <CheckCircle2 className="h-5 w-5 text-emerald-400" />
-            РџСЂР°РІРёР»СЊРЅС‹Рµ РѕС‚РІРµС‚С‹
+            Правильные ответы
           </div>
           <div className="space-y-3">
             {correct.map((item) => (
@@ -86,20 +86,20 @@ export const ResultPanel = ({ result, onRetry, onReviewMistakes, onNewTest }: Pr
         <Panel>
           <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
             <Clock3 className="h-5 w-5 text-cyan-400" />
-            РћС€РёР±РєРё
+            Ошибки
           </div>
           <div className="space-y-3">
             {wrong.length === 0 ? (
-              <GlassCard className="text-sm text-slate-300">Р‘РµР· РѕС€РёР±РѕРє. РћС‚Р»РёС‡РЅР°СЏ СЂР°Р±РѕС‚Р°.</GlassCard>
+              <GlassCard className="text-sm text-slate-300">Без ошибок. Отличная работа.</GlassCard>
             ) : (
               wrong.map((item) => (
                 <GlassCard key={item.questionId} className="border-rose-400/20">
                   <div className="text-sm font-medium text-white">{item.question}</div>
                   <div className="mt-2 text-sm text-slate-300">
-                    Р’Р°С€ РѕС‚РІРµС‚: <span className="text-rose-200">{JSON.stringify(item.userAnswer)}</span>
+                    Ваш ответ: <span className="text-rose-200">{JSON.stringify(item.userAnswer)}</span>
                   </div>
                   <div className="mt-1 text-sm text-slate-300">
-                    РџСЂР°РІРёР»СЊРЅС‹Р№: <span className="text-emerald-200">{JSON.stringify(item.correctAnswer)}</span>
+                    Правильный: <span className="text-emerald-200">{JSON.stringify(item.correctAnswer)}</span>
                   </div>
                   <div className="mt-2 text-sm text-slate-400">{item.whyWrong}</div>
                 </GlassCard>

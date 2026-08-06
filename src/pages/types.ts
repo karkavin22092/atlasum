@@ -31,6 +31,4 @@ export type AppPageProps = {
     questionBank: { total: number; topics: Array<{ key: string; title: string; questions: number }> };
   };
   profileName: string;
-  setProfileName: (value: string) => void;
 };
-

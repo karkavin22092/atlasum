@@ -15,10 +15,10 @@ export const ReviewPage = ({ profileName, meta }: AppPageProps) => {
   return (
     <div className="space-y-6">
       <TitleBlock
-        eyebrow="РџРѕРІС‚РѕСЂРµРЅРёРµ"
-        title="РўРѕР»СЊРєРѕ С‚Рѕ, С‡С‚Рѕ СЃС‚РѕРёС‚ СѓРІРёРґРµС‚СЊ СЃРЅРѕРІР°"
-        description="Р—РґРµСЃСЊ СЃРѕР±СЂР°РЅС‹ РІРѕРїСЂРѕСЃС‹ РїРѕ РёРЅС‚РµСЂРІР°Р»СЊРЅРѕРјСѓ РїРѕРІС‚РѕСЂРµРЅРёСЋ, СЃ РЅРёР·РєРѕР№ С‚РѕС‡РЅРѕСЃС‚СЊСЋ Рё РёР· СЃР»Р°Р±С‹С… Р·РѕРЅ."
-        right={<Link to="/practice?mode=review"><Button>Р—Р°РїСѓСЃС‚РёС‚СЊ РїРѕРІС‚РѕСЂРµРЅРёРµ</Button></Link>}
+        eyebrow="Повторение"
+        title="Только то, что стоит увидеть снова"
+        description="Здесь собраны вопросы по интервальному повторению, с низкой точностью и из слабых зон."
+        right={<Link to="/practice?mode=review"><Button>Запустить повторение</Button></Link>}
       />
       <div className="mb-2">
         <BackButton to="/" />
@@ -26,21 +26,21 @@ export const ReviewPage = ({ profileName, meta }: AppPageProps) => {
 
       <div className="grid gap-4 md:grid-cols-4">
         <GlassCard>
-          <div className="text-xs uppercase tracking-[0.24em] text-slate-400">Р’РѕРїСЂРѕСЃРѕРІ</div>
+          <div className="text-xs uppercase tracking-[0.24em] text-slate-400">Вопросов</div>
           <div className="mt-2 text-3xl font-semibold text-white">{reviews.length}</div>
         </GlassCard>
         <GlassCard>
-          <div className="text-xs uppercase tracking-[0.24em] text-slate-400">РўРµРјС‹</div>
+          <div className="text-xs uppercase tracking-[0.24em] text-slate-400">Темы</div>
           <div className="mt-2 text-3xl font-semibold text-white">{new Set(reviews.map((item) => item.topic)).size}</div>
         </GlassCard>
         <GlassCard>
-          <div className="text-xs uppercase tracking-[0.24em] text-slate-400">РЎСЂРµРґРЅСЏСЏ С‚РѕС‡РЅРѕСЃС‚СЊ</div>
+          <div className="text-xs uppercase tracking-[0.24em] text-slate-400">Средняя точность</div>
           <div className="mt-2 text-3xl font-semibold text-white">
             {reviews.length ? Math.round((reviews.reduce((sum, item) => sum + item.accuracy, 0) / reviews.length) * 10) / 10 : 0}%
           </div>
         </GlassCard>
         <GlassCard>
-          <div className="text-xs uppercase tracking-[0.24em] text-slate-400">РќСѓР¶РЅРѕ РїРѕРІС‚РѕСЂРёС‚СЊ</div>
+          <div className="text-xs uppercase tracking-[0.24em] text-slate-400">Нужно повторить</div>
           <div className="mt-2 text-3xl font-semibold text-white">{meta?.stats.reviewDue ?? 0}</div>
         </GlassCard>
       </div>
@@ -56,16 +56,16 @@ export const ReviewPage = ({ profileName, meta }: AppPageProps) => {
                     <Badge tone={review.difficulty === "hard" ? "rose" : review.difficulty === "medium" ? "amber" : "emerald"}>
                       {review.difficulty}
                     </Badge>
-                    <Badge tone="violet">{review.mastery}% mastery</Badge>
+                    <Badge tone="violet">{Math.round(review.mastery * 100)}% освоено</Badge>
                   </div>
                   <div className="text-base font-medium text-white">{review.question}</div>
-                  <div className="text-sm text-slate-400">РўРѕС‡РЅРѕСЃС‚СЊ: {review.accuracy}% | РћС‚РІРµС‚РѕРІ: {review.timesAnswered}</div>
+                  <div className="text-sm text-slate-400">Точность: {review.accuracy}% | Ответов: {review.timesAnswered}</div>
                   <div className="max-w-3xl">
                     <ProgressBar value={review.mastery * 100} />
                   </div>
                 </div>
                 <Link to="/practice?mode=review">
-                  <Button variant="secondary">РџРѕРІС‚РѕСЂРёС‚СЊ</Button>
+                  <Button variant="secondary">Повторить</Button>
                 </Link>
               </div>
             </GlassCard>

@@ -7,9 +7,9 @@ export const GamesPage = ({ meta }: AppPageProps) => {
   return (
     <div className="space-y-6">
       <TitleBlock
-        eyebrow="РњРёРЅРё-РёРіСЂС‹"
-        title="Р‘С‹СЃС‚СЂРѕРµ Р·Р°РєСЂРµРїР»РµРЅРёРµ Р±РµР· СЃРєСѓРєРё"
-        description="РљР°Р¶РґР°СЏ РёРіСЂР° РёСЃРїРѕР»СЊР·СѓРµС‚ С‚Сѓ Р¶Рµ Р»РѕРєР°Р»СЊРЅСѓСЋ Р±Р°Р·Сѓ РІРѕРїСЂРѕСЃРѕРІ, РЅРѕ РїРѕРґР°РµС‚ РµС‘ РІ РґСЂСѓРіРѕРј С‚РµРјРїРµ Рё СЃ РґСЂСѓРіРѕР№ РјРµС…Р°РЅРёРєРѕР№."
+        eyebrow="Мини-игры"
+        title="Быстрое закрепление без скуки"
+        description="Каждая игра использует ту же локальную базу вопросов, но подает её в другом темпе и с другой механикой."
       />
       <div className="mb-2">
         <BackButton to="/" />
@@ -31,7 +31,7 @@ export const GamesPage = ({ meta }: AppPageProps) => {
                 </div>
                 <div className="mt-4 flex items-center gap-2 text-sm text-slate-300">
                   <Play className="h-4 w-4" />
-                  РРіСЂР°С‚СЊ СЃРµР№С‡Р°СЃ
+                  Играть сейчас
                 </div>
               </GlassCard>
             </Link>
