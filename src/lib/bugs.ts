@@ -21,7 +21,7 @@ export type FeedbackReport = {
 export type SiteNotification = {
   id: string;
   userId: string;
-  type: "bug-fixed" | "bug-rejected" | "improvement-accepted" | "improvement-rejected" | "review-new" | "review-reply";
+  type: "bug-fixed" | "bug-rejected" | "improvement-accepted" | "improvement-rejected" | "review-new" | "review-reply" | "duel-invite" | "duel-accepted" | "duel-declined" | "duel-cancelled" | "duel-opponent-left" | "duel-finished";
   title: string;
   message: string;
   bugId: string;

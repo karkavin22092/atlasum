@@ -2,10 +2,11 @@ import { Link, useSearchParams } from "react-router-dom";
 import { BackButton, Button, GlassCard, Panel, TitleBlock } from "@/components/ui";
 import type { AppPageProps } from "./types";
 import { Gamepad2, Play } from "lucide-react";
+import { DuelWidget } from "@/components/duel-widget";
 
 export const GamesPage = ({ meta }: AppPageProps) => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const subject = searchParams.get("subject") === "management" ? "management" : "it-design";
+  const subject = searchParams.get("subject") === "management" ? "management" : searchParams.get("subject") === "economics" ? "economics" : "it-design";
   return (
     <div className="space-y-6">
       <TitleBlock
@@ -17,10 +18,13 @@ export const GamesPage = ({ meta }: AppPageProps) => {
         <BackButton to="/" />
       </div>
 
+      <DuelWidget leaderboard={(meta?.leaderboard ?? []).map((entry) => ({ id: entry.id, name: entry.name, avatarUrl: entry.avatarUrl, lastSeenAt: entry.lastSeenAt }))} />
+
       <Panel>
-        <div className="mb-5 grid gap-2 sm:grid-cols-2">
+        <div className="mb-5 grid gap-2 sm:grid-cols-3">
           <button type="button" onClick={() => setSearchParams({ subject: "it-design" })} className={subject === "it-design" ? "rounded-2xl border border-cyan-300/40 bg-cyan-400/15 px-4 py-3 text-left text-white" : "rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-slate-300 transition hover:bg-white/10"}>Игры по ИТ и графике</button>
           <button type="button" onClick={() => setSearchParams({ subject: "management" })} className={subject === "management" ? "rounded-2xl border border-cyan-300/40 bg-cyan-400/15 px-4 py-3 text-left text-white" : "rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-slate-300 transition hover:bg-white/10"}>Игры по менеджменту</button>
+          <button type="button" onClick={() => setSearchParams({ subject: "economics" })} className={subject === "economics" ? "rounded-2xl border border-emerald-300/40 bg-emerald-400/15 px-4 py-3 text-left text-white" : "rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-slate-300 transition hover:bg-white/10"}>Игры по экономике</button>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {meta?.games.map((game) => (

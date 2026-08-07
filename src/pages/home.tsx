@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Badge, Button, GlassCard, Panel, ProgressBar, StatCard, TitleBlock } from "@/components/ui";
-import { BookOpen, Brain, BriefcaseBusiness, Gamepad2, Laptop2, LineChart, Medal, Send, ShieldCheck, Sparkles, Target, Trophy, UserRound } from "lucide-react";
+import { BookOpen, Brain, BriefcaseBusiness, CircleDollarSign, Gamepad2, Laptop2, LineChart, Medal, Send, ShieldCheck, Sparkles, Target, Trophy, UserRound } from "lucide-react";
 import type { AppPageProps } from "./types";
 import type { SubjectId } from "@shared/types";
 import { levelLabel } from "@/lib/utils";
@@ -43,7 +43,7 @@ export const HomePage = ({ meta }: AppPageProps) => {
         <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
           <div>
             <div className="mb-4 flex flex-wrap gap-2">
-              <Badge tone="cyan">2560 вопросов</Badge>
+              <Badge tone="cyan">3560 вопросов</Badge>
               <Badge tone="violet">Интервальное повторение</Badge>
               <Badge tone="emerald">Экзамен и игры</Badge>
             </div>
@@ -52,7 +52,7 @@ export const HomePage = ({ meta }: AppPageProps) => {
               <span className="gradient-text"> понятный и живой</span> процесс.
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
-              Практика, экзамены, повторение и игровые режимы для подготовки по ИТ, компьютерной графике и менеджменту.
+              Практика, экзамены, повторение и игровые режимы для подготовки по ИТ, компьютерной графике, менеджменту и экономике.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Link to={`/practice?mode=exam&subject=${selectedSubject}`}>
@@ -115,7 +115,7 @@ export const HomePage = ({ meta }: AppPageProps) => {
 
       <Panel>
         <TitleBlock eyebrow="Направление" title="Выберите дисциплину" description="Темы, экзамены и мини-игры будут собраны только из выбранного направления." />
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <div className="mt-5 grid gap-4 md:grid-cols-3">
           <button type="button" onClick={() => { setSelectedSubject("it-design"); setSelectedTopic(""); }} className={selectedSubject === "it-design" ? "rounded-3xl border border-cyan-300/40 bg-cyan-400/15 p-5 text-left shadow-glow" : "rounded-3xl border border-white/10 bg-white/5 p-5 text-left transition hover:-translate-y-1 hover:bg-white/10"}>
             <Laptop2 className="h-7 w-7 text-cyan-300" />
             <div className="mt-4 text-xl font-semibold text-white">ИТ и компьютерная графика</div>
@@ -125,6 +125,11 @@ export const HomePage = ({ meta }: AppPageProps) => {
             <BriefcaseBusiness className="h-7 w-7 text-amber-300" />
             <div className="mt-4 text-xl font-semibold text-white">Менеджмент</div>
             <div className="mt-2 text-sm leading-6 text-slate-400">9 разделов · 1000 вопросов</div>
+          </button>
+          <button type="button" onClick={() => { setSelectedSubject("economics"); setSelectedTopic(""); }} className={selectedSubject === "economics" ? "rounded-3xl border border-emerald-300/40 bg-emerald-400/10 p-5 text-left shadow-glow" : "rounded-3xl border border-white/10 bg-white/5 p-5 text-left transition hover:-translate-y-1 hover:bg-white/10"}>
+            <CircleDollarSign className="h-7 w-7 text-emerald-300" />
+            <div className="mt-4 text-xl font-semibold text-white">Экономика</div>
+            <div className="mt-2 text-sm leading-6 text-slate-400">3 раздела · 1000 вопросов</div>
           </button>
         </div>
       </Panel>

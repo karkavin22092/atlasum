@@ -1,5 +1,5 @@
 export type Difficulty = "easy" | "medium" | "hard";
-export type SubjectId = "it-design" | "management";
+export type SubjectId = "it-design" | "management" | "economics";
 
 export type QuestionType =
   | "single"

@@ -9,6 +9,7 @@ import { HomePage } from "./pages/home";
 import { PracticePage } from "./pages/practice";
 import { GamesPage } from "./pages/games";
 import { GameRunnerPage } from "./pages/game-runner";
+import { DuelRunnerPage } from "./pages/duel-runner";
 import { AdminPage } from "./pages/admin";
 import { ReviewPage } from "./pages/review";
 import { AuthPage } from "./pages/auth";
@@ -45,7 +46,7 @@ type AppMeta = DashboardMeta & {
     lastSeenAt: string | null;
   }>;
   activity: Array<{ date: string; attempts: number; correct: number; xp: number }>;
-  topicProgress: Array<{ key: string; title: string; description: string; source: string; color: string; subject?: "it-design" | "management"; mastery: number; answered: number }>;
+  topicProgress: Array<{ key: string; title: string; description: string; source: string; color: string; subject?: "it-design" | "management" | "economics"; mastery: number; answered: number }>;
   attempts: Array<{
     id: string;
     mode: string;
@@ -178,7 +179,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
                 <span className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-200/80 sm:tracking-[0.25em]">Examora</span>
                 <span className="app-version rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-bold tracking-normal text-cyan-200">{APP_VERSION}</span>
               </div>
-              <div className="hidden truncate text-xs text-slate-400 sm:block">ИТ, компьютерная графика и менеджмент</div>
+              <div className="hidden truncate text-xs text-slate-400 sm:block">ИТ, компьютерная графика, менеджмент и экономика</div>
             </div>
           </Link>
 
@@ -348,6 +349,7 @@ const App = () => {
       <Route path="/review" element={<AppShell><ReviewPage /></AppShell>} />
       <Route path="/games" element={<AppShell><GamesPage /></AppShell>} />
       <Route path="/games/:gameId" element={<AppShell><GameRunnerPage /></AppShell>} />
+      <Route path="/duels/:duelId" element={<AppShell><DuelRunnerPage /></AppShell>} />
       <Route path="/admin" element={<AppShell><AdminPage /></AppShell>} />
       <Route path="/leaderboard" element={<AppShell><LeaderboardPage /></AppShell>} />
       <Route path="/whats-new" element={<AppShell><WhatsNewPage /></AppShell>} />

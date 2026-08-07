@@ -19,7 +19,7 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedMode, setSelectedMode] = useState(searchParams.get("mode") ?? "practice");
   const [selectedCount, setSelectedCount] = useState(Number(searchParams.get("count") ?? 10));
-  const [selectedSubject, setSelectedSubject] = useState<SubjectId>(searchParams.get("subject") === "management" ? "management" : "it-design");
+  const [selectedSubject, setSelectedSubject] = useState<SubjectId>(searchParams.get("subject") === "management" ? "management" : searchParams.get("subject") === "economics" ? "economics" : "it-design");
   const [selectedTopic, setSelectedTopic] = useState(searchParams.get("topic") ?? "");
   const [test, setTest] = useState<GeneratedTest | null>(null);
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
@@ -174,10 +174,11 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
         <Panel className="space-y-5">
           <div>
             <div className="mb-3 text-xs uppercase tracking-[0.24em] text-slate-400">Дисциплина</div>
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-2 sm:grid-cols-3">
               {([
                 { key: "it-design", title: "ИТ и графика" },
                 { key: "management", title: "Менеджмент" },
+                { key: "economics", title: "Экономика" },
               ] as const).map((subject) => (
                 <button
                   key={subject.key}

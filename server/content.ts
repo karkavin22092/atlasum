@@ -1,5 +1,6 @@
 import type { DashboardMeta, GameId, QuizMode, TopicMeta } from "@shared/types";
 import { managementTopicCatalog } from "./management-content";
+import { economicsTopicCatalog } from "./economics-content";
 
 export type TopicConcept = {
   term: string;
@@ -1406,11 +1407,13 @@ const technologyTopicCatalog = [
 export const topicCatalog: TopicBlueprint[] = [
   ...technologyTopicCatalog.map((topic) => ({ ...topic, subject: "it-design" as const })),
   ...managementTopicCatalog,
+  ...economicsTopicCatalog,
 ];
 
 export const questionCountForTopic = (topic: Pick<TopicBlueprint, "key" | "subject">) => {
-  if (topic.subject !== "management") return 60;
-  return topic.key === managementTopicCatalog[0].key ? 112 : 111;
+  if (topic.subject === "it-design") return 60;
+  if (topic.subject === "management") return topic.key === managementTopicCatalog[0].key ? 112 : 111;
+  return topic.key === economicsTopicCatalog[0].key ? 334 : 333;
 };
 
 export const QUESTION_BANK_TOTAL = topicCatalog.reduce((total, topic) => total + questionCountForTopic(topic), 0);
@@ -1436,6 +1439,6 @@ export const dashboardMeta: DashboardMeta = {
     { key: "puzzle", title: "Пазл знаний", description: "Открывайте изображение правильными ответами." },
     { key: "memory", title: "Memory", description: "Найдите пары терминов и определений." },
     { key: "timeline", title: "Хронология", description: "Соберите этапы жизненного цикла ИС." },
-    { key: "blitz", title: "Блиц", description: "20 секунд на каждый вопрос." },
+    { key: "blitz", title: "Блиц", description: "25 секунд на каждый вопрос." },
   ],
 };

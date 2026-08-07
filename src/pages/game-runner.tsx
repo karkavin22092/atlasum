@@ -22,7 +22,7 @@ const GAME_LABELS: Record<string, { title: string; mode: string; duration: numbe
   puzzle: { title: "Пазл знаний", mode: "random", duration: 0, questions: 9, subtitle: "Правильные ответы открывают изображение." },
   memory: { title: "Memory", mode: "topic", duration: 0, questions: 8, subtitle: "Найдите пары терминов и определений.", questionType: "single" },
   timeline: { title: "Хронология", mode: "topic", duration: 0, questions: 6, subtitle: "Соберите этапы процесса.", questionType: "sequence" },
-  blitz: { title: "Блиц", mode: "random", duration: 20_000, questions: 10, subtitle: "20 секунд на вопрос.", questionType: "single" },
+  blitz: { title: "Блиц", mode: "random", duration: 25_000, questions: 10, subtitle: "25 секунд на вопрос.", questionType: "single" },
 };
 
 const correctAnswerText = (question: Question) => {
@@ -78,7 +78,7 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
   const navigate = useNavigate();
   const gameId = params.gameId ?? "cards";
   const game = GAME_LABELS[gameId] ?? GAME_LABELS.cards;
-  const subject = searchParams.get("subject") === "management" ? "management" : "it-design";
+  const subject = searchParams.get("subject") === "management" ? "management" : searchParams.get("subject") === "economics" ? "economics" : "it-design";
   const subjectTopics = meta?.topics.filter((topic) => topic.subject === subject) ?? [];
 
   const [deck, setDeck] = useState<GeneratedTest | null>(null);
