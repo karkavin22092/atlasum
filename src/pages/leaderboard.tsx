@@ -1,4 +1,4 @@
-import { Award, Crown, Medal, MessageCircle, Trophy } from "lucide-react";
+import { Award, Crown, Medal, MessageCircle, Trophy, UserRound } from "lucide-react";
 import { Link } from "react-router-dom";
 import { BackButton, Badge, Button, GlassCard, Panel, TitleBlock } from "@/components/ui";
 import { getPresence } from "@/lib/presence";
@@ -10,6 +10,8 @@ const rankIcon = (rank: number) => {
   if (rank === 3) return <Award className="h-5 w-5 text-orange-300" />;
   return <span className="w-5 text-center text-sm text-slate-500">{rank}</span>;
 };
+
+const initials = (name: string) => name.trim().slice(0, 2).toUpperCase();
 
 export const LeaderboardPage = ({ meta, profileName }: AppPageProps) => (
   <div className="space-y-6">
@@ -34,7 +36,12 @@ export const LeaderboardPage = ({ meta, profileName }: AppPageProps) => (
           return (
             <GlassCard key={entry.id} className={isCurrent ? "border-cyan-300/35 bg-cyan-400/10" : ""}>
               <div className="grid items-center gap-3 sm:grid-cols-[44px_1fr_auto_auto_auto]">
-                <div className="flex items-center gap-2">{rankIcon(entry.rank)}</div>
+                <div className="flex items-center gap-2">
+                  {rankIcon(entry.rank)}
+                  <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full border border-white/10 bg-white/10 text-xs font-semibold text-white">
+                    {entry.avatarUrl ? <img src={entry.avatarUrl} alt={`Аватар ${entry.name}`} className="h-full w-full object-cover" /> : initials(entry.name) || <UserRound className="h-4 w-4" />}
+                  </div>
+                </div>
                 <div>
                   <div className="flex flex-wrap items-center gap-2 font-semibold text-white">
                     {entry.name}

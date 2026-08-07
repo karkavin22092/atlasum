@@ -49,7 +49,7 @@ const validateIdentity = (name: string, email: string) => {
   return "";
 };
 
-const createSharedUser = async ({ name, email, hash, createdAt }: { name: string; email: string; hash: string; createdAt?: string }) => {
+const createSharedUser = async ({ name, email, hash, createdAt, avatarUrl }: { name: string; email: string; hash: string; createdAt?: string; avatarUrl?: string | null }) => {
   const identityError = validateIdentity(name, email);
   if (identityError) return jsonError(identityError, 400);
   if (!/^[a-f0-9]{64}$/iu.test(hash)) return jsonError("Некорректные данные пароля", 400);
@@ -64,7 +64,10 @@ const createSharedUser = async ({ name, email, hash, createdAt }: { name: string
 
   if (existingUser) {
     if (existingUser.passwordHash === hash && existingUser.name.toLowerCase() === name.toLowerCase()) {
-      return authenticatedResponse(existingUser);
+      const migratedAvatar = avatarUrl && avatarUrl.startsWith("data:image/") && avatarUrl.length <= 350_000 ? avatarUrl : existingUser.avatarUrl ?? null;
+      const migratedUser = migratedAvatar !== existingUser.avatarUrl ? { ...existingUser, avatarUrl: migratedAvatar } : existingUser;
+      if (migratedUser !== existingUser) await users.setJSON(emailId, migratedUser);
+      return authenticatedResponse(migratedUser);
     }
     return jsonError("Пользователь с такой почтой уже зарегистрирован", 409);
   }
@@ -75,6 +78,7 @@ const createSharedUser = async ({ name, email, hash, createdAt }: { name: string
     name,
     email,
     passwordHash: hash,
+    avatarUrl: avatarUrl && avatarUrl.startsWith("data:image/") && avatarUrl.length <= 350_000 ? avatarUrl : null,
     createdAt: createdAt && !Number.isNaN(Date.parse(createdAt)) ? new Date(createdAt).toISOString() : new Date().toISOString(),
   };
   await Promise.all([
@@ -138,6 +142,7 @@ export default async (request: Request) => {
         email,
         hash: String(payload.passwordHash ?? "").toLowerCase(),
         createdAt: payload.createdAt,
+        avatarUrl: payload.avatarUrl,
       });
     }
 

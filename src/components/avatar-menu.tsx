@@ -26,6 +26,7 @@ export const AvatarMenu = ({ compact = false }: { compact?: boolean }) => {
       const avatarUrl = await imageFileToDataUrl(file, { maxSide: 512, quality: 0.8, maxLength: 350_000 });
       await updateAvatar(avatarUrl);
       await queryClient.invalidateQueries({ queryKey: ["site-reviews"] });
+      await queryClient.invalidateQueries({ queryKey: ["meta"] });
       detailsRef.current?.removeAttribute("open");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Не удалось загрузить аватар");
@@ -40,6 +41,7 @@ export const AvatarMenu = ({ compact = false }: { compact?: boolean }) => {
     try {
       await updateAvatar(null);
       await queryClient.invalidateQueries({ queryKey: ["site-reviews"] });
+      await queryClient.invalidateQueries({ queryKey: ["meta"] });
       detailsRef.current?.removeAttribute("open");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Не удалось удалить аватар");

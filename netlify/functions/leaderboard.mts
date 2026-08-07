@@ -3,6 +3,7 @@ import { getStore } from "@netlify/blobs";
 type LeaderboardEntry = {
   id: string;
   name: string;
+  avatarUrl: string | null;
   xp: number;
   level: number;
   streak: number;
@@ -15,6 +16,7 @@ type LeaderboardEntry = {
 };
 
 const store = () => getStore({ name: "design-tests-leaderboard", consistency: "strong" });
+const usersStore = () => getStore({ name: "design-tests-auth-users", consistency: "strong" });
 const DELETED_USER_IDS = new Set(["test"]);
 
 const purgeDeletedAccounts = async () => {
@@ -53,6 +55,13 @@ const cleanTimestamp = (value: unknown) => {
   return text && !Number.isNaN(Date.parse(text)) ? new Date(text).toISOString() : null;
 };
 
+const cleanAvatar = (value: unknown) => {
+  const avatar = typeof value === "string" ? value : "";
+  return avatar.startsWith("data:image/") && avatar.length <= 350_000 ? avatar : null;
+};
+
+const cleanUserId = (value: unknown) => String(value ?? "").trim().toLowerCase().replace(/[^a-zа-я0-9-]+/giu, "-").slice(0, 80);
+
 const cleanEntry = (value: Partial<LeaderboardEntry>): LeaderboardEntry | null => {
   const id = String(value.id ?? "").trim().toLowerCase().replace(/[^a-zа-я0-9-]+/giu, "-").slice(0, 80);
   const name = String(value.name ?? "").trim().slice(0, 40);
@@ -60,6 +69,7 @@ const cleanEntry = (value: Partial<LeaderboardEntry>): LeaderboardEntry | null =
   return {
     id,
     name,
+    avatarUrl: cleanAvatar(value.avatarUrl),
     xp: Math.round(cleanNumber(value.xp)),
     level: Math.max(1, Math.round(cleanNumber(value.level, 100_000))),
     streak: Math.round(cleanNumber(value.streak, 100_000)),
@@ -74,13 +84,21 @@ const cleanEntry = (value: Partial<LeaderboardEntry>): LeaderboardEntry | null =
   };
 };
 
+const listAvatars = async () => {
+  const users = usersStore();
+  const { blobs } = await users.list();
+  const values = await Promise.all(blobs.map((blob) => users.get(blob.key, { type: "json", consistency: "strong" }) as Promise<{ id?: string; avatarUrl?: string | null } | null>));
+  return new Map(values.filter((user): user is { id: string; avatarUrl?: string | null } => Boolean(user?.id)).map((user) => [cleanUserId(user.id), cleanAvatar(user.avatarUrl)]));
+};
+
 const listEntries = async () => {
   const leaderboard = store();
-  const { blobs } = await leaderboard.list();
+  const [{ blobs }, avatars] = await Promise.all([leaderboard.list(), listAvatars()]);
   const entries = await Promise.all(blobs.map((blob) => leaderboard.get(blob.key, { type: "json", consistency: "strong" })));
   return entries
     .map((entry) => cleanEntry((entry ?? {}) as Partial<LeaderboardEntry>))
     .filter((entry): entry is LeaderboardEntry => Boolean(entry))
+    .map((entry) => ({ ...entry, avatarUrl: avatars.get(entry.id) ?? entry.avatarUrl ?? null }))
     .sort((left, right) => right.xp - left.xp || left.name.localeCompare(right.name, "ru"))
     .map((entry, index) => ({ ...entry, rank: index + 1 }));
 };
@@ -107,6 +125,7 @@ export default async (request: Request) => {
           .at(-1) ?? null;
         const merged: LeaderboardEntry = current ? {
           ...entry,
+          avatarUrl: entry.avatarUrl ?? current.avatarUrl ?? null,
           xp: Math.max(current.xp, entry.xp),
           level: Math.max(current.level, entry.level),
           streak: incomingHasNewerProgress ? entry.streak : current.streak,

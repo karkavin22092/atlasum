@@ -25,6 +25,7 @@ const formatMessageTime = (value: string) => new Intl.DateTimeFormat("ru-RU", {
   hour: "2-digit",
   minute: "2-digit",
 }).format(new Date(value));
+const initials = (name: string) => name.trim().slice(0, 2).toUpperCase();
 
 export const MessagesPage = ({ meta }: AppPageProps) => {
   const { user } = useAuth();
@@ -180,7 +181,9 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
                 <motion.div key={contact.id} layout initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}>
                   <Link to={`/messages/${contact.id}`} className={active ? "block rounded-2xl border border-cyan-300/35 bg-cyan-400/10 p-3" : "block rounded-2xl border border-white/10 bg-white/5 p-3 transition hover:bg-white/10"}>
                     <div className="flex items-center gap-3">
-                      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-cyan-400/15 text-cyan-200"><UserRound className="h-4 w-4" /></div>
+                      <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-cyan-400/15 text-xs font-semibold text-cyan-100">
+                        {contact.avatarUrl ? <img src={contact.avatarUrl} alt={`Аватар ${contact.name}`} className="h-full w-full object-cover" /> : initials(contact.name) || <UserRound className="h-4 w-4" />}
+                      </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <span className={presence.online ? "h-2 w-2 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" : "h-2 w-2 shrink-0 rounded-full bg-slate-500"} />
@@ -207,7 +210,9 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
                   <Link to="/messages" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/5 text-slate-300 lg:hidden" aria-label="Вернуться к участникам">
                     <ArrowLeft className="h-4 w-4" />
                   </Link>
-                  <div className="hidden h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-cyan-400 to-sky-500 text-slate-950 sm:grid"><UserRound className="h-5 w-5" /></div>
+                  <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-cyan-400 to-sky-500 text-xs font-semibold text-slate-950">
+                    {recipient.avatarUrl ? <img src={recipient.avatarUrl} alt={`Аватар ${recipient.name}`} className="h-full w-full object-cover" /> : initials(recipient.name) || <UserRound className="h-5 w-5" />}
+                  </div>
                   <div className="min-w-0">
                     <div className="truncate font-semibold text-white">{recipient.name}</div>
                     <div className="truncate text-xs text-slate-400">Уровень {recipient.level} · {recipient.xp} XP</div>
@@ -236,7 +241,13 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
                       transition={{ type: "spring", stiffness: 360, damping: 28 }}
                       className={own ? "flex justify-end" : "flex justify-start"}
                     >
-                      <div className={own ? "relative max-w-[86%] sm:max-w-[78%]" : "relative max-w-[86%] sm:max-w-[78%]"}>
+                      <div className={own ? "flex items-end justify-end gap-2" : "flex items-end gap-2"}>
+                        {!own ? (
+                          <div className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full border border-white/10 bg-cyan-400/15 text-[10px] font-semibold text-cyan-100">
+                            {recipient?.avatarUrl ? <img src={recipient.avatarUrl} alt="" className="h-full w-full object-cover" /> : initials(recipient?.name ?? "") || <UserRound className="h-3.5 w-3.5" />}
+                          </div>
+                        ) : null}
+                        <div className="relative max-w-[86%] sm:max-w-[78%]">
                         <div className={own
                           ? `rounded-3xl rounded-br-md bg-gradient-to-br from-cyan-400 to-sky-500 px-4 py-3 text-slate-950 shadow-lg ${message.clientStatus === "failed" ? "ring-2 ring-rose-500/70" : ""}`
                           : "glass rounded-3xl rounded-bl-md px-4 py-3"}>
@@ -311,6 +322,12 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
                             </motion.div>
                           ) : null}
                         </AnimatePresence>
+                        </div>
+                        {own ? (
+                          <div className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full border border-white/10 bg-cyan-400/15 text-[10px] font-semibold text-cyan-100">
+                            {user.avatarUrl ? <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" /> : initials(user.name) || <UserRound className="h-3.5 w-3.5" />}
+                          </div>
+                        ) : null}
                       </div>
                     </motion.div>
                   );

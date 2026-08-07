@@ -101,6 +101,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             email: stored.email,
             passwordHash: stored.passwordHash,
             createdAt: stored.createdAt,
+            avatarUrl: stored.avatarUrl ?? null,
           });
           const isActive = stored.id === activeId;
           saveLocalUser(migrated, stored.passwordHash, isActive);
@@ -132,6 +133,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           email: localUser.email,
           passwordHash: localUser.passwordHash,
           createdAt: localUser.createdAt,
+          avatarUrl: localUser.avatarUrl ?? null,
         });
       }
       saveLocalUser(authenticatedUser, passwordHash);

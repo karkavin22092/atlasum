@@ -212,6 +212,7 @@ const buildLeaderboard = async () => {
       rank: index + 1,
       id: profile.id,
       name: profile.name,
+      avatarUrl: null,
       xp: profile.xp,
       level: profile.level,
       streak: profile.streak,

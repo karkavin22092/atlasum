@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Badge, Button, GlassCard, Panel, ProgressBar, StatCard, TitleBlock } from "@/components/ui";
-import { BookOpen, Brain, BriefcaseBusiness, Gamepad2, Laptop2, LineChart, Medal, Send, ShieldCheck, Sparkles, Target, Trophy } from "lucide-react";
+import { BookOpen, Brain, BriefcaseBusiness, Gamepad2, Laptop2, LineChart, Medal, Send, ShieldCheck, Sparkles, Target, Trophy, UserRound } from "lucide-react";
 import type { AppPageProps } from "./types";
 import type { SubjectId } from "@shared/types";
 import { levelLabel } from "@/lib/utils";
@@ -265,9 +265,12 @@ export const HomePage = ({ meta }: AppPageProps) => {
               <div className="space-y-2">
                 {meta?.leaderboard.length ? meta.leaderboard.map((entry) => (
                   <div key={entry.id} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm">
-                    <div className="text-slate-200">
-                      <span className="mr-2 text-slate-500">#{entry.rank}</span>
-                      {entry.name}
+                    <div className="flex min-w-0 items-center gap-2 text-slate-200">
+                      <div className="grid h-7 w-7 shrink-0 place-items-center overflow-hidden rounded-full bg-white/10 text-[10px] font-semibold text-white">
+                        {entry.avatarUrl ? <img src={entry.avatarUrl} alt="" className="h-full w-full object-cover" /> : <UserRound className="h-3.5 w-3.5 text-slate-400" />}
+                      </div>
+                      <span className="text-slate-500">#{entry.rank}</span>
+                      <span className="truncate">{entry.name}</span>
                     </div>
                     <div className="text-slate-400">{entry.xp} XP</div>
                   </div>

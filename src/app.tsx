@@ -25,6 +25,7 @@ import { APP_VERSION } from "./lib/version";
 import { getUnreadFeedbackCount, getUnreadNotificationCount } from "./lib/bugs";
 import { isAdminUser } from "./lib/permissions";
 import { AvatarMenu } from "./components/avatar-menu";
+import { WhatsNewPage } from "./pages/whats-new";
 
 type AppMeta = DashboardMeta & {
   profile: Profile;
@@ -33,6 +34,7 @@ type AppMeta = DashboardMeta & {
     rank: number;
     id: string;
     name: string;
+    avatarUrl: string | null;
     xp: number;
     level: number;
     streak: number;
@@ -214,6 +216,10 @@ const AppShell = ({ children }: { children: ReactNode }) => {
               <Trophy className="h-4 w-4 text-amber-300" />
               Рейтинг
             </Link>
+            <Link to="/whats-new" className="glass inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm text-slate-200 transition hover:bg-white/10">
+              <Sparkles className="h-4 w-4 text-cyan-300" />
+              Что нового?
+            </Link>
             {user ? (
               <div className="glass flex h-11 items-center gap-3 rounded-full px-2 pr-4 text-sm">
                 <AvatarMenu />
@@ -237,6 +243,9 @@ const AppShell = ({ children }: { children: ReactNode }) => {
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2 xl:hidden">
+            <Link to="/whats-new" aria-label="Что нового?" className="glass inline-flex h-10 w-10 items-center justify-center rounded-full">
+              <Sparkles className="h-4 w-4 text-cyan-300" />
+            </Link>
             <Link to="/leaderboard" aria-label="Рейтинг" className="glass inline-flex h-10 w-10 items-center justify-center rounded-full">
               <Trophy className="h-4 w-4 text-amber-300" />
             </Link>
@@ -341,6 +350,7 @@ const App = () => {
       <Route path="/games/:gameId" element={<AppShell><GameRunnerPage /></AppShell>} />
       <Route path="/admin" element={<AppShell><AdminPage /></AppShell>} />
       <Route path="/leaderboard" element={<AppShell><LeaderboardPage /></AppShell>} />
+      <Route path="/whats-new" element={<AppShell><WhatsNewPage /></AppShell>} />
       <Route path="/messages" element={<AppShell><MessagesPage /></AppShell>} />
       <Route path="/messages/:recipientId" element={<AppShell><MessagesPage /></AppShell>} />
       <Route path="/proposals" element={<AppShell><BugsPage /></AppShell>} />

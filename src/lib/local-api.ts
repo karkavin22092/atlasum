@@ -59,6 +59,7 @@ type LeaderboardEntry = {
   rank: number;
   id: string;
   name: string;
+  avatarUrl: string | null;
   xp: number;
   level: number;
   streak: number;
@@ -409,11 +410,21 @@ const registeredProfileNames = () => {
   }
 };
 
+const registeredUsers = () => {
+  try {
+    return JSON.parse(window.localStorage.getItem("design-tests-users-v1") ?? "[]") as Array<{ id?: string; name?: string; avatarUrl?: string | null }>;
+  } catch {
+    return [] as Array<{ id?: string; name?: string; avatarUrl?: string | null }>;
+  }
+};
+
 const buildLeaderboard = (database: LocalDatabase) => {
   const registeredNames = registeredProfileNames();
+  const users = registeredUsers();
   return Object.values(database.profiles).filter((profile) => registeredNames.has(profile.name.trim().toLowerCase())).map((profile) => ({
     id: profile.id,
     name: profile.name,
+    avatarUrl: users.find((user) => user.id === profile.id || user.name?.trim().toLowerCase() === profile.name.trim().toLowerCase())?.avatarUrl ?? null,
     xp: profile.xp,
     level: profile.level,
     streak: profile.streak,
