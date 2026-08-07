@@ -9,6 +9,7 @@ import type { SubjectId } from "@shared/types";
 import { levelLabel } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { isAdminUser } from "@/lib/permissions";
+import { SiteReviewsSection } from "@/components/site-reviews";
 
 export const HomePage = ({ meta }: AppPageProps) => {
   const { user } = useAuth();
@@ -73,8 +74,8 @@ export const HomePage = ({ meta }: AppPageProps) => {
                 </Button>
               </Link>
               {user && !admin ? (
-                <Link to="/report-bug" state={{ sourcePage: "/" }}>
-                  <Button variant="secondary"><Send className="h-4 w-4" />Сообщить о баге</Button>
+                <Link to="/suggest" state={{ sourcePage: "/" }}>
+                  <Button variant="secondary"><Send className="h-4 w-4" />Предложить улучшение</Button>
                 </Link>
               ) : null}
             </div>
@@ -325,6 +326,8 @@ export const HomePage = ({ meta }: AppPageProps) => {
           <div className="mt-1 text-sm text-slate-400">никаких платных API и внешних сервисов</div>
         </GlassCard>
       </div>
+
+      <SiteReviewsSection />
     </div>
   );
 };

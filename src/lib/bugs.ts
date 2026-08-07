@@ -1,14 +1,18 @@
-export type BugReport = {
+export type FeedbackKind = "bug" | "improvement";
+
+export type FeedbackReport = {
   id: string;
+  kind: FeedbackKind;
   reporterId: string;
   reporterName: string;
   title: string;
   description: string;
   pageUrl: string;
-  status: "open" | "fixed" | "rejected";
+  status: "open" | "fixed" | "accepted" | "rejected";
   createdAt: string;
   adminReadAt: string | null;
   fixedAt: string | null;
+  acceptedAt?: string | null;
   rejectedAt: string | null;
   rejectionReason: string | null;
   rewardedAt: string | null;
@@ -17,7 +21,7 @@ export type BugReport = {
 export type SiteNotification = {
   id: string;
   userId: string;
-  type: "bug-fixed" | "bug-rejected";
+  type: "bug-fixed" | "bug-rejected" | "improvement-accepted" | "improvement-rejected" | "review-new" | "review-reply";
   title: string;
   message: string;
   bugId: string;
@@ -26,24 +30,24 @@ export type SiteNotification = {
   readAt: string | null;
 };
 
-export type BugCooldown = {
+export type FeedbackCooldown = {
   remainingSeconds: number;
   nextAllowedAt: string | null;
 };
 
-export class BugRequestError extends Error {
+export class FeedbackRequestError extends Error {
   remainingSeconds: number;
   nextAllowedAt: string | null;
 
   constructor(message: string, remainingSeconds = 0, nextAllowedAt: string | null = null) {
     super(message);
-    this.name = "BugRequestError";
+    this.name = "FeedbackRequestError";
     this.remainingSeconds = remainingSeconds;
     this.nextAllowedAt = nextAllowedAt;
   }
 }
 
-const requestBugs = async <T,>(path: string, authToken: string, init?: RequestInit) => {
+const requestFeedback = async <T,>(path: string, authToken: string, init?: RequestInit) => {
   const response = await fetch(`/.netlify/functions/bugs${path}`, {
     headers: {
       "Content-Type": "application/json",
@@ -58,8 +62,8 @@ const requestBugs = async <T,>(path: string, authToken: string, init?: RequestIn
     nextAllowedAt?: string | null;
   };
   if (!response.ok) {
-    throw new BugRequestError(
-      result.error ?? "Сервис обращений временно недоступен",
+    throw new FeedbackRequestError(
+      result.error ?? "Сервис предложений временно недоступен",
       result.remainingSeconds,
       result.nextAllowedAt,
     );
@@ -67,38 +71,49 @@ const requestBugs = async <T,>(path: string, authToken: string, init?: RequestIn
   return result;
 };
 
-export const reportBug = (payload: { reporterId: string; title: string; description: string; pageUrl: string }, authToken: string) =>
-  requestBugs<BugReport & { nextAllowedAt: string }>("", authToken, { method: "POST", body: JSON.stringify(payload) });
+export const submitFeedback = (
+  payload: { reporterId: string; kind: FeedbackKind; title: string; description: string; pageUrl: string },
+  authToken: string,
+) => requestFeedback<FeedbackReport & { nextAllowedAt: string }>("", authToken, {
+  method: "POST",
+  body: JSON.stringify(payload),
+});
 
-export const getBugReportCooldown = (userId: string, authToken: string) =>
-  requestBugs<BugCooldown>(`?userId=${encodeURIComponent(userId)}&cooldown=1`, authToken);
+export const getFeedbackCooldown = (userId: string, authToken: string) =>
+  requestFeedback<FeedbackCooldown>(`?userId=${encodeURIComponent(userId)}&cooldown=1`, authToken);
 
-export const getBugReports = (adminId: string, authToken: string) =>
-  requestBugs<BugReport[]>(`?adminId=${encodeURIComponent(adminId)}`, authToken);
+export const getFeedbackReports = (adminId: string, authToken: string) =>
+  requestFeedback<FeedbackReport[]>(`?adminId=${encodeURIComponent(adminId)}`, authToken);
 
-export const getUnreadBugCount = (adminId: string, authToken: string) =>
-  requestBugs<{ count: number }>(`?adminId=${encodeURIComponent(adminId)}&summary=1`, authToken);
+export const getUnreadFeedbackCount = (adminId: string, authToken: string) =>
+  requestFeedback<{ count: number }>(`?adminId=${encodeURIComponent(adminId)}&summary=1`, authToken);
 
-export const markBugReportsRead = (adminId: string, authToken: string) =>
-  requestBugs<{ ok: boolean }>("", authToken, { method: "PATCH", body: JSON.stringify({ action: "markRead", adminId }) });
-
-export const markBugFixed = (adminId: string, bugId: string, authToken: string) =>
-  requestBugs<{ report: BugReport; rewarded: boolean }>("", authToken, {
+export const markFeedbackReportsRead = (adminId: string, authToken: string) =>
+  requestFeedback<{ ok: boolean }>("", authToken, {
     method: "PATCH",
-    body: JSON.stringify({ action: "fix", adminId, bugId }),
+    body: JSON.stringify({ action: "markRead", adminId }),
   });
 
-export const rejectBug = (adminId: string, bugId: string, reason: string, authToken: string) =>
-  requestBugs<{ report: BugReport }>("", authToken, {
+export const acceptFeedback = (adminId: string, reportId: string, authToken: string) =>
+  requestFeedback<{ report: FeedbackReport; rewarded: boolean }>("", authToken, {
     method: "PATCH",
-    body: JSON.stringify({ action: "reject", adminId, bugId, reason }),
+    body: JSON.stringify({ action: "accept", adminId, bugId: reportId }),
+  });
+
+export const rejectFeedback = (adminId: string, reportId: string, reason: string, authToken: string) =>
+  requestFeedback<{ report: FeedbackReport }>("", authToken, {
+    method: "PATCH",
+    body: JSON.stringify({ action: "reject", adminId, bugId: reportId, reason }),
   });
 
 export const getNotifications = (userId: string, authToken: string) =>
-  requestBugs<SiteNotification[]>(`?userId=${encodeURIComponent(userId)}`, authToken);
+  requestFeedback<SiteNotification[]>(`?userId=${encodeURIComponent(userId)}`, authToken);
 
 export const getUnreadNotificationCount = (userId: string, authToken: string) =>
-  requestBugs<{ count: number }>(`?userId=${encodeURIComponent(userId)}&summary=1`, authToken);
+  requestFeedback<{ count: number }>(`?userId=${encodeURIComponent(userId)}&summary=1`, authToken);
 
 export const markNotificationsRead = (userId: string, authToken: string) =>
-  requestBugs<{ ok: boolean }>("", authToken, { method: "PATCH", body: JSON.stringify({ action: "readNotifications", userId }) });
+  requestFeedback<{ ok: boolean }>("", authToken, {
+    method: "PATCH",
+    body: JSON.stringify({ action: "readNotifications", userId }),
+  });

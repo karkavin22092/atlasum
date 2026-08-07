@@ -1,16 +1,20 @@
 import { getStore } from "@netlify/blobs";
 
-type BugReport = {
+type FeedbackKind = "bug" | "improvement";
+
+type FeedbackReport = {
   id: string;
+  kind?: FeedbackKind;
   reporterId: string;
   reporterName: string;
   title: string;
   description: string;
   pageUrl: string;
-  status: "open" | "fixed" | "rejected";
+  status: "open" | "fixed" | "accepted" | "rejected";
   createdAt: string;
   adminReadAt: string | null;
   fixedAt: string | null;
+  acceptedAt?: string | null;
   rejectedAt: string | null;
   rejectionReason: string | null;
   rewardedAt: string | null;
@@ -19,7 +23,7 @@ type BugReport = {
 type SiteNotification = {
   id: string;
   userId: string;
-  type: "bug-fixed" | "bug-rejected";
+  type: "bug-fixed" | "bug-rejected" | "improvement-accepted" | "improvement-rejected" | "review-new" | "review-reply";
   title: string;
   message: string;
   bugId: string;
@@ -45,6 +49,7 @@ type BugSubmissionLimit = {
 
 const ADMIN_ID = "lonexnesss";
 const BUG_REWARD_XP = 200;
+const IMPROVEMENT_REWARD_XP = 300;
 const BUG_REPORT_COOLDOWN_MS = 30 * 60 * 1000;
 const bugsStore = () => getStore({ name: "design-tests-bugs", consistency: "strong" });
 const bugLimitsStore = () => getStore({ name: "design-tests-bug-limits", consistency: "strong" });
@@ -79,6 +84,8 @@ const getLeaderboardUser = async (userId: string) => {
 };
 
 const requireAdmin = async (userId: string) => userId === ADMIN_ID && Boolean(await getLeaderboardUser(userId));
+const reportKind = (report: FeedbackReport): FeedbackKind => report.kind === "improvement" ? "improvement" : "bug";
+const rewardForReport = (report: FeedbackReport) => reportKind(report) === "improvement" ? IMPROVEMENT_REWARD_XP : BUG_REWARD_XP;
 
 const cooldownState = (limit: BugSubmissionLimit | null) => {
   const nextAllowedAtMs = limit?.nextAllowedAt ? Date.parse(limit.nextAllowedAt) : 0;
@@ -122,7 +129,8 @@ const listReports = async () => {
   const { blobs } = await store.list();
   const reports = await Promise.all(blobs.map((blob) => store.get(blob.key, { type: "json", consistency: "strong" })));
   return reports
-    .filter((report): report is BugReport => Boolean(report && typeof report === "object"))
+    .filter((report): report is FeedbackReport => Boolean(report && typeof report === "object"))
+    .map((report) => ({ ...report, kind: reportKind(report) }))
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 };
 
@@ -136,7 +144,7 @@ const listNotifications = async (userId: string) => {
     .slice(0, 200);
 };
 
-const awardBugReward = async (report: BugReport) => {
+const awardReportReward = async (report: FeedbackReport) => {
   const leaderboard = leaderboardStore();
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const stored = await leaderboard.getWithMetadata(report.reporterId, { type: "json", consistency: "strong" });
@@ -145,7 +153,7 @@ const awardBugReward = async (report: BugReport) => {
     const rewardedBugIds = Array.isArray(entry.rewardedBugIds) ? entry.rewardedBugIds.map(String) : [];
     if (rewardedBugIds.includes(report.id)) return false;
 
-    const xp = Math.max(0, Number(entry.xp) || 0) + BUG_REWARD_XP;
+    const xp = Math.max(0, Number(entry.xp) || 0) + rewardForReport(report);
     const updated = {
       ...entry,
       xp,
@@ -158,28 +166,32 @@ const awardBugReward = async (report: BugReport) => {
   throw new Error("Не удалось начислить награду из-за одновременного обновления профиля");
 };
 
-const notifyReporter = async (report: BugReport) => {
+const notifyReporter = async (report: FeedbackReport) => {
+  const improvement = reportKind(report) === "improvement";
   const notification: SiteNotification = {
-    id: `bug-fixed-${report.id}`,
+    id: `${improvement ? "improvement-accepted" : "bug-fixed"}-${report.id}`,
     userId: report.reporterId,
-    type: "bug-fixed",
-    title: "Ваш баг исправлен",
-    message: `Исправлено обращение «${report.title}». Спасибо за помощь проекту!`,
+    type: improvement ? "improvement-accepted" : "bug-fixed",
+    title: improvement ? "Ваше улучшение принято" : "Ваш баг исправлен",
+    message: improvement
+      ? `Предложение «${report.title}» принято. Спасибо за идею для развития проекта!`
+      : `Исправлено обращение «${report.title}». Спасибо за помощь проекту!`,
     bugId: report.id,
-    xpAwarded: BUG_REWARD_XP,
+    xpAwarded: rewardForReport(report),
     createdAt: new Date().toISOString(),
     readAt: null,
   };
   await notificationsStore().setJSON(`${report.reporterId}/${notification.id}`, notification, { onlyIfNew: true });
 };
 
-const notifyRejectedReport = async (report: BugReport, reason: string) => {
+const notifyRejectedReport = async (report: FeedbackReport, reason: string) => {
+  const improvement = reportKind(report) === "improvement";
   const notification: SiteNotification = {
-    id: `bug-rejected-${report.id}`,
+    id: `${improvement ? "improvement-rejected" : "bug-rejected"}-${report.id}`,
     userId: report.reporterId,
-    type: "bug-rejected",
-    title: "Обращение отклонено",
-    message: `Обращение «${report.title}» отклонено. Причина: ${reason}`,
+    type: improvement ? "improvement-rejected" : "bug-rejected",
+    title: improvement ? "Предложение не принято" : "Обращение отклонено",
+    message: `${improvement ? "Предложение" : "Обращение"} «${report.title}» отклонено. Причина: ${reason}`,
     bugId: report.id,
     xpAwarded: 0,
     createdAt: new Date().toISOString(),
@@ -218,8 +230,9 @@ export default async (request: Request) => {
     }
 
     if (request.method === "POST") {
-      const payload = await request.json() as { reporterId?: string; title?: string; description?: string; pageUrl?: string };
+      const payload = await request.json() as { reporterId?: string; kind?: string; title?: string; description?: string; pageUrl?: string };
       const reporterId = cleanUserId(payload.reporterId);
+      const kind: FeedbackKind = payload.kind === "improvement" ? "improvement" : "bug";
       if (sessionUserId !== reporterId) return jsonError("Нельзя отправить обращение от имени другого пользователя", 403);
       if (reporterId === ADMIN_ID) return jsonError("Администратор принимает обращения и не создаёт заявки", 403);
       const reporter = await getLeaderboardUser(reporterId);
@@ -227,8 +240,8 @@ export default async (request: Request) => {
       const title = String(payload.title ?? "").trim().slice(0, 120);
       const description = String(payload.description ?? "").trim().slice(0, 3000);
       const pageUrl = String(payload.pageUrl ?? "").trim().slice(0, 500);
-      if (title.length < 5) return jsonError("Кратко назовите проблему", 400);
-      if (description.length < 15) return jsonError("Опишите проблему подробнее", 400);
+      if (title.length < 5) return jsonError(kind === "improvement" ? "Кратко назовите улучшение" : "Кратко назовите проблему", 400);
+      if (description.length < 15) return jsonError(kind === "improvement" ? "Опишите идею подробнее" : "Опишите проблему подробнее", 400);
 
       const reservation = await reserveBugSubmission(reporterId);
       if (!reservation.allowed) {
@@ -243,8 +256,9 @@ export default async (request: Request) => {
         });
       }
 
-      const report: BugReport = {
+      const report: FeedbackReport = {
         id: crypto.randomUUID(),
+        kind,
         reporterId,
         reporterName: String(reporter.name ?? reporterId).slice(0, 40),
         title,
@@ -254,6 +268,7 @@ export default async (request: Request) => {
         createdAt: new Date().toISOString(),
         adminReadAt: null,
         fixedAt: null,
+        acceptedAt: null,
         rejectedAt: null,
         rejectionReason: null,
         rewardedAt: null,
@@ -286,20 +301,23 @@ export default async (request: Request) => {
         return Response.json({ ok: true });
       }
 
-      if (payload.action === "fix") {
+      if (payload.action === "fix" || payload.action === "accept") {
         const bugId = String(payload.bugId ?? "").trim();
-        const report = await bugsStore().get(bugId, { type: "json", consistency: "strong" }) as BugReport | null;
+        const report = await bugsStore().get(bugId, { type: "json", consistency: "strong" }) as FeedbackReport | null;
         if (!report) return jsonError("Обращение не найдено", 404);
         if (report.status !== "open") return jsonError("Обращение уже обработано", 409);
 
-        const rewarded = await awardBugReward(report);
+        const rewarded = await awardReportReward(report);
         await notifyReporter(report);
         const now = new Date().toISOString();
-        const fixedReport: BugReport = {
+        const improvement = reportKind(report) === "improvement";
+        const fixedReport: FeedbackReport = {
           ...report,
-          status: "fixed",
+          kind: reportKind(report),
+          status: improvement ? "accepted" : "fixed",
           adminReadAt: report.adminReadAt ?? now,
-          fixedAt: now,
+          fixedAt: improvement ? null : now,
+          acceptedAt: improvement ? now : null,
           rewardedAt: now,
         };
         await bugsStore().setJSON(report.id, fixedReport);
@@ -308,13 +326,15 @@ export default async (request: Request) => {
 
       if (payload.action === "reject") {
         const bugId = String(payload.bugId ?? "").trim();
-        const report = await bugsStore().get(bugId, { type: "json", consistency: "strong" }) as BugReport | null;
+        const report = await bugsStore().get(bugId, { type: "json", consistency: "strong" }) as FeedbackReport | null;
         if (!report) return jsonError("Обращение не найдено", 404);
         if (report.status !== "open") return jsonError("Обращение уже обработано", 409);
-        const reason = String(payload.reason ?? "").trim().slice(0, 300) || "Проблема не подтверждена";
+        const reason = String(payload.reason ?? "").trim().slice(0, 300)
+          || (reportKind(report) === "improvement" ? "Предложение не подходит проекту" : "Проблема не подтверждена");
         const now = new Date().toISOString();
-        const rejectedReport: BugReport = {
+        const rejectedReport: FeedbackReport = {
           ...report,
+          kind: reportKind(report),
           status: "rejected",
           adminReadAt: report.adminReadAt ?? now,
           rejectedAt: now,

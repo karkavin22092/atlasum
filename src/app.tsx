@@ -4,7 +4,7 @@ import { useTheme } from "./lib/theme";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./lib/api";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, Bug, LogIn, LogOut, MessageCircle, MoonStar, Send, SunMedium, Sparkles, Trophy } from "lucide-react";
+import { Bell, Globe2, Lightbulb, LogIn, Mail, MessageCircle, MoonStar, Send, SunMedium, Sparkles, Trophy } from "lucide-react";
 import { HomePage } from "./pages/home";
 import { PracticePage } from "./pages/practice";
 import { GamesPage } from "./pages/games";
@@ -22,8 +22,9 @@ import type { DashboardMeta, Profile, ProfileStats } from "@shared/types";
 import { useAuth } from "./lib/auth";
 import { getUnreadMessageSummary } from "./lib/chat";
 import { APP_VERSION } from "./lib/version";
-import { getUnreadBugCount, getUnreadNotificationCount } from "./lib/bugs";
+import { getUnreadFeedbackCount, getUnreadNotificationCount } from "./lib/bugs";
 import { isAdminUser } from "./lib/permissions";
+import { AvatarMenu } from "./components/avatar-menu";
 
 type AppMeta = DashboardMeta & {
   profile: Profile;
@@ -112,7 +113,7 @@ const fallbackMeta: AppMeta = {
 
 const AppShell = ({ children }: { children: ReactNode }) => {
   const { theme, setTheme } = useTheme();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const location = useLocation();
   const profileName = user?.name ?? "Гость";
   const admin = isAdminUser(user);
@@ -146,16 +147,16 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     refetchInterval: 15_000,
     refetchOnWindowFocus: true,
   });
-  const unreadBugsQuery = useQuery({
-    queryKey: ["unread-bugs", authenticatedUserId, authToken],
-    queryFn: () => getUnreadBugCount(authenticatedUserId, authToken),
+  const unreadFeedbackQuery = useQuery({
+    queryKey: ["unread-feedback", authenticatedUserId, authToken],
+    queryFn: () => getUnreadFeedbackCount(authenticatedUserId, authToken),
     enabled: Boolean(admin && authToken && authenticatedUserId === "lonexnesss"),
     retry: 0,
     refetchInterval: 15_000,
     refetchOnWindowFocus: true,
   });
   const unreadNotificationCount = unreadNotificationsQuery.data?.count ?? 0;
-  const unreadBugCount = unreadBugsQuery.data?.count ?? 0;
+  const unreadFeedbackCount = unreadFeedbackQuery.data?.count ?? 0;
   const badgeLabel = (count: number) => count > 99 ? "99+" : String(count);
   const sourcePage = `${location.pathname}${location.search}`;
 
@@ -192,10 +193,10 @@ const AppShell = ({ children }: { children: ReactNode }) => {
               </Link>
             ) : null}
             {admin ? (
-              <Link to="/bugs" className="glass relative inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm text-slate-200 transition hover:bg-white/10">
-                <Bug className="h-4 w-4 text-rose-300" />
-                Баги
-                {unreadBugCount ? <span className="message-unread-badge inline-flex min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[11px] font-bold leading-none">{badgeLabel(unreadBugCount)}</span> : null}
+              <Link to="/proposals" className="glass relative inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm text-slate-200 transition hover:bg-white/10">
+                <Lightbulb className="h-4 w-4 text-amber-300" />
+                Предложения
+                {unreadFeedbackCount ? <span className="message-unread-badge inline-flex min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[11px] font-bold leading-none">{badgeLabel(unreadFeedbackCount)}</span> : null}
               </Link>
             ) : null}
             {user ? (
@@ -205,8 +206,8 @@ const AppShell = ({ children }: { children: ReactNode }) => {
               </Link>
             ) : null}
             {user && !admin ? (
-              <Link to="/report-bug" state={{ sourcePage }} className="glass inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm text-slate-200 transition hover:bg-white/10">
-                <Send className="h-4 w-4 text-cyan-300" />Сообщить о баге
+              <Link to="/suggest" state={{ sourcePage }} className="glass inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm text-slate-200 transition hover:bg-white/10">
+                <Send className="h-4 w-4 text-cyan-300" />Предложить улучшение
               </Link>
             ) : null}
             <Link to="/leaderboard" className="glass inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm text-slate-200 transition hover:bg-white/10">
@@ -214,11 +215,9 @@ const AppShell = ({ children }: { children: ReactNode }) => {
               Рейтинг
             </Link>
             {user ? (
-              <div className="glass flex h-11 items-center gap-3 rounded-full pl-4 pr-2 text-sm">
+              <div className="glass flex h-11 items-center gap-3 rounded-full px-2 pr-4 text-sm">
+                <AvatarMenu />
                 <span className="text-slate-300">{user.name}</span>
-                <button type="button" onClick={logout} title="Выйти" className="grid h-8 w-8 place-items-center rounded-full bg-white/5 text-slate-400 transition hover:bg-white/10 hover:text-white">
-                  <LogOut className="h-4 w-4" />
-                </button>
               </div>
             ) : (
               <Link to="/auth" className="glass inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm text-slate-200 transition hover:bg-white/10">
@@ -242,9 +241,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
               <Trophy className="h-4 w-4 text-amber-300" />
             </Link>
             {user ? (
-              <button type="button" onClick={logout} aria-label={`Выйти из профиля ${user.name}`} className="glass inline-flex h-10 w-10 items-center justify-center rounded-full">
-                <LogOut className="h-4 w-4" />
-              </button>
+              <AvatarMenu compact />
             ) : (
               <Link to="/auth" aria-label="Войти" className="glass inline-flex h-10 w-10 items-center justify-center rounded-full">
                 <LogIn className="h-4 w-4" />
@@ -290,6 +287,20 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         </AnimatePresence>
       </main>
 
+      <footer className={`border-t border-white/10 ${user ? "pb-28 xl:pb-8" : "pb-8"}`}>
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-6 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+          <div>
+            <div className="text-sm font-semibold text-white">Создатель Examora · lonexnesss</div>
+            <div className="mt-1 text-xs text-slate-500">Вопросы, предложения и обратная связь</div>
+          </div>
+          <div className="flex flex-wrap gap-x-5 gap-y-3 text-sm">
+            <a href="https://t.me/onyxnesss" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-slate-300 transition hover:text-cyan-200"><Send className="h-4 w-4" />@onyxnesss</a>
+            <a href="https://vk.ru/lonexnessss" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-slate-300 transition hover:text-cyan-200"><Globe2 className="h-4 w-4" />ВКонтакте</a>
+            <a href="mailto:lonexnesss@mail.ru" className="inline-flex items-center gap-2 text-slate-300 transition hover:text-cyan-200"><Mail className="h-4 w-4" />lonexnesss@mail.ru</a>
+          </div>
+        </div>
+      </footer>
+
       {user ? (
         <nav className="glass-strong fixed inset-x-2 bottom-2 z-50 flex items-center justify-around rounded-3xl px-1 py-1.5 sm:inset-x-3 sm:bottom-3 sm:px-2 sm:py-2 xl:hidden" aria-label="Быстрые действия">
           <Link to="/messages" className="relative grid min-w-14 place-items-center gap-1 rounded-2xl px-2 py-2 text-[10px] text-slate-300">
@@ -297,9 +308,9 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             {unreadMessageCount ? <span className="message-unread-badge absolute right-1 top-0 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold">{unreadLabel}</span> : null}
           </Link>
           {admin ? (
-            <Link to="/bugs" className="relative grid min-w-14 place-items-center gap-1 rounded-2xl px-2 py-2 text-[10px] text-slate-300">
-              <Bug className="h-5 w-5 text-rose-300" /><span>Баги</span>
-              {unreadBugCount ? <span className="message-unread-badge absolute right-1 top-0 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold">{badgeLabel(unreadBugCount)}</span> : null}
+            <Link to="/proposals" className="relative grid min-w-14 place-items-center gap-1 rounded-2xl px-2 py-2 text-[10px] text-slate-300">
+              <Lightbulb className="h-5 w-5 text-amber-300" /><span>Предложения</span>
+              {unreadFeedbackCount ? <span className="message-unread-badge absolute right-1 top-0 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold">{badgeLabel(unreadFeedbackCount)}</span> : null}
             </Link>
           ) : null}
           <Link to="/notifications" className="relative grid min-w-12 place-items-center gap-1 rounded-2xl px-1 py-2 text-[10px] text-slate-300 sm:min-w-14 sm:px-2">
@@ -307,8 +318,8 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             {unreadNotificationCount ? <span className="message-unread-badge absolute right-1 top-0 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold">{badgeLabel(unreadNotificationCount)}</span> : null}
           </Link>
           {!admin ? (
-            <Link to="/report-bug" state={{ sourcePage }} className="grid min-w-12 place-items-center gap-1 rounded-2xl px-1 py-2 text-[10px] text-slate-300 sm:min-w-14 sm:px-2">
-              <Send className="h-5 w-5 text-amber-300" /><span className="text-center leading-3">Сообщить<br />о баге</span>
+            <Link to="/suggest" state={{ sourcePage }} className="grid min-w-14 place-items-center gap-1 rounded-2xl px-1 py-2 text-[10px] text-slate-300 sm:min-w-16 sm:px-2">
+              <Send className="h-5 w-5 text-amber-300" /><span className="text-center leading-3">Предложить<br />улучшение</span>
             </Link>
           ) : null}
           <Link to="/leaderboard" className="grid min-w-12 place-items-center gap-1 rounded-2xl px-1 py-2 text-[10px] text-slate-300 sm:min-w-14 sm:px-2">
@@ -332,9 +343,11 @@ const App = () => {
       <Route path="/leaderboard" element={<AppShell><LeaderboardPage /></AppShell>} />
       <Route path="/messages" element={<AppShell><MessagesPage /></AppShell>} />
       <Route path="/messages/:recipientId" element={<AppShell><MessagesPage /></AppShell>} />
-      <Route path="/bugs" element={<AppShell><BugsPage /></AppShell>} />
+      <Route path="/proposals" element={<AppShell><BugsPage /></AppShell>} />
       <Route path="/notifications" element={<AppShell><NotificationsPage /></AppShell>} />
-      <Route path="/report-bug" element={<AppShell><ReportBugPage /></AppShell>} />
+      <Route path="/suggest" element={<AppShell><ReportBugPage /></AppShell>} />
+      <Route path="/bugs" element={<Navigate to="/proposals" replace />} />
+      <Route path="/report-bug" element={<Navigate to="/suggest" replace />} />
       <Route path="/auth" element={<AuthPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -5,12 +5,14 @@ type StoredUser = {
   name: string;
   email: string;
   passwordHash: string;
+  avatarUrl?: string | null;
   createdAt: string;
 };
 
 const usersStore = () => getStore({ name: "design-tests-auth-users", consistency: "strong" });
 const namesStore = () => getStore({ name: "design-tests-auth-names", consistency: "strong" });
 const sessionsStore = () => getStore({ name: "design-tests-auth-sessions", consistency: "strong" });
+const reviewsStore = () => getStore({ name: "design-tests-reviews", consistency: "strong" });
 const DELETED_NAMES = new Set(["test"]);
 
 const jsonError = (message: string, status: number) => Response.json({ error: message }, { status });
@@ -33,6 +35,7 @@ const authenticatedResponse = async (user: StoredUser, status = 200) => {
   const authToken = `${crypto.randomUUID()}.${crypto.randomUUID()}`;
   await sessionsStore().setJSON(await hashHex(authToken), {
     userId: user.id,
+    email: user.email,
     createdAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 30 * 86_400_000).toISOString(),
   });
@@ -84,7 +87,7 @@ const createSharedUser = async ({ name, email, hash, createdAt }: { name: string
 export default async (request: Request) => {
   try {
     if (request.method !== "POST") return new Response("Method not allowed", { status: 405, headers: { Allow: "POST" } });
-    const payload = await request.json() as { action?: string; name?: string; email?: string; password?: string; passwordHash?: string; createdAt?: string };
+    const payload = await request.json() as { action?: string; name?: string; email?: string; password?: string; passwordHash?: string; createdAt?: string; authToken?: string; avatarUrl?: string | null };
     const action = String(payload.action ?? "");
     const email = normalizeEmail(payload.email);
 
@@ -102,6 +105,31 @@ export default async (request: Request) => {
       const password = String(payload.password ?? "");
       if (password.length < 6) return jsonError("Пароль должен содержать минимум 6 символов", 400);
       return createSharedUser({ name, email, hash: await passwordHash(email, password) });
+    }
+
+    if (action === "update-avatar") {
+      const token = String(payload.authToken ?? "").trim();
+      if (!token) return jsonError("Сессия не найдена", 401);
+      const session = await sessionsStore().get(await hashHex(token), { type: "json", consistency: "strong" }) as { userId?: string; email?: string; expiresAt?: string } | null;
+      if (!session?.userId || !session.expiresAt || Date.parse(session.expiresAt) <= Date.now()) return jsonError("Сессия истекла", 401);
+      const avatarUrl = payload.avatarUrl == null ? null : String(payload.avatarUrl);
+      if (avatarUrl && (!avatarUrl.startsWith("data:image/") || avatarUrl.length > 350_000)) return jsonError("Изображение слишком большое", 400);
+      const users = usersStore();
+      let key = session.email ? await emailKey(session.email) : "";
+      let user = key ? await users.get(key, { type: "json", consistency: "strong" }) as StoredUser | null : null;
+      if (!user) {
+        const listed = await users.list();
+        for (const item of listed.blobs) {
+          const candidate = await users.get(item.key, { type: "json", consistency: "strong" }) as StoredUser | null;
+          if (candidate?.id === session.userId) { key = item.key; user = candidate; break; }
+        }
+      }
+      if (!user || !key) return jsonError("Профиль не найден", 404);
+      const updated = { ...user, avatarUrl };
+      await users.setJSON(key, updated);
+      const review = await reviewsStore().get(user.id, { type: "json", consistency: "strong" }) as Record<string, unknown> | null;
+      if (review) await reviewsStore().setJSON(user.id, { ...review, authorAvatarUrl: avatarUrl });
+      return Response.json(publicUser(updated));
     }
 
     if (action === "migrate") {

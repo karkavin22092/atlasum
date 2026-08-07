@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { isDeletedAccountName } from "./deleted-accounts";
+import { syncLocalReviewAvatar } from "./reviews";
 
 export type AuthUser = {
   id: string;
@@ -7,6 +8,7 @@ export type AuthUser = {
   email: string;
   createdAt: string;
   authToken?: string;
+  avatarUrl?: string | null;
 };
 
 type StoredUser = AuthUser & { passwordHash: string };
@@ -16,6 +18,7 @@ type AuthContextValue = {
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
+  updateAvatar: (avatarUrl: string | null) => Promise<void>;
 };
 
 const USERS_KEY = "design-tests-users-v1";
@@ -178,7 +181,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
   };
 
-  return <AuthContext.Provider value={{ user, login, register, logout }}>{children}</AuthContext.Provider>;
+  const updateAvatar = async (avatarUrl: string | null) => {
+    if (!user) throw new Error("Сначала войдите в аккаунт");
+    if (avatarUrl && (!avatarUrl.startsWith("data:image/") || avatarUrl.length > 350_000)) throw new Error("Изображение слишком большое");
+    let updated: AuthUser = { ...user, avatarUrl };
+    if (import.meta.env.PROD && user.authToken) {
+      const remote = await remoteAuth({ action: "update-avatar", authToken: user.authToken, avatarUrl });
+      updated = { ...remote, authToken: user.authToken };
+    }
+    const users = readUsers().map((item) => item.id === user.id ? { ...item, avatarUrl } : item);
+    window.localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    syncLocalReviewAvatar(user.id, avatarUrl);
+    setUser(updated);
+  };
+
+  return <AuthContext.Provider value={{ user, login, register, logout, updateAvatar }}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {
