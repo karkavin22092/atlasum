@@ -17,6 +17,7 @@ import {
 } from "@/lib/chat";
 import { useAuth } from "@/lib/auth";
 import { getPresence } from "@/lib/presence";
+import { REALTIME_POLL_MS } from "@/lib/realtime";
 import type { AppPageProps } from "./types";
 
 const formatMessageTime = (value: string) => new Intl.DateTimeFormat("ru-RU", {
@@ -58,7 +59,10 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
     lastScrolledMessageIdRef.current = "";
     initialScrollCompleteRef.current = false;
     let active = true;
+    let refreshing = false;
     const refresh = async () => {
+      if (refreshing) return;
+      refreshing = true;
       try {
         const nextMessages = await getConversation(currentProfileId, recipientId);
         if (active) {
@@ -72,13 +76,22 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
         }
       } catch (caught) {
         if (active) setError(caught instanceof Error ? caught.message : "Не удалось получить сообщения");
+      } finally {
+        refreshing = false;
       }
     };
     void refresh();
-    const interval = window.setInterval(() => void refresh(), 5_000);
+    const refreshVisible = () => {
+      if (!document.hidden) void refresh();
+    };
+    const interval = window.setInterval(() => void refresh(), REALTIME_POLL_MS);
+    window.addEventListener("focus", refreshVisible);
+    document.addEventListener("visibilitychange", refreshVisible);
     return () => {
       active = false;
       window.clearInterval(interval);
+      window.removeEventListener("focus", refreshVisible);
+      document.removeEventListener("visibilitychange", refreshVisible);
     };
   }, [currentProfileId, queryClient, recipientId, user]);
 

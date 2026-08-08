@@ -44,7 +44,7 @@ type LeaderboardEntry = { id?: string; name?: string; avatarUrl?: string | null;
 
 const ADMIN_ID = "lonexnesss";
 const MATCH_DURATION_MS = 10 * 60 * 1000;
-const INVITE_DURATION_MS = 5 * 60 * 1000;
+const INVITE_DURATION_MS = 30 * 1000;
 const TOTAL_QUESTIONS = 10;
 const duelStore = () => getStore({ name: "design-tests-duels", consistency: "strong" });
 const leaderboardStore = () => getStore({ name: "design-tests-leaderboard", consistency: "strong" });
@@ -89,6 +89,8 @@ const notify = async (userId: string, type: string, title: string, message: stri
   const id = `${type}-${duelId}`;
   await notificationsStore().setJSON(`${userId}/${id}`, { id, userId, type, title, message, bugId: duelId, xpAwarded: 0, createdAt: new Date().toISOString(), readAt: null }, { onlyIfNew: true });
 };
+const removeInviteNotification = (userId: string, duelId: string) =>
+  notificationsStore().delete(`${userId}/duel-invite-${duelId}`);
 const subjectQuestions = (subject: SubjectId) => {
   const allowed = new Set(dashboardMeta.topics.filter((topic) => topic.subject === subject).map((topic) => topic.title));
   const pool = questions.filter((question) => allowed.has(question.topic));
@@ -130,14 +132,28 @@ const listDuels = async () => {
 };
 const getDuel = (id: string) => duelStore().get(id, { type: "json", consistency: "strong" }) as Promise<DuelRecord | null>;
 const saveDuel = (duel: DuelRecord) => duelStore().setJSON(duel.id, duel);
+const updateDuel = async (id: string, updater: (current: DuelRecord) => DuelRecord) => {
+  const store = duelStore();
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const stored = await store.getWithMetadata(id, { type: "json", consistency: "strong" });
+    if (!stored?.etag || !stored.data) return null;
+    const current = stored.data as DuelRecord;
+    const updated = updater(current);
+    if (updated === current) return current;
+    const result = await store.setJSON(id, updated, { onlyIfMatch: stored.etag });
+    if (result.modified) return updated;
+  }
+  return getDuel(id);
+};
 
 const expirePending = async (duel: DuelRecord) => {
   if (duel.status !== "pending") return duel;
   const inviter = await leaderboardStore().get(duel.inviter.id, { type: "json", consistency: "strong" }) as LeaderboardEntry | null;
   if (Date.now() < Date.parse(duel.expiresAt) && isOnline(inviter)) return duel;
-  const updated = { ...duel, status: "cancelled" as const, cancelReason: "Приглашение отменено: приглашающий вышел или срок ожидания истёк." };
-  await saveDuel(updated);
-  await notify(duel.invitee.id, "duel-cancelled", "Приглашение отменено", "Приглашающий вышел, поэтому игра не состоится.", duel.id);
+  const updated = await updateDuel(duel.id, (current) => current.status === "pending"
+    ? { ...current, status: "cancelled", cancelReason: "Приглашение отменено: приглашающий вышел или срок ожидания истёк." }
+    : current) ?? duel;
+  if (updated.status === "cancelled") await removeInviteNotification(updated.invitee.id, updated.id);
   return updated;
 };
 
@@ -178,39 +194,41 @@ const applyRewards = async (duel: DuelRecord) => {
 
 const finishIfReady = async (duel: DuelRecord) => {
   if (duel.status !== "active") return duel;
-  const left = Object.values(duel.answers).some((attempt) => Boolean(attempt.leftAt));
-  const bothSubmitted = Boolean(duel.answers[duel.inviter.id]?.submittedAt && duel.answers[duel.invitee.id]?.submittedAt);
-  const expired = Date.now() >= Date.parse(duel.startedAt ?? duel.createdAt) + MATCH_DURATION_MS;
-  const leftPlayerId = duel.answers[duel.inviter.id]?.leftAt ? duel.inviter.id : duel.answers[duel.invitee.id]?.leftAt ? duel.invitee.id : null;
-  const remainingPlayerId = leftPlayerId ? leftPlayerId === duel.inviter.id ? duel.invitee.id : duel.inviter.id : null;
-  const remainingComplete = remainingPlayerId ? Boolean(duel.answers[remainingPlayerId]?.complete) : false;
-  if (left && !remainingComplete && !expired) return duel;
-  if (!left && !bothSubmitted && !expired) return duel;
-  const inviterAttempt = duel.answers[duel.inviter.id] ?? { answers: [], score: 0, submittedAt: null, complete: false };
-  const inviteeAttempt = duel.answers[duel.invitee.id] ?? { answers: [], score: 0, submittedAt: null, complete: false };
-  const inviterComplete = inviterAttempt.complete && !inviterAttempt.leftAt;
-  const inviteeComplete = inviteeAttempt.complete && !inviteeAttempt.leftAt;
-  let winnerId: string | null = null;
-  if (inviterComplete && !inviteeComplete) winnerId = duel.inviter.id;
-  else if (inviteeComplete && !inviterComplete) winnerId = duel.invitee.id;
-  else if (inviterComplete && inviteeComplete && inviterAttempt.score !== inviteeAttempt.score) winnerId = inviterAttempt.score > inviteeAttempt.score ? duel.inviter.id : duel.invitee.id;
-  const loserId = winnerId ? winnerId === duel.inviter.id ? duel.invitee.id : duel.inviter.id : null;
-  const rewardXp: Record<string, number> = {};
-  if (winnerId) rewardXp[winnerId] = 150;
-  const loserAttempt = loserId === duel.inviter.id ? inviterAttempt : loserId === duel.invitee.id ? inviteeAttempt : null;
-  if (loserId && loserAttempt?.complete && loserAttempt.score > TOTAL_QUESTIONS / 2) rewardXp[loserId] = 50;
-  const finished: DuelRecord = {
-    ...duel,
-    status: "finished",
-    finishedAt: new Date().toISOString(),
-    winnerId,
-    result: winnerId ? "win" : "draw",
-    rewardXp,
-    rewardsApplied: false,
-    answers: { [duel.inviter.id]: inviterAttempt, [duel.invitee.id]: inviteeAttempt },
-  };
-  await saveDuel(finished);
-  return applyRewards(finished);
+  const finished = await updateDuel(duel.id, (current) => {
+    if (current.status !== "active") return current;
+    const left = Object.values(current.answers).some((attempt) => Boolean(attempt.leftAt));
+    const bothSubmitted = Boolean(current.answers[current.inviter.id]?.submittedAt && current.answers[current.invitee.id]?.submittedAt);
+    const expired = Date.now() >= Date.parse(current.startedAt ?? current.createdAt) + MATCH_DURATION_MS;
+    const leftPlayerId = current.answers[current.inviter.id]?.leftAt ? current.inviter.id : current.answers[current.invitee.id]?.leftAt ? current.invitee.id : null;
+    const remainingPlayerId = leftPlayerId ? leftPlayerId === current.inviter.id ? current.invitee.id : current.inviter.id : null;
+    const remainingComplete = remainingPlayerId ? Boolean(current.answers[remainingPlayerId]?.complete) : false;
+    if (left && !remainingComplete && !expired) return current;
+    if (!left && !bothSubmitted && !expired) return current;
+    const inviterAttempt = current.answers[current.inviter.id] ?? { answers: [], score: 0, submittedAt: null, complete: false };
+    const inviteeAttempt = current.answers[current.invitee.id] ?? { answers: [], score: 0, submittedAt: null, complete: false };
+    const inviterComplete = inviterAttempt.complete && !inviterAttempt.leftAt;
+    const inviteeComplete = inviteeAttempt.complete && !inviteeAttempt.leftAt;
+    let winnerId: string | null = null;
+    if (inviterComplete && !inviteeComplete) winnerId = current.inviter.id;
+    else if (inviteeComplete && !inviterComplete) winnerId = current.invitee.id;
+    else if (inviterComplete && inviteeComplete && inviterAttempt.score !== inviteeAttempt.score) winnerId = inviterAttempt.score > inviteeAttempt.score ? current.inviter.id : current.invitee.id;
+    const loserId = winnerId ? winnerId === current.inviter.id ? current.invitee.id : current.inviter.id : null;
+    const rewardXp: Record<string, number> = {};
+    if (winnerId) rewardXp[winnerId] = 150;
+    const loserAttempt = loserId === current.inviter.id ? inviterAttempt : loserId === current.invitee.id ? inviteeAttempt : null;
+    if (loserId && loserAttempt?.complete && loserAttempt.score > TOTAL_QUESTIONS / 2) rewardXp[loserId] = 50;
+    return {
+      ...current,
+      status: "finished",
+      finishedAt: new Date().toISOString(),
+      winnerId,
+      result: winnerId ? "win" : "draw",
+      rewardXp,
+      rewardsApplied: false,
+      answers: { [current.inviter.id]: inviterAttempt, [current.invitee.id]: inviteeAttempt },
+    };
+  });
+  return finished ? applyRewards(finished) : duel;
 };
 
 export default async (request: Request) => {
@@ -264,33 +282,43 @@ export default async (request: Request) => {
     const duel = await getDuel(duelId);
     if (!duel || (duel.inviter.id !== userId && duel.invitee.id !== userId)) return jsonError("Игра не найдена", 404);
     if (request.method === "POST" && payload.action === "accept") {
-      if (duel.invitee.id !== userId || duel.status !== "pending") return jsonError("Приглашение уже недоступно", 409);
+      const pending = await expirePending(duel);
+      if (pending.invitee.id !== userId || pending.status !== "pending") return jsonError("Приглашение уже недоступно", 409);
       const activeElsewhere = (await listDuels()).some((candidate) => candidate.status === "active" && candidate.id !== duel.id && (candidate.inviter.id === userId || candidate.invitee.id === userId));
       if (activeElsewhere) return jsonError("Сначала завершите текущую игру 1 на 1", 409);
       const now = new Date().toISOString();
-      const active = { ...duel, status: "active" as const, startedAt: now, expiresAt: new Date(Date.now() + MATCH_DURATION_MS).toISOString() };
-      await saveDuel(active);
-      await notify(duel.inviter.id, "duel-accepted", "Приглашение принято", `${duel.invitee.name} принял приглашение. Игра началась.`, duel.id);
+      const active = await updateDuel(duel.id, (current) => current.status === "pending" && current.invitee.id === userId
+        ? { ...current, status: "active", startedAt: now, expiresAt: new Date(Date.now() + MATCH_DURATION_MS).toISOString() }
+        : current);
+      if (!active || active.status !== "active") return jsonError("Приглашение уже недоступно", 409);
+      await removeInviteNotification(active.invitee.id, active.id);
       return Response.json(publicDuel(active, userId));
     }
     if (request.method === "POST" && payload.action === "decline") {
       if (duel.invitee.id !== userId || duel.status !== "pending") return jsonError("Приглашение уже недоступно", 409);
-      const declined = { ...duel, status: "declined" as const, cancelReason: `${duel.invitee.name} отклонил приглашение.` };
-      await saveDuel(declined);
-      await notify(duel.inviter.id, "duel-declined", "Приглашение отклонено", `${duel.invitee.name} отклонил приглашение.`, duel.id);
+      const declined = await updateDuel(duel.id, (current) => current.status === "pending" && current.invitee.id === userId
+        ? { ...current, status: "declined", cancelReason: `${current.invitee.name} отклонил приглашение.` }
+        : current);
+      if (!declined || declined.status !== "declined") return jsonError("Приглашение уже недоступно", 409);
+      await removeInviteNotification(duel.invitee.id, duel.id);
       return Response.json(publicDuel(declined, userId));
     }
     if (request.method === "POST" && payload.action === "cancel") {
       if (duel.inviter.id !== userId || duel.status !== "pending") return jsonError("Приглашение уже недоступно", 409);
-      const cancelled = { ...duel, status: "cancelled" as const, cancelReason: "Приглашающий вышел до начала игры." };
-      await saveDuel(cancelled);
-      await notify(duel.invitee.id, "duel-cancelled", "Игра отменена", "Приглашающий вышел, поэтому приглашение аннулировано.", duel.id);
+      const cancelled = await updateDuel(duel.id, (current) => current.status === "pending" && current.inviter.id === userId
+        ? { ...current, status: "cancelled", cancelReason: "Приглашающий вышел до начала игры." }
+        : current);
+      if (!cancelled || cancelled.status !== "cancelled") return jsonError("Приглашение уже недоступно", 409);
+      await removeInviteNotification(duel.invitee.id, duel.id);
       return Response.json(publicDuel(cancelled, userId));
     }
     if (request.method === "POST" && payload.action === "leave") {
       if (duel.status !== "active") return Response.json(publicDuel(duel, userId));
-      const left = { ...duel, answers: { ...duel.answers, [userId]: { answers: [], score: 0, submittedAt: new Date().toISOString(), complete: false, leftAt: new Date().toISOString() } } };
-      await saveDuel(left);
+      const leftAt = new Date().toISOString();
+      const left = await updateDuel(duel.id, (current) => current.status === "active"
+        ? { ...current, answers: { ...current.answers, [userId]: { answers: [], score: 0, submittedAt: leftAt, complete: false, leftAt } } }
+        : current);
+      if (!left) return jsonError("Игра не найдена", 404);
       const opponentId = duel.inviter.id === userId ? duel.invitee.id : duel.inviter.id;
       await notify(opponentId, "duel-opponent-left", "Соперник вышел", "Соперник покинул игру. Ответьте на все 10 вопросов, чтобы получить +150 XP.", duel.id);
       return Response.json(publicDuel(await finishIfReady(left), userId));
@@ -298,10 +326,14 @@ export default async (request: Request) => {
     if (request.method === "POST" && payload.action === "submit") {
       if (duel.status !== "active") return jsonError("Игра уже завершена", 409);
       const submitted = Array.isArray(payload.answers) ? payload.answers as DuelAnswer[] : [];
-      const safeAnswers = duel.questions.map((question) => submitted.find((answer) => answer.questionId === question.id) ?? { questionId: question.id, answer: "__timeout__" });
-      const score = safeAnswers.reduce((total, answer) => total + (isCorrect(duel.questions.find((question) => question.id === answer.questionId)!, answer.answer) ? 1 : 0), 0);
-      const updated = { ...duel, answers: { ...duel.answers, [userId]: { answers: safeAnswers, score, submittedAt: new Date().toISOString(), complete: safeAnswers.length === TOTAL_QUESTIONS } } };
-      await saveDuel(updated);
+      const submittedAt = new Date().toISOString();
+      const updated = await updateDuel(duel.id, (current) => {
+        if (current.status !== "active") return current;
+        const safeAnswers = current.questions.map((question) => submitted.find((answer) => answer.questionId === question.id) ?? { questionId: question.id, answer: "__timeout__" });
+        const score = safeAnswers.reduce((total, answer) => total + (isCorrect(current.questions.find((question) => question.id === answer.questionId)!, answer.answer) ? 1 : 0), 0);
+        return { ...current, answers: { ...current.answers, [userId]: { answers: safeAnswers, score, submittedAt, complete: safeAnswers.length === TOTAL_QUESTIONS } } };
+      });
+      if (!updated || updated.status !== "active") return jsonError("Игра уже завершена", 409);
       return Response.json(publicDuel(await finishIfReady(updated), userId));
     }
     return new Response("Method not allowed", { status: 405, headers: { Allow: "GET, POST" } });

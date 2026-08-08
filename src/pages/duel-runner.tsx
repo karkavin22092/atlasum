@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, Clock3, LoaderCircle, Swords, Trophy, XCircle } from "lucide-react";
+import { Link, useBlocker, useNavigate, useParams } from "react-router-dom";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Clock3, LoaderCircle, LogOut, ShieldCheck, Swords, Trophy, XCircle } from "lucide-react";
 import { BackButton, Badge, Button, GlassCard, Panel, ProgressBar, TitleBlock } from "@/components/ui";
 import { QuestionRenderer, type AnswerValue } from "@/components/question-renderer";
 import { useAuth } from "@/lib/auth";
@@ -10,6 +10,7 @@ import { formatDuration } from "@/lib/utils";
 import type { Question } from "@shared/types";
 import type { AppPageProps } from "./types";
 import { difficultyLabels } from "@/lib/question-labels";
+import { REALTIME_POLL_MS } from "@/lib/realtime";
 
 const subjectTitle = (subject: Duel["subject"]) => subject === "management" ? "Менеджмент" : subject === "economics" ? "Экономика" : "ИТ и графика";
 
@@ -22,21 +23,28 @@ export const DuelRunnerPage = ({ meta: _meta }: AppPageProps) => {
   const token = user?.authToken ?? "";
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
   const [index, setIndex] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(0);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const submittedRef = useRef(false);
   const leavingRef = useRef(false);
+  const duelStateRef = useRef<Duel | undefined>(undefined);
   const duelQuery = useQuery({
     queryKey: ["duel", duelId, token],
     queryFn: () => getDuel(token, duelId),
     enabled: Boolean(token && duelId),
     retry: 0,
-    refetchInterval: 2_000,
+    refetchInterval: REALTIME_POLL_MS,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
   });
   const duel = duelQuery.data;
+  duelStateRef.current = duel;
   const questions = duel?.questions ?? [];
   const current = questions[index];
   const attempt = duel?.yourAttempt;
   const hasSubmitted = Boolean(attempt?.submittedAt) || submittedRef.current;
+  const activeAttempt = duel?.status === "active" && !hasSubmitted;
+  const exitBlocker = useBlocker(({ currentLocation, nextLocation }) =>
+    activeAttempt && currentLocation.pathname !== nextLocation.pathname);
   const answered = Object.keys(answers).length;
   const submitMutation = useMutation({
     mutationFn: (payload: Array<{ questionId: string; answer: AnswerValue | "__timeout__" }>) => submitDuel(token, duelId, payload),
@@ -48,7 +56,10 @@ export const DuelRunnerPage = ({ meta: _meta }: AppPageProps) => {
   });
 
   useEffect(() => {
-    if (!duel || duel.status !== "active") return;
+    if (!duel || duel.status !== "active") {
+      setTimeLeft(null);
+      return;
+    }
     const update = () => setTimeLeft(Math.max(0, Date.parse(duel.expiresAt) - Date.now()));
     update();
     const timer = window.setInterval(update, 1000);
@@ -62,23 +73,33 @@ export const DuelRunnerPage = ({ meta: _meta }: AppPageProps) => {
   };
 
   useEffect(() => {
-    if (timeLeft === 0 && duel?.status === "active" && !hasSubmitted) submit();
+    if (timeLeft !== null && timeLeft <= 0 && duel?.status === "active" && !hasSubmitted) submit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeLeft, duel?.status]);
 
   useEffect(() => {
     if (!token || !duelId) return;
-    const leave = () => {
-      if (leavingRef.current || submittedRef.current || duelQuery.data?.status !== "active" || duelQuery.data.yourAttempt?.submittedAt) return;
+    const leave = (event: BeforeUnloadEvent) => {
+      const currentDuel = duelStateRef.current;
+      if (leavingRef.current || submittedRef.current || currentDuel?.status !== "active" || currentDuel.yourAttempt?.submittedAt) return;
+      event.preventDefault();
+      event.returnValue = "";
       leavingRef.current = true;
       void leaveDuel(token, duelId, true);
     };
     window.addEventListener("beforeunload", leave);
-    return () => {
-      window.removeEventListener("beforeunload", leave);
-      leave();
-    };
-  }, [duelId, token, duelQuery.data?.status, duelQuery.data?.yourAttempt?.submittedAt]);
+    return () => window.removeEventListener("beforeunload", leave);
+  }, [duelId, token]);
+
+  const leaveAndProceed = async () => {
+    if (exitBlocker.state !== "blocked" || leavingRef.current) return;
+    leavingRef.current = true;
+    try {
+      await leaveDuel(token, duelId);
+    } finally {
+      exitBlocker.proceed();
+    }
+  };
 
   const publicQuestion = useMemo(() => current ? ({ ...current, correct: "" } as unknown as Question) : null, [current]);
   if (!user) return <Panel className="text-center"><Swords className="mx-auto h-10 w-10 text-cyan-300" /><div className="mt-3 font-semibold text-white">Войдите, чтобы играть онлайн</div><Link to="/auth"><Button className="mt-4">Войти</Button></Link></Panel>;
@@ -106,13 +127,27 @@ export const DuelRunnerPage = ({ meta: _meta }: AppPageProps) => {
         <Panel className="text-center"><CheckCircle2 className="mx-auto h-10 w-10 text-emerald-300" /><h2 className="mt-3 text-xl font-semibold text-white">Ответы отправлены</h2><p className="mt-2 text-sm text-slate-400">Ожидаем завершения соперника. Результат появится автоматически.</p><div className="mx-auto mt-5 max-w-sm"><ProgressBar value={(attempt?.score ?? 0) * 10} /></div></Panel>
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-4"><GlassCard><div className="text-xs text-slate-400">Вопрос</div><div className="mt-1 text-2xl font-semibold text-white">{index + 1}/{questions.length}</div></GlassCard><GlassCard><div className="text-xs text-slate-400">Ваши ответы</div><div className="mt-1 text-2xl font-semibold text-white">{answered}/{questions.length}</div></GlassCard><GlassCard><div className="text-xs text-slate-400">Время</div><div className="mt-1 text-2xl font-semibold text-white">{formatDuration(timeLeft)}</div></GlassCard><GlassCard><div className="text-xs text-slate-400">Соперник</div><div className="mt-1 truncate text-lg font-semibold text-white">{duel.opponent.name}</div></GlassCard></div>
+          <div className="grid gap-3 sm:grid-cols-4"><GlassCard><div className="text-xs text-slate-400">Вопрос</div><div className="mt-1 text-2xl font-semibold text-white">{index + 1}/{questions.length}</div></GlassCard><GlassCard><div className="text-xs text-slate-400">Ваши ответы</div><div className="mt-1 text-2xl font-semibold text-white">{answered}/{questions.length}</div></GlassCard><GlassCard><div className="text-xs text-slate-400">Время</div><div className="mt-1 text-2xl font-semibold text-white">{timeLeft === null ? "--:--" : formatDuration(timeLeft)}</div></GlassCard><GlassCard><div className="text-xs text-slate-400">Соперник</div><div className="mt-1 truncate text-lg font-semibold text-white">{duel.opponent.name}</div></GlassCard></div>
           <Panel className="space-y-5">
             {publicQuestion ? <><div className="flex flex-wrap items-center gap-2"><Badge tone="cyan">{current?.topic}</Badge><Badge tone="violet">{current ? difficultyLabels[current.difficulty] : ""}</Badge></div><h2 className="text-2xl font-semibold leading-9 text-white">{current?.question}</h2><QuestionRenderer question={publicQuestion} value={answers[current!.id]} onChange={(value) => setAnswers((prev) => ({ ...prev, [current!.id]: value }))} /></> : null}
             <div className="flex flex-wrap items-center justify-between gap-3"><Button variant="secondary" onClick={() => setIndex((value) => Math.max(0, value - 1))} disabled={index === 0}><ArrowLeft className="h-4 w-4" />Назад</Button><div className="flex gap-2"><Button variant="secondary" onClick={() => setIndex((value) => Math.min(questions.length - 1, value + 1))} disabled={index === questions.length - 1}>Далее<ArrowLeft className="h-4 w-4 rotate-180" /></Button><Button onClick={() => submit()} disabled={submitMutation.isPending}>{submitMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}Завершить</Button></div></div>
           </Panel>
         </>
       )}
+      {exitBlocker.state === "blocked" ? (
+        <div role="dialog" aria-modal="true" aria-labelledby="duel-exit-title" className="fixed inset-0 z-[110] grid place-items-center bg-slate-950/80 p-4 backdrop-blur-lg">
+          <Panel className="w-full max-w-lg border-amber-300/25 shadow-2xl">
+            <div className="flex items-start gap-4">
+              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-amber-400/15 text-amber-300"><AlertTriangle className="h-6 w-6" /></div>
+              <div><h2 id="duel-exit-title" className="text-xl font-semibold text-white">Покинуть игру?</h2><p className="mt-2 text-sm leading-6 text-slate-300">Все ваши ответы будут аннулированы, вы не получите XP и будете считаться проигравшим.</p></div>
+            </div>
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <Button variant="secondary" onClick={() => exitBlocker.reset()}><ShieldCheck className="h-4 w-4" />Остаться в игре</Button>
+              <Button variant="danger" onClick={() => void leaveAndProceed()}><LogOut className="h-4 w-4" />Выйти из игры</Button>
+            </div>
+          </Panel>
+        </div>
+      ) : null}
     </div>
   );
 };

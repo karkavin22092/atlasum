@@ -24,6 +24,7 @@ import { useAuth } from "./lib/auth";
 import { getUnreadMessageSummary } from "./lib/chat";
 import { APP_VERSION } from "./lib/version";
 import { getUnreadFeedbackCount, getUnreadNotificationCount } from "./lib/bugs";
+import { PRESENCE_POLL_MS, REALTIME_POLL_MS } from "./lib/realtime";
 import { isAdminUser } from "./lib/permissions";
 import { AvatarMenu } from "./components/avatar-menu";
 import { WhatsNewPage } from "./pages/whats-new";
@@ -127,7 +128,8 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     queryKey: ["meta", profileName],
     queryFn: () => api.meta(profileName),
     retry: 0,
-    refetchInterval: 30_000,
+    refetchInterval: PRESENCE_POLL_MS,
+    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
   });
 
@@ -137,7 +139,8 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     queryFn: () => getUnreadMessageSummary(meta.profile.id),
     enabled: Boolean(user && meta.profile.id !== "guest"),
     retry: 0,
-    refetchInterval: 10_000,
+    refetchInterval: REALTIME_POLL_MS,
+    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
   });
   const unreadMessageCount = unreadMessagesQuery.data?.count ?? 0;
@@ -147,7 +150,8 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     queryFn: () => getUnreadNotificationCount(authenticatedUserId, authToken),
     enabled: Boolean(user && authToken && authenticatedUserId !== "guest"),
     retry: 0,
-    refetchInterval: 15_000,
+    refetchInterval: REALTIME_POLL_MS,
+    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
   });
   const unreadFeedbackQuery = useQuery({
@@ -155,7 +159,8 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     queryFn: () => getUnreadFeedbackCount(authenticatedUserId, authToken),
     enabled: Boolean(admin && authToken && authenticatedUserId === "lonexnesss"),
     retry: 0,
-    refetchInterval: 15_000,
+    refetchInterval: REALTIME_POLL_MS,
+    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
   });
   const unreadNotificationCount = unreadNotificationsQuery.data?.count ?? 0;

@@ -40,6 +40,7 @@ export type Duel = {
 const request = async <T,>(token: string, init?: RequestInit, query = "") => {
   const response = await fetch(`/.netlify/functions/duels${query}`, {
     ...init,
+    cache: "no-store",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...(init?.headers ?? {}) },
   });
   const result = await response.json().catch(() => ({})) as T & { error?: string };
@@ -52,6 +53,6 @@ export const getDuel = (token: string, id: string) => request<Duel>(token, undef
 export const inviteDuel = (token: string, opponentId: string, subject: SubjectId) => request<Duel>(token, { method: "POST", body: JSON.stringify({ action: "invite", opponentId, subject }) });
 export const acceptDuel = (token: string, id: string) => request<Duel>(token, { method: "POST", body: JSON.stringify({ action: "accept", id }) });
 export const declineDuel = (token: string, id: string) => request<Duel>(token, { method: "POST", body: JSON.stringify({ action: "decline", id }) });
-export const cancelDuel = (token: string, id: string) => request<Duel>(token, { method: "POST", body: JSON.stringify({ action: "cancel", id }) });
+export const cancelDuel = (token: string, id: string, keepalive = false) => request<Duel>(token, { method: "POST", body: JSON.stringify({ action: "cancel", id }), keepalive });
 export const leaveDuel = (token: string, id: string, keepalive = false) => request<Duel>(token, { method: "POST", body: JSON.stringify({ action: "leave", id }), keepalive });
 export const submitDuel = (token: string, id: string, answers: Array<{ questionId: string; answer: AnswerValue | "__timeout__" }>) => request<Duel>(token, { method: "POST", body: JSON.stringify({ action: "submit", id, answers }) });

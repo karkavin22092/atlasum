@@ -18,7 +18,9 @@ export const GamesPage = ({ meta }: AppPageProps) => {
         <BackButton to="/" />
       </div>
 
-      <DuelWidget leaderboard={(meta?.leaderboard ?? []).map((entry) => ({ id: entry.id, name: entry.name, avatarUrl: entry.avatarUrl, lastSeenAt: entry.lastSeenAt }))} />
+      <div id="duel" className="scroll-mt-24">
+        <DuelWidget leaderboard={(meta?.leaderboard ?? []).map((entry) => ({ id: entry.id, name: entry.name, avatarUrl: entry.avatarUrl, lastSeenAt: entry.lastSeenAt }))} />
+      </div>
 
       <Panel>
         <div className="mb-5 grid gap-2 sm:grid-cols-3">

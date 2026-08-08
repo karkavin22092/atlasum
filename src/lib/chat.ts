@@ -69,7 +69,7 @@ const replaceLocalConversation = (firstUserId: string, secondUserId: string, mes
 export const getConversation = async (firstUserId: string, secondUserId: string) => {
   try {
     const query = new URLSearchParams({ firstUserId, secondUserId, viewerId: firstUserId });
-    const response = await fetch(`/.netlify/functions/messages?${query.toString()}`);
+    const response = await fetch(`/.netlify/functions/messages?${query.toString()}`, { cache: "no-store" });
     if (!response.ok) throw new Error(await response.text());
     const messages = await response.json() as ChatMessage[];
     replaceLocalConversation(firstUserId, secondUserId, messages);
@@ -102,9 +102,10 @@ export const getUnreadMessageSummary = async (userId: string) => {
     let incoming: ChatMessage[];
     if (import.meta.env.PROD) {
       const query = new URLSearchParams({ userId });
-      const response = await fetch(`/.netlify/functions/messages?${query.toString()}`);
+      const response = await fetch(`/.netlify/functions/messages?${query.toString()}`, { cache: "no-store" });
       if (!response.ok) throw new Error(await response.text());
       incoming = await response.json() as ChatMessage[];
+      incoming.forEach(replaceLocalMessage);
     } else {
       incoming = readMessages().filter((message) => message.recipientId === userId);
     }

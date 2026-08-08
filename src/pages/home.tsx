@@ -3,7 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Badge, Button, GlassCard, Panel, ProgressBar, StatCard, TitleBlock } from "@/components/ui";
-import { BookOpen, Brain, BriefcaseBusiness, CircleDollarSign, Gamepad2, Laptop2, LineChart, Medal, ShieldCheck, Sparkles, Target, Trophy, UserRound } from "lucide-react";
+import { BookOpen, Brain, BriefcaseBusiness, CircleDollarSign, Gamepad2, Laptop2, LineChart, Medal, ShieldCheck, Sparkles, Swords, Target, Trophy, UserRound } from "lucide-react";
 import type { AppPageProps } from "./types";
 import type { SubjectId } from "@shared/types";
 import { levelLabel } from "@/lib/utils";
@@ -258,6 +258,18 @@ export const HomePage = ({ meta }: AppPageProps) => {
         <Panel>
           <TitleBlock eyebrow="Игры" title="Мини-игры для закрепления" description="Тот же контент, но с другой скоростью и другой подачей." />
           <div className="grid gap-3 sm:grid-cols-2">
+            <Link to={`/games?subject=${selectedSubject}#duel`}>
+              <GlassCard className="h-full border-cyan-300/20 bg-cyan-400/[0.06] transition hover:-translate-y-1 hover:border-cyan-300/40">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-base font-semibold text-white">1 на 1 онлайн</div>
+                    <div className="mt-2 text-sm leading-6 text-slate-400">Пригласите игрока в сети и одновременно ответьте на 10 вопросов за 10 минут.</div>
+                  </div>
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-cyan-400/15 text-cyan-300"><Swords className="h-5 w-5" /></div>
+                </div>
+                <div className="mt-4 text-sm font-medium text-cyan-200">Выбрать соперника</div>
+              </GlassCard>
+            </Link>
             {meta?.games.map((game) => (
               <Link key={game.key} to={`/games/${game.key}?subject=${selectedSubject}`}>
                 <GlassCard className="h-full transition hover:-translate-y-1 hover:border-violet-300/20">

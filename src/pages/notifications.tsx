@@ -6,6 +6,7 @@ import { BackButton, Badge, Button, GlassCard, Panel, TitleBlock } from "@/compo
 import { getNotifications, markNotificationsRead } from "@/lib/bugs";
 import { useAuth } from "@/lib/auth";
 import { acceptDuel, declineDuel } from "@/lib/duels";
+import { REALTIME_POLL_MS } from "@/lib/realtime";
 import type { AppPageProps } from "./types";
 
 const formatDate = (value: string) => new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
@@ -28,11 +29,13 @@ export const NotificationsPage = ({ meta: _meta, profileName }: AppPageProps) =>
     queryFn: () => getNotifications(userId, authToken),
     enabled: Boolean(user && authToken && userId !== "guest"),
     retry: 0,
-    refetchInterval: 15_000,
+    refetchInterval: REALTIME_POLL_MS,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
   });
 
   useEffect(() => {
-    if (!user || !authToken || !notificationsQuery.data?.some((notification) => !notification.readAt)) return;
+    if (!user || !authToken || !notificationsQuery.data?.some((notification) => !notification.readAt && notification.type !== "duel-invite")) return;
     void markNotificationsRead(userId, authToken).then(async () => {
       const readAt = new Date().toISOString();
       queryClient.setQueryData(["notifications", userId, authToken], (current: typeof notificationsQuery.data) =>

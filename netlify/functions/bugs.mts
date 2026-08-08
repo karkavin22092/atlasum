@@ -23,7 +23,7 @@ type FeedbackReport = {
 type SiteNotification = {
   id: string;
   userId: string;
-  type: "bug-fixed" | "bug-rejected" | "improvement-accepted" | "improvement-rejected" | "review-new" | "review-reply";
+  type: "bug-fixed" | "bug-rejected" | "improvement-accepted" | "improvement-rejected" | "review-new" | "review-reply" | "duel-invite" | "duel-accepted" | "duel-declined" | "duel-cancelled" | "duel-opponent-left" | "duel-finished";
   title: string;
   message: string;
   bugId: string;
@@ -54,6 +54,7 @@ const BUG_REPORT_COOLDOWN_MS = 30 * 60 * 1000;
 const bugsStore = () => getStore({ name: "design-tests-bugs", consistency: "strong" });
 const bugLimitsStore = () => getStore({ name: "design-tests-bug-limits", consistency: "strong" });
 const notificationsStore = () => getStore({ name: "design-tests-notifications", consistency: "strong" });
+const duelsStore = () => getStore({ name: "design-tests-duels", consistency: "strong" });
 const leaderboardStore = () => getStore({ name: "design-tests-leaderboard", consistency: "strong" });
 const sessionsStore = () => getStore({ name: "design-tests-auth-sessions", consistency: "strong" });
 
@@ -138,8 +139,23 @@ const listNotifications = async (userId: string) => {
   const store = notificationsStore();
   const { blobs } = await store.list({ prefix: `${userId}/` });
   const notifications = await Promise.all(blobs.map((blob) => store.get(blob.key, { type: "json", consistency: "strong" })));
-  return notifications
-    .filter((notification): notification is SiteNotification => Boolean(notification && typeof notification === "object"))
+  const valid = notifications.filter((notification): notification is SiteNotification => Boolean(notification && typeof notification === "object"));
+  const current = await Promise.all(valid.map(async (notification) => {
+    if (["duel-accepted", "duel-declined", "duel-cancelled"].includes(notification.type)) {
+      await store.delete(`${userId}/${notification.id}`);
+      return null;
+    }
+    if (notification.type !== "duel-invite") return notification;
+    const duel = await duelsStore().get(notification.bugId, { type: "json", consistency: "strong" }) as {
+      status?: string;
+      invitee?: { id?: string };
+    } | null;
+    if (duel?.status === "pending" && duel.invitee?.id === userId) return notification;
+    await store.delete(`${userId}/${notification.id}`);
+    return null;
+  }));
+  return current
+    .filter((notification): notification is SiteNotification => Boolean(notification))
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
     .slice(0, 200);
 };
@@ -285,7 +301,7 @@ export default async (request: Request) => {
         if (!await getLeaderboardUser(userId)) return jsonError("Пользователь не найден", 403);
         const notifications = await listNotifications(userId);
         const readAt = new Date().toISOString();
-        await Promise.all(notifications.filter((item) => !item.readAt).map((item) =>
+        await Promise.all(notifications.filter((item) => !item.readAt && item.type !== "duel-invite").map((item) =>
           notificationsStore().setJSON(`${userId}/${item.id}`, { ...item, readAt })));
         return Response.json({ ok: true });
       }

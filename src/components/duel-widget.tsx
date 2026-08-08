@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Clock3, LoaderCircle, Send, Swords, UserRound, X } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useBlocker, useNavigate } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import { Badge, Button, GlassCard, Panel } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 import { getPresence } from "@/lib/presence";
 import { acceptDuel, cancelDuel, declineDuel, getDuels, inviteDuel, type Duel } from "@/lib/duels";
 import type { SubjectId } from "@shared/types";
+import { REALTIME_POLL_MS } from "@/lib/realtime";
 
 const initials = (name: string) => name.trim().slice(0, 2).toUpperCase();
 const subjectTitle = (subject: SubjectId) => subject === "management" ? "Менеджмент" : subject === "economics" ? "Экономика" : "ИТ и графика";
@@ -25,32 +27,75 @@ export const DuelWidget = ({ leaderboard }: { leaderboard: Array<{ id: string; n
   const [subject, setSubject] = useState<SubjectId>("it-design");
   const [selectedOpponent, setSelectedOpponent] = useState("");
   const [error, setError] = useState("");
-  const duelsQuery = useQuery({ queryKey: ["duels", user?.id, token], queryFn: () => getDuels(token), enabled: Boolean(user && token), retry: 0, refetchInterval: 5_000 });
+  const [clock, setClock] = useState(Date.now());
+  const queryKey = ["duels", user?.id, token] as const;
+  const duelsQuery = useQuery({
+    queryKey,
+    queryFn: () => getDuels(token),
+    enabled: Boolean(user && token),
+    retry: 0,
+    refetchInterval: REALTIME_POLL_MS,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
+  });
   const duels = duelsQuery.data ?? [];
   const onlinePlayers = useMemo(() => leaderboard.filter((entry) => entry.id !== user?.id && getPresence(entry.lastSeenAt).online), [leaderboard, user?.id]);
   const pendingOutgoing = duels.find((duel) => duel.status === "pending" && duel.inviter.id === user?.id);
   const incoming = duels.filter((duel) => duel.status === "pending" && duel.invitee.id === user?.id);
   const active = duels.find((duel) => duel.status === "active");
+  const pendingOutgoingRef = useRef<Duel | null>(null);
+  pendingOutgoingRef.current = pendingOutgoing ?? null;
+  const waitSeconds = pendingOutgoing ? Math.max(0, Math.ceil((Date.parse(pendingOutgoing.expiresAt) - clock) / 1000)) : 0;
+  const exitBlocker = useBlocker(({ currentLocation, nextLocation }) =>
+    Boolean(pendingOutgoing && currentLocation.pathname !== nextLocation.pathname));
 
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: ["duels"] });
     await queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    await queryClient.invalidateQueries({ queryKey: ["unread-notifications"] });
   };
-  const inviteMutation = useMutation({ mutationFn: () => inviteDuel(token, selectedOpponent, subject), onSuccess: async () => { setSelectedOpponent(""); await refresh(); }, onError: (caught) => setError(caught instanceof Error ? caught.message : "Не удалось отправить приглашение") });
-  const acceptMutation = useMutation({ mutationFn: (id: string) => acceptDuel(token, id), onSuccess: async (duel) => { await refresh(); navigate(`/duels/${duel.id}`); }, onError: (caught) => setError(caught instanceof Error ? caught.message : "Не удалось принять приглашение") });
+  const setDuelState = (duel: Duel) => queryClient.setQueryData<Duel[]>(queryKey, (current = []) => [duel, ...current.filter((item) => item.id !== duel.id)]);
+  const inviteMutation = useMutation({ mutationFn: () => inviteDuel(token, selectedOpponent, subject), onSuccess: (duel) => { setSelectedOpponent(""); setError(""); setDuelState(duel); void refresh(); }, onError: (caught) => setError(caught instanceof Error ? caught.message : "Не удалось отправить приглашение") });
+  const acceptMutation = useMutation({ mutationFn: (id: string) => acceptDuel(token, id), onSuccess: (duel) => { setDuelState(duel); void refresh(); navigate(`/duels/${duel.id}`); }, onError: (caught) => setError(caught instanceof Error ? caught.message : "Не удалось принять приглашение") });
   const declineMutation = useMutation({ mutationFn: (id: string) => declineDuel(token, id), onSuccess: refresh, onError: (caught) => setError(caught instanceof Error ? caught.message : "Не удалось отклонить приглашение") });
   const cancelMutation = useMutation({ mutationFn: (id: string) => cancelDuel(token, id), onSuccess: refresh, onError: (caught) => setError(caught instanceof Error ? caught.message : "Не удалось отменить приглашение") });
 
   useEffect(() => {
-    if (!pendingOutgoing || !token) return;
-    const id = pendingOutgoing.id;
-    const cancelOnExit = () => { void cancelDuel(token, id); };
-    window.addEventListener("beforeunload", cancelOnExit);
+    if (!pendingOutgoing) return;
+    setClock(Date.now());
+    const timer = window.setInterval(() => setClock(Date.now()), 250);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     return () => {
-      window.removeEventListener("beforeunload", cancelOnExit);
-      void cancelDuel(token, id);
+      window.clearInterval(timer);
+      document.body.style.overflow = previousOverflow;
     };
-  }, [pendingOutgoing?.id, token]);
+  }, [pendingOutgoing?.id]);
+
+  useEffect(() => {
+    if (!active) return;
+    navigate(`/duels/${active.id}`);
+  }, [active?.id, navigate]);
+
+  useEffect(() => {
+    if (!token) return;
+    const cancelOnExit = (event: BeforeUnloadEvent) => {
+      const pending = pendingOutgoingRef.current;
+      if (!pending) return;
+      event.preventDefault();
+      event.returnValue = "";
+      void cancelDuel(token, pending.id, true);
+    };
+    window.addEventListener("beforeunload", cancelOnExit);
+    return () => window.removeEventListener("beforeunload", cancelOnExit);
+  }, [token]);
+
+  useEffect(() => {
+    if (exitBlocker.state !== "blocked" || !pendingOutgoing) return;
+    void cancelDuel(token, pendingOutgoing.id)
+      .catch(() => undefined)
+      .finally(() => exitBlocker.proceed());
+  }, [exitBlocker, pendingOutgoing, token]);
 
   if (!user) return null;
 
@@ -71,8 +116,6 @@ export const DuelWidget = ({ leaderboard }: { leaderboard: Array<{ id: string; n
           <div className="grid grid-cols-2 gap-2">
             {(["it-design", "management", "economics"] as const).map((value) => <button key={value} type="button" onClick={() => setSubject(value)} className={subject === value ? "rounded-xl border border-cyan-300/40 bg-cyan-400/15 px-3 py-2.5 text-left text-sm text-white" : "rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-left text-sm text-slate-300 hover:bg-white/10"}>{subjectTitle(value)}</button>)}
           </div>
-          {pendingOutgoing ? <GlassCard className="border-amber-300/20 bg-amber-400/5"><div className="flex items-center gap-3"><PlayerAvatar player={pendingOutgoing.opponent} /><div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold text-white">Ожидаем ответ от {pendingOutgoing.opponent.name}</div><div className="mt-1 text-xs text-slate-400">Если уйти со страницы, приглашение отменится.</div></div><Button variant="ghost" onClick={() => cancelMutation.mutate(pendingOutgoing.id)} disabled={cancelMutation.isPending}><X className="h-4 w-4" />Отменить</Button></div></GlassCard> : null}
-          {active ? <Button onClick={() => navigate(`/duels/${active.id}`)}><Swords className="h-4 w-4" />Продолжить игру</Button> : null}
         </div>
 
         <div>
@@ -90,6 +133,41 @@ export const DuelWidget = ({ leaderboard }: { leaderboard: Array<{ id: string; n
 
       {incoming.length ? <div className="mt-5 space-y-2 border-t border-white/10 pt-4"><div className="text-sm font-medium text-slate-300">Входящие приглашения</div>{incoming.map((duel) => <div key={duel.id} className="flex flex-col gap-3 rounded-2xl border border-cyan-300/25 bg-cyan-400/5 p-3 sm:flex-row sm:items-center"><PlayerAvatar player={duel.opponent} /><div className="min-w-0 flex-1"><div className="text-sm font-semibold text-white">{duel.opponent.name} вызывает вас</div><div className="mt-1 text-xs text-slate-400">{subjectTitle(duel.subject)} · 10 вопросов · 10 минут</div></div><div className="flex gap-2"><Button onClick={() => acceptMutation.mutate(duel.id)} disabled={acceptMutation.isPending}><Check className="h-4 w-4" />Принять</Button><Button variant="ghost" onClick={() => declineMutation.mutate(duel.id)} disabled={declineMutation.isPending}>Отклонить</Button></div></div>)}</div> : null}
       {error ? <div role="alert" className="mt-4 rounded-xl border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-sm text-rose-200">{error}</div> : null}
+
+      <AnimatePresence>
+        {pendingOutgoing ? (
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="duel-waiting-title"
+            className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/80 p-4 backdrop-blur-lg"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.98 }} className="w-full max-w-md">
+              <Panel className="border-cyan-300/25 text-center shadow-2xl">
+                <div className="relative mx-auto w-fit">
+                  <div className="absolute inset-0 animate-ping rounded-full bg-cyan-400/20" />
+                  <PlayerAvatar player={pendingOutgoing.opponent} size="relative h-20 w-20" />
+                </div>
+                <div className="mt-5 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">Приглашение отправлено</div>
+                <h2 id="duel-waiting-title" className="mt-2 text-2xl font-semibold text-white">Ждём {pendingOutgoing.opponent.name}</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-300">Как только соперник примет приглашение, игра откроется у вас обоих автоматически.</p>
+                <div className="mx-auto mt-5 flex w-fit items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-lg font-semibold text-white">
+                  <Clock3 className="h-5 w-5 text-amber-300" />
+                  0:{String(waitSeconds).padStart(2, "0")}
+                </div>
+                <div className="mt-3 text-xs text-slate-400">При выходе приглашение будет отменено. Уведомление об отмене не отправляется.</div>
+                <Button variant="danger" className="mt-6 w-full" onClick={() => cancelMutation.mutate(pendingOutgoing.id)} disabled={cancelMutation.isPending}>
+                  {cancelMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
+                  Отменить приглашение
+                </Button>
+              </Panel>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </Panel>
   );
 };

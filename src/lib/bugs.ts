@@ -82,6 +82,7 @@ export class FeedbackRequestError extends Error {
 
 const requestFeedback = async <T,>(path: string, authToken: string, init?: RequestInit) => {
   const response = await fetch(`/.netlify/functions/bugs${path}`, {
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
       ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
