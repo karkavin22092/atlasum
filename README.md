@@ -92,12 +92,13 @@ npm run dev
 ```powershell
 $env:OLD_NETLIFY_SITE_ID = "ID_СТАРОГО_SITE"
 $env:NEW_NETLIFY_SITE_ID = "ID_НОВОГО_SITE"
-$env:NETLIFY_AUTH_TOKEN = "ЛИЧНЫЙ_ТОКЕН_NETLIFY"
+$env:OLD_NETLIFY_AUTH_TOKEN = "ТОКЕН_АККАУНТА_СТАРОГО_SITE"
+$env:NEW_NETLIFY_AUTH_TOKEN = "ТОКЕН_АККАУНТА_НОВОГО_SITE"
 npm.cmd run migrate:netlify
 npm.cmd run migrate:netlify -- --apply
 ```
 
-Первая команда делает проверочный запуск без записи. Скрипт сохраняет уже существующие ключи нового сайта; для намеренного перезаписывания добавьте `--overwrite`. Site ID находятся в Netlify: Site configuration -> General -> Site details.
+Первая команда делает проверочный запуск без записи. Скрипт сохраняет уже существующие ключи нового сайта; для намеренного перезаписывания добавьте `--overwrite`. Site ID находятся в Netlify: Site configuration -> General -> Site details. Если оба сайта доступны одному аккаунту или команде, вместо двух токенов можно задать один `NETLIFY_AUTH_TOKEN`.
 
 ## Полезные команды
 

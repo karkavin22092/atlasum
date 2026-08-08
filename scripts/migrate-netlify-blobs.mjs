@@ -2,7 +2,9 @@ import { getStore } from "@netlify/blobs";
 
 const sourceSiteId = String(process.env.OLD_NETLIFY_SITE_ID ?? "").trim();
 const destinationSiteId = String(process.env.NEW_NETLIFY_SITE_ID ?? "").trim();
-const token = String(process.env.NETLIFY_AUTH_TOKEN ?? "").trim();
+const sharedToken = String(process.env.NETLIFY_AUTH_TOKEN ?? "").trim();
+const sourceToken = String(process.env.OLD_NETLIFY_AUTH_TOKEN ?? sharedToken).trim();
+const destinationToken = String(process.env.NEW_NETLIFY_AUTH_TOKEN ?? sharedToken).trim();
 const apply = process.argv.includes("--apply");
 const overwrite = process.argv.includes("--overwrite");
 
@@ -17,8 +19,8 @@ const stores = [
   "design-tests-reviews",
 ];
 
-if (!sourceSiteId || !destinationSiteId || !token) {
-  console.error("Set OLD_NETLIFY_SITE_ID, NEW_NETLIFY_SITE_ID and NETLIFY_AUTH_TOKEN first.");
+if (!sourceSiteId || !destinationSiteId || !sourceToken || !destinationToken) {
+  console.error("Set both site IDs and their Netlify tokens first. NETLIFY_AUTH_TOKEN can be used when one token accesses both sites.");
   process.exit(1);
 }
 if (sourceSiteId === destinationSiteId) {
@@ -26,8 +28,8 @@ if (sourceSiteId === destinationSiteId) {
   process.exit(1);
 }
 
-const sourceStore = (name) => getStore({ name, siteID: sourceSiteId, token });
-const destinationStore = (name) => getStore({ name, siteID: destinationSiteId, token });
+const sourceStore = (name) => getStore({ name, siteID: sourceSiteId, token: sourceToken });
+const destinationStore = (name) => getStore({ name, siteID: destinationSiteId, token: destinationToken });
 
 const listAll = async (store) => {
   const entries = [];
