@@ -25,6 +25,7 @@ type Props = {
   backLabel?: string;
   retryLabel?: string;
   newTestLabel?: string;
+  initialView?: "summary" | "report";
 };
 
 type AnswerTone = "neutral" | "correct" | "wrong";
@@ -154,8 +155,9 @@ export const ResultPanel = ({
   backLabel = "Назад",
   retryLabel = "Пройти снова",
   newTestLabel = "Новый тест",
+  initialView = "summary",
 }: Props) => {
-  const [view, setView] = useState<"summary" | "report">("summary");
+  const [view, setView] = useState<"summary" | "report">(initialView);
 
   if (view === "report") {
     return (

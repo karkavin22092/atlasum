@@ -35,7 +35,7 @@ export const LeaderboardPage = ({ meta, profileName }: AppPageProps) => (
           const presence = getPresence(entry.lastSeenAt);
           return (
             <GlassCard key={entry.id} className={isCurrent ? "border-cyan-300/35 bg-cyan-400/10" : ""}>
-              <div className="grid items-center gap-3 sm:grid-cols-[44px_1fr_auto_auto_auto]">
+              <div className="grid items-center gap-3 sm:grid-cols-[76px_minmax(0,1fr)_auto_auto_auto]">
                 <div className="flex items-center gap-2">
                   {rankIcon(entry.rank)}
                   <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full border border-white/10 bg-white/10 text-xs font-semibold text-white">

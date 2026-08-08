@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
 import { Badge, Button, GlassCard, Panel, ProgressBar, StatCard, TitleBlock } from "@/components/ui";
 import { BookOpen, Brain, BriefcaseBusiness, CircleDollarSign, Gamepad2, Languages, Laptop2, LineChart, Medal, ShieldCheck, Sparkles, Swords, Target, Trophy, UserRound } from "lucide-react";
 import type { AppPageProps } from "./types";
@@ -10,7 +8,8 @@ import { levelLabel } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { isAdminUser } from "@/lib/permissions";
 import { SiteReviewsSection } from "@/components/site-reviews";
-import { difficultyLabels, questionTypeLabels } from "@/lib/question-labels";
+import { gameDescription } from "@/lib/game-copy";
+import { TopicPicker } from "@/components/topic-picker";
 
 const subjectPresentation: Record<SubjectId, { title: string; shortTitle: string; description: string }> = {
   "it-design": {
@@ -43,34 +42,59 @@ export const HomePage = ({ meta }: AppPageProps) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedSubject = searchParams.get("subject");
   const [selectedSubject, setSelectedSubject] = useState<SubjectId>(requestedSubject === "management" || requestedSubject === "economics" || requestedSubject === "english" ? requestedSubject : "it-design");
-  const [selectedTopic, setSelectedTopic] = useState("");
+  const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
+  const [showSubjectDock, setShowSubjectDock] = useState(false);
   const filteredTopics = meta?.topics.filter((topic) => topic.subject === selectedSubject) ?? [];
-  const firstTopic = filteredTopics[0]?.title ?? "";
   const subjectProgress = meta?.topicProgress.filter((progress) => filteredTopics.some((topic) => topic.title === progress.title)) ?? [];
 
   useEffect(() => {
-    if ((!selectedTopic || !filteredTopics.some((topic) => topic.title === selectedTopic)) && firstTopic) {
-      setSelectedTopic(firstTopic);
-    }
-  }, [filteredTopics, firstTopic, selectedTopic]);
+    const updateSubjectDock = () => setShowSubjectDock(window.scrollY > 520);
+    updateSubjectDock();
+    window.addEventListener("scroll", updateSubjectDock, { passive: true });
+    return () => window.removeEventListener("scroll", updateSubjectDock);
+  }, []);
 
-  const previewQuery = useQuery({
-    queryKey: ["topic-preview", selectedTopic],
-    queryFn: () => api.questions({ topic: selectedTopic || undefined }),
-    enabled: Boolean(selectedTopic),
-    retry: 0,
-  });
-
-  const previewQuestions = (previewQuery.data ?? []).slice(0, 3);
   const activeSubject = subjectPresentation[selectedSubject];
   const selectSubject = (subject: SubjectId) => {
     setSelectedSubject(subject);
-    setSelectedTopic("");
+    setSelectedTopics([]);
     setSearchParams({ subject }, { replace: true });
   };
+  const toggleTopic = (topic: string) => {
+    setSelectedTopics((current) => current.includes(topic)
+      ? current.filter((item) => item !== topic)
+      : [...current, topic]);
+  };
+  const selectedTopicsQuery = selectedTopics.length ? `&topics=${encodeURIComponent(selectedTopics.join(","))}` : "";
 
   return (
     <div className="v22-home space-y-8" data-subject={selectedSubject}>
+      {showSubjectDock ? (
+        <nav className="v22-subject-dock group fixed left-3 top-1/2 z-30 hidden w-12 -translate-y-1/2 flex-col gap-1 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/85 p-1.5 shadow-xl backdrop-blur-xl transition-[width] duration-200 hover:w-52 xl:flex" aria-label="Быстрый выбор дисциплины">
+          {([
+            { key: "it-design", title: "ИТ и графика", icon: Laptop2 },
+            { key: "management", title: "Менеджмент", icon: BriefcaseBusiness },
+            { key: "economics", title: "Экономика", icon: CircleDollarSign },
+            { key: "english", title: "Английский язык", icon: Languages },
+          ] as const).map((subject) => {
+            const Icon = subject.icon;
+            const active = selectedSubject === subject.key;
+            return (
+              <button
+                key={subject.key}
+                type="button"
+                onClick={() => selectSubject(subject.key)}
+                className={active ? "v22-subject-dock-active flex h-10 w-full items-center gap-3 rounded-xl px-2.5 text-left" : "flex h-10 w-full items-center gap-3 rounded-xl px-2.5 text-left text-slate-300 transition hover:bg-white/10 hover:text-white"}
+                title={subject.title}
+                aria-label={subject.title}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="max-w-0 overflow-hidden whitespace-nowrap text-sm font-medium opacity-0 transition-[max-width,opacity] duration-200 group-hover:max-w-40 group-hover:opacity-100">{subject.title}</span>
+              </button>
+            );
+          })}
+        </nav>
+      ) : null}
       <Panel className="v22-hero overflow-hidden">
         <div className="v22-hero-toolbar">
           <div className="v22-subject-switcher" aria-label="Выбор дисциплины">
@@ -153,77 +177,39 @@ export const HomePage = ({ meta }: AppPageProps) => {
         <StatCard label="Сложные" value={stats?.weak ?? 0} hint="Нужны повторные подходы" accent="from-amber-400 to-rose-500" />
       </div>
 
-      <Panel>
-        <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-          <div className="space-y-4">
-            <TitleBlock
-              eyebrow="Каталог вопросов"
-              title="Вопросы и варианты ответов по темам"
-              description="Это локальная база проекта. Выберите тему и сразу увидите живые вопросы с вариантами ответа."
-            />
-            <div className="flex flex-wrap gap-2">
-              {filteredTopics.map((topic) => (
-                <button
-                  key={topic.key}
-                  type="button"
-                  onClick={() => setSelectedTopic(topic.title)}
-                  className={selectedTopic === topic.title
-                    ? "rounded-full border border-cyan-300/40 bg-cyan-400/15 px-4 py-2 text-sm text-white"
-                    : "rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300 transition hover:bg-white/10"}
-                >
-                  {topic.title}
-                </button>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Link to={`/practice?mode=topic&subject=${selectedSubject}&topic=${encodeURIComponent(selectedTopic)}`}>
-                <Button>
-                  <BookOpen className="h-4 w-4" />
-                  Открыть тему в практике
+      <Panel className="py-5">
+        <div className="space-y-4">
+          <TitleBlock
+            eyebrow="Каталог вопросов"
+            title="Выберите темы для практики"
+            description="Можно отметить несколько тем и открыть их одним набором в тренажёре."
+          />
+          <TopicPicker
+            topics={filteredTopics}
+            selected={selectedTopics}
+            subject={selectedSubject}
+            onToggle={toggleTopic}
+          />
+          <div className="flex flex-wrap items-center gap-3">
+            <Link to={`/practice?mode=topic&subject=${selectedSubject}${selectedTopicsQuery}`}>
+              <Button>
+                <BookOpen className="h-4 w-4" />
+                {selectedTopics.length ? `Открыть темы в практике (${selectedTopics.length})` : "Открыть темы в практике"}
+              </Button>
+            </Link>
+            {admin ? (
+              <Link to="/admin">
+                <Button variant="secondary">
+                  <Brain className="h-4 w-4" />
+                  Управлять базой
                 </Button>
               </Link>
-              {admin ? (
-                <Link to="/admin">
-                  <Button variant="secondary">
-                    <Brain className="h-4 w-4" />
-                    Управлять базой
-                  </Button>
-                </Link>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            {previewQuery.isLoading ? (
-              <GlassCard className="text-sm text-slate-400">Загружаем вопросы выбранной темы...</GlassCard>
-            ) : previewQuestions.length ? (
-              previewQuestions.map((question) => (
-                <GlassCard key={question.id} className="space-y-3">
-                  <div className="flex flex-wrap gap-2">
-                    <Badge tone="cyan">{question.topic}</Badge>
-                    <Badge tone={question.difficulty === "hard" ? "rose" : question.difficulty === "medium" ? "amber" : "emerald"}>
-                      {difficultyLabels[question.difficulty]}
-                    </Badge>
-                    <Badge tone="slate">{questionTypeLabels[question.type]}</Badge>
-                  </div>
-                  <div className="text-base font-medium leading-7 text-white">{question.question}</div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {question.options.slice(0, 4).map((option) => (
-                      <div key={option.id} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200">
-                        {option.text}
-                      </div>
-                    ))}
-                  </div>
-                </GlassCard>
-              ))
-            ) : (
-              <GlassCard className="text-sm text-slate-400">Для этой темы пока нет предпросмотра.</GlassCard>
-            )}
+            ) : null}
           </div>
         </div>
       </Panel>
 
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+      <div className="grid gap-6">
         <Panel>
           <TitleBlock
             eyebrow="Режимы"
@@ -243,10 +229,10 @@ export const HomePage = ({ meta }: AppPageProps) => {
         </Panel>
 
         <Panel>
-          <TitleBlock eyebrow="Путь" title="Прогресс по темам" description="Больше точности и регулярности там, где есть слабые места." />
-          <div className="space-y-4">
-            {subjectProgress.slice(0, 8).map((topic) => (
-              <GlassCard key={topic.key}>
+          <TitleBlock eyebrow="Путь" title="Прогресс по темам" />
+          <div className="grid gap-3 sm:grid-cols-2">
+            {subjectProgress.slice(0, 4).map((topic) => (
+              <GlassCard key={topic.key} className="p-3 sm:p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-sm font-semibold text-white">{topic.title}</div>
@@ -254,7 +240,7 @@ export const HomePage = ({ meta }: AppPageProps) => {
                   </div>
                   <Badge tone={topic.mastery >= 70 ? "emerald" : topic.mastery >= 40 ? "amber" : "rose"}>{topic.mastery}%</Badge>
                 </div>
-                <div className="mt-3">
+                <div className="mt-2">
                   <ProgressBar value={topic.mastery} />
                 </div>
               </GlassCard>
@@ -263,7 +249,7 @@ export const HomePage = ({ meta }: AppPageProps) => {
         </Panel>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+      <div className="grid gap-6">
         <Panel>
           <TitleBlock eyebrow="Игры" title="Мини-игры для закрепления" description="Тот же контент, но с другой скоростью и другой подачей." />
           <div className="grid gap-3 sm:grid-cols-2">
@@ -283,7 +269,7 @@ export const HomePage = ({ meta }: AppPageProps) => {
               <Link key={game.key} to={`/games/${game.key}?subject=${selectedSubject}`}>
                 <GlassCard className="h-full transition hover:-translate-y-1 hover:border-violet-300/20">
                   <div className="text-base font-semibold text-white">{game.title}</div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">{game.description}</div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">{gameDescription(game.key, selectedSubject, game.description)}</div>
                 </GlassCard>
               </Link>
             ))}

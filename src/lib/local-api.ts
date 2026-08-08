@@ -520,14 +520,15 @@ export const localApi = {
     };
   },
 
-  async generateTest(payload: { profileName: string; mode: string; count: number; topic?: string | null; subject?: SubjectId; questionType?: QuestionType }): Promise<GeneratedTest> {
+  async generateTest(payload: { profileName: string; mode: string; count: number; topic?: string | null; topics?: string[]; subject?: SubjectId; questionType?: QuestionType }): Promise<GeneratedTest> {
     const database = readDatabase();
     const profile = ensureProfile(database, payload.profileName);
     const source = uniqueQuestionPool(allQuestions(database));
     const subjectTopics = payload.subject
       ? new Set(dashboardMeta.topics.filter((topic) => topic.subject === payload.subject).map((topic) => topic.title))
       : null;
-    let pool = source.filter((question) => (!subjectTopics || subjectTopics.has(question.topic)) && (!payload.topic || question.topic === payload.topic));
+    const selectedTopics = payload.topics?.filter(Boolean) ?? [];
+    let pool = source.filter((question) => (!subjectTopics || subjectTopics.has(question.topic)) && (!selectedTopics.length ? (!payload.topic || question.topic === payload.topic) : selectedTopics.includes(question.topic)));
     if (payload.questionType) pool = pool.filter((question) => question.type === payload.questionType);
     const basePool = pool;
     if (payload.mode === "mistakes") pool = pool.filter((question) => {
@@ -641,7 +642,10 @@ export const localApi = {
     writeDatabase(database);
     return {
       attemptId, score, maxScore, percent, grade, xpGained, level: profile.level, streak: profile.streak, bestStreak: profile.bestStreak,
-      correctCount: score, wrongCount: maxScore - score, durationMs: payload.durationMs, results,
+      correctCount: results.filter((result) => result.isCorrect).length,
+      wrongCount: results.filter((result) => !result.isCorrect).length,
+      durationMs: payload.durationMs,
+      results,
       recommendations: [...new Set(wrongTopics)].slice(0, 5), achievements: buildAchievements(profile).map(({ unlockedAt: _unlockedAt, ...achievement }) => achievement),
     };
   },

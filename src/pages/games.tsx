@@ -3,10 +3,17 @@ import { BackButton, Button, GlassCard, Panel, TitleBlock } from "@/components/u
 import type { AppPageProps } from "./types";
 import { Gamepad2, Play } from "lucide-react";
 import { DuelWidget } from "@/components/duel-widget";
+import type { SubjectId } from "@shared/types";
+import { gameDescription } from "@/lib/game-copy";
+
+const unavailableGames: Partial<Record<SubjectId, ReadonlySet<string>>> = {
+  english: new Set(["truth"]),
+};
 
 export const GamesPage = ({ meta }: AppPageProps) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const subject = searchParams.get("subject") === "management" ? "management" : searchParams.get("subject") === "economics" ? "economics" : searchParams.get("subject") === "english" ? "english" : "it-design";
+  const games = meta?.games.filter((game) => !unavailableGames[subject]?.has(game.key)) ?? [];
   return (
     <div className="space-y-6">
       <TitleBlock
@@ -30,13 +37,13 @@ export const GamesPage = ({ meta }: AppPageProps) => {
           <button type="button" onClick={() => setSearchParams({ subject: "english" })} className={subject === "english" ? "rounded-2xl border border-rose-300/40 bg-rose-400/15 px-4 py-3 text-left text-white" : "rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-slate-300 transition hover:bg-white/10"}>Игры по английскому</button>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {meta?.games.map((game) => (
+          {games.map((game) => (
             <Link key={game.key} to={`/games/${game.key}?subject=${subject}`}>
               <GlassCard className="group h-full transition duration-200 hover:-translate-y-1 hover:border-cyan-300/20">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-lg font-semibold text-white">{game.title}</div>
-                    <div className="mt-2 text-sm leading-6 text-slate-400">{game.description}</div>
+                    <div className="mt-2 text-sm leading-6 text-slate-400">{gameDescription(game.key, subject, game.description)}</div>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-cyan-300 transition group-hover:scale-105">
                     <Gamepad2 className="h-5 w-5" />

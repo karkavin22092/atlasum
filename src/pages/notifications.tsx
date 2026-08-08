@@ -30,7 +30,7 @@ export const NotificationsPage = ({ meta: _meta, profileName }: AppPageProps) =>
     enabled: Boolean(user && authToken && userId !== "guest"),
     retry: 0,
     refetchInterval: REALTIME_POLL_MS,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
 

@@ -2,7 +2,7 @@ import type { Question } from "@shared/types";
 import { useEffect, useMemo, useState } from "react";
 import { Button, GlassCard } from "./ui";
 import { cn, shuffleArray } from "@/lib/utils";
-import { Check, GripVertical, Minus, Plus } from "lucide-react";
+import { ArrowDown, ArrowUp, GripVertical, X } from "lucide-react";
 
 export type AnswerValue = string | string[] | boolean | { left: string; right: string }[];
 
@@ -130,6 +130,7 @@ export const QuestionRenderer = ({ question, value, onChange, locked, hiddenOpti
       onChange([...selected, item]);
     };
     const remove = (item: string) => {
+      if (locked) return;
       onChange(selected.filter((value) => value !== item));
     };
     const move = (index: number, dir: -1 | 1) => {
@@ -155,11 +156,25 @@ export const QuestionRenderer = ({ question, value, onChange, locked, hiddenOpti
       dataTransfer.effectAllowed = "move";
       dataTransfer.setData("text/plain", item);
     };
+    const returnToAvailable = (event: React.DragEvent<HTMLDivElement>) => {
+      if (locked) return;
+      event.preventDefault();
+      const item = draggedSequenceItem ?? event.dataTransfer.getData("text/plain");
+      if (item && selected.includes(item)) {
+        onChange(selected.filter((value) => value !== item));
+      }
+      setDraggedSequenceItem(null);
+      setDragOverSequenceIndex(null);
+    };
 
     return (
       <div className="space-y-4">
         <div className="grid gap-3 md:grid-cols-2">
-          <GlassCard className="space-y-3">
+          <GlassCard
+            className="space-y-3"
+            onDragOver={(event) => { if (!locked) event.preventDefault(); }}
+            onDrop={returnToAvailable}
+          >
             <div className="text-sm font-medium text-slate-300">Элементы</div>
             <div className="flex flex-wrap gap-2">
               {sequenceItems
@@ -213,14 +228,14 @@ export const QuestionRenderer = ({ question, value, onChange, locked, hiddenOpti
                       <GripVertical className="h-4 w-4" />
                     </button>
                     <div className="flex-1 text-sm text-white">{item}</div>
-                    <button type="button" onClick={() => move(index, -1)} disabled={locked || index === 0} className="rounded-full p-1 text-slate-300 hover:bg-white/5 disabled:opacity-40">
-                      <Minus className="h-4 w-4" />
+                    <button type="button" onClick={() => move(index, -1)} disabled={locked || index === 0} className="rounded-full p-1 text-slate-300 hover:bg-white/5 disabled:opacity-40" title="Поднять выше" aria-label="Поднять выше">
+                      <ArrowUp className="h-4 w-4" />
                     </button>
-                    <button type="button" onClick={() => move(index, 1)} disabled={locked || index === selected.length - 1} className="rounded-full p-1 text-slate-300 hover:bg-white/5 disabled:opacity-40">
-                      <Plus className="h-4 w-4" />
+                    <button type="button" onClick={() => move(index, 1)} disabled={locked || index === selected.length - 1} className="rounded-full p-1 text-slate-300 hover:bg-white/5 disabled:opacity-40" title="Опустить ниже" aria-label="Опустить ниже">
+                      <ArrowDown className="h-4 w-4" />
                     </button>
-                    <button type="button" onClick={() => remove(item)} disabled={locked} className="rounded-full p-1 text-slate-300 hover:bg-white/5">
-                      <Check className="h-4 w-4" />
+                    <button type="button" onClick={() => remove(item)} disabled={locked} className="rounded-full p-1 text-slate-300 hover:bg-white/5" title="Убрать из списка" aria-label="Убрать из списка">
+                      <X className="h-4 w-4" />
                     </button>
                   </div>
                 ))

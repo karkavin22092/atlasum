@@ -1,19 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { BackButton, Badge, Button, GlassCard, Panel, ProgressBar, StatCard, TitleBlock } from "@/components/ui";
+import { BackButton, Badge, Button, GlassCard, Panel, StatCard, TitleBlock } from "@/components/ui";
 import { QuestionRenderer, type AnswerValue } from "@/components/question-renderer";
 import { ResultPanel } from "@/components/result-panel";
 import { AttemptExitGuard, AttemptExitNotice, confirmDiscardAttempt } from "@/components/attempt-exit-guard";
 import { formatDuration, shuffleArray } from "@/lib/utils";
 import { hasAnswer } from "@/lib/answers";
-import { ArrowLeft, ArrowRight, RefreshCcw, Shuffle, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronDown, Clock3, FileCheck2, ListRestart, RefreshCcw, Shuffle, Sparkles } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import type { AppPageProps } from "./types";
 import type { GeneratedTest, SubjectId, SubmissionResponse } from "@shared/types";
 import { difficultyLabels, questionTypeLabels } from "@/lib/question-labels";
+import { TopicPicker } from "@/components/topic-picker";
 
 const COUNT_OPTIONS = [10, 20, 30, 50, 100];
+const EXAM_DURATION_MS = 45 * 60 * 1000;
 
 export const PracticePage = ({ meta, profileName }: AppPageProps) => {
   const queryClient = useQueryClient();
@@ -21,13 +23,20 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
   const [selectedMode, setSelectedMode] = useState(searchParams.get("mode") ?? "practice");
   const [selectedCount, setSelectedCount] = useState(Number(searchParams.get("count") ?? 10));
   const [selectedSubject, setSelectedSubject] = useState<SubjectId>(searchParams.get("subject") === "management" ? "management" : searchParams.get("subject") === "economics" ? "economics" : searchParams.get("subject") === "english" ? "english" : "it-design");
-  const [selectedTopic, setSelectedTopic] = useState(searchParams.get("topic") ?? "");
+  const [selectedTopics, setSelectedTopics] = useState<string[]>(() => (searchParams.get("topics") ?? searchParams.get("topic") ?? "").split(",").map((topic) => topic.trim()).filter(Boolean));
+  const [selectedWeakTopics, setSelectedWeakTopics] = useState<string[]>([]);
+  const [hasStarted, setHasStarted] = useState(false);
   const [test, setTest] = useState<GeneratedTest | null>(null);
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
   const [currentIndex, setCurrentIndex] = useState(0);
   const [result, setResult] = useState<SubmissionResponse | null>(null);
   const [startedAt, setStartedAt] = useState<number>(Date.now());
   const [now, setNow] = useState(Date.now());
+  const [timeoutNotice, setTimeoutNotice] = useState<{ answered: number; total: number } | null>(null);
+  const [showTimeoutReport, setShowTimeoutReport] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const timeoutHandledRef = useRef(false);
+  const topicsForTest = selectedTopics.length ? selectedTopics : selectedWeakTopics;
 
   const generateMutation = useMutation({
     mutationFn: () =>
@@ -36,7 +45,8 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
         mode: selectedMode,
         count: selectedMode === "exam" ? selectedSubject === "english" ? 25 : 30 : selectedCount,
         subject: selectedSubject,
-        topic: selectedTopic || null,
+        topic: topicsForTest.length === 1 ? topicsForTest[0] : null,
+        topics: topicsForTest,
       }),
     onSuccess: (value) => {
       setTest(value);
@@ -45,6 +55,9 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
       setResult(null);
       setStartedAt(Date.now());
       setNow(Date.now());
+      setTimeoutNotice(null);
+      setShowTimeoutReport(false);
+      timeoutHandledRef.current = false;
     },
   });
 
@@ -64,22 +77,31 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
         params.set("mode", selectedMode);
         params.set("count", String(selectedCount));
         params.set("subject", selectedSubject);
-        if (selectedTopic) params.set("topic", selectedTopic);
-        else params.delete("topic");
+        params.delete("topic");
+        if (topicsForTest.length) params.set("topics", topicsForTest.join(","));
+        else params.delete("topics");
         return params;
       },
       { replace: true },
     );
-  }, [selectedCount, selectedMode, selectedSubject, selectedTopic, setSearchParams]);
+  }, [selectedCount, selectedMode, selectedSubject, setSearchParams, topicsForTest]);
 
   useEffect(() => {
+    if (!hasStarted) return;
     generateMutation.mutate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMode, selectedCount, selectedSubject, selectedTopic, profileName]);
+  }, [hasStarted, selectedMode, selectedCount, selectedSubject, topicsForTest, profileName]);
+
+  useEffect(() => {
+    if (selectedMode !== "exam") return;
+    setSelectedTopics([]);
+    setSelectedWeakTopics([]);
+  }, [selectedMode]);
 
   const questions = test?.questions ?? [];
   const englishExam = selectedMode === "exam" && selectedSubject === "english";
-  const examTimeLeft = englishExam ? Math.max(0, 45 * 60 * 1000 - (now - startedAt)) : null;
+  const examActive = selectedMode === "exam";
+  const examTimeLeft = examActive ? Math.max(0, EXAM_DURATION_MS - (now - startedAt)) : null;
   const currentQuestion = questions[currentIndex];
   const answeredCount = Object.values(answers).filter(hasAnswer).length;
   const progress = questions.length === 0 ? 0 : (answeredCount / questions.length) * 100;
@@ -96,8 +118,8 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
       profileName,
       mode: selectedMode as never,
       count: questions.length,
-      durationMs: Date.now() - startedAt,
-      topic: selectedTopic || null,
+      durationMs: timedOut ? EXAM_DURATION_MS : Date.now() - startedAt,
+      topic: topicsForTest.length === 1 ? topicsForTest[0] : topicsForTest.length ? topicsForTest.join(", ") : null,
       answers: questions.filter((question) => timedOut || hasAnswer(answers[question.id])).map((question) => ({
         questionId: question.id,
         answer: answers[question.id] ?? "__timeout__",
@@ -106,18 +128,20 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
   };
 
   useEffect(() => {
-    if (!englishExam || !test || result || examTimeLeft === null || examTimeLeft <= 0) return;
+    if (!examActive || !test || result || examTimeLeft === null || examTimeLeft <= 0) return;
     const timer = window.setInterval(() => setNow(Date.now()), 1_000);
     return () => window.clearInterval(timer);
-  }, [englishExam, examTimeLeft, result, test]);
+  }, [examActive, examTimeLeft, result, test]);
 
   useEffect(() => {
-    if (englishExam && test && !result && examTimeLeft === 0 && !submitMutation.isPending) {
+    if (examActive && test && !result && examTimeLeft === 0 && !submitMutation.isPending && !timeoutHandledRef.current) {
+      timeoutHandledRef.current = true;
+      if (answeredCount < questions.length) setTimeoutNotice({ answered: answeredCount, total: questions.length });
       void submit(true);
     }
     // submit is intentionally recreated with the current answers.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [englishExam, examTimeLeft, result, test, submitMutation.isPending]);
+  }, [answeredCount, examActive, examTimeLeft, questions.length, result, test, submitMutation.isPending]);
 
   const weakTopics = useMemo(() => {
     if (!meta) return [];
@@ -125,31 +149,68 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
     return meta.topicProgress
       .filter((topic) => subjectTitles.has(topic.title))
       .filter((topic) => topic.mastery < 60)
-      .sort((a, b) => a.mastery - b.mastery)
-      .slice(0, 4);
+      .sort((a, b) => a.mastery - b.mastery);
   }, [meta, selectedSubject]);
 
   const filteredTopics = meta?.topics.filter((topic) => topic.subject === selectedSubject) ?? [];
+  const selectedModeTitle = meta?.modes.find((mode) => mode.key === selectedMode)?.title ?? "Режим";
 
   useEffect(() => {
-    if (selectedTopic && meta && !meta.topics.some((topic) => topic.subject === selectedSubject && topic.title === selectedTopic)) {
-      setSelectedTopic("");
+    if (!meta) return;
+    const validTopics = new Set(meta.topics.filter((topic) => topic.subject === selectedSubject).map((topic) => topic.title));
+    if (selectedTopics.some((topic) => !validTopics.has(topic))) {
+      setSelectedTopics((current) => current.filter((topic) => validTopics.has(topic)));
     }
-  }, [meta, selectedSubject, selectedTopic]);
+    if (selectedWeakTopics.some((topic) => !validTopics.has(topic))) {
+      setSelectedWeakTopics((current) => current.filter((topic) => validTopics.has(topic)));
+    }
+  }, [meta, selectedSubject, selectedTopics, selectedWeakTopics]);
+
+  const reviewMistakes = () => {
+    if (selectedMode === "mistakes" && !topicsForTest.length) {
+      generateMutation.mutate();
+      return;
+    }
+    setSelectedMode("mistakes");
+    setSelectedTopics([]);
+    setSelectedWeakTopics([]);
+  };
+
+  const startTest = () => {
+    if (hasStarted) {
+      generateMutation.mutate();
+      return;
+    }
+    setHasStarted(true);
+  };
+
+  if (result && timeoutNotice && !showTimeoutReport) {
+    return (
+      <div className="mx-auto max-w-2xl py-8">
+        <Panel className="border-amber-300/30 bg-amber-400/[0.06] text-center">
+          <Clock3 className="mx-auto h-12 w-12 text-amber-300" />
+          <div className="mt-5 text-xs font-semibold uppercase tracking-[0.24em] text-amber-200">Экзамен завершён автоматически</div>
+          <h1 className="mt-3 text-3xl font-semibold text-white">Время вышло</h1>
+          <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-slate-300">Ответы, которые вы успели дать, сохранены. Остальные задания отмечены как неотвеченные.</p>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <GlassCard><div className="text-xs uppercase tracking-[0.2em] text-slate-400">Успели ответить</div><div className="mt-2 text-3xl font-semibold text-white">{timeoutNotice.answered}/{timeoutNotice.total}</div></GlassCard>
+            <GlassCard><div className="text-xs uppercase tracking-[0.2em] text-slate-400">Правильно</div><div className="mt-2 text-3xl font-semibold text-white">{result.correctCount}</div></GlassCard>
+          </div>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Button onClick={() => setShowTimeoutReport(true)}><FileCheck2 className="h-4 w-4" />Посмотреть отчёт</Button>
+            <Button variant="secondary" onClick={reviewMistakes} disabled={result.wrongCount === 0}><ListRestart className="h-4 w-4" />Работа над ошибками</Button>
+          </div>
+        </Panel>
+      </div>
+    );
+  }
 
   if (result) {
     return (
       <ResultPanel
         result={result}
         onRetry={() => generateMutation.mutate()}
-        onReviewMistakes={() => {
-          if (selectedMode === "mistakes" && !selectedTopic) {
-            generateMutation.mutate();
-            return;
-          }
-          setSelectedMode("mistakes");
-          setSelectedTopic("");
-        }}
+        onReviewMistakes={reviewMistakes}
         onNewTest={() => {
           if (selectedMode === "exam") {
             setSelectedMode("practice");
@@ -157,6 +218,7 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
           }
           generateMutation.mutate();
         }}
+        initialView={showTimeoutReport ? "report" : "summary"}
       />
     );
   }
@@ -172,7 +234,7 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
           <div className="flex flex-wrap gap-2">
             <BackButton to="/" />
             <Button variant="secondary" onClick={() => {
-              if (confirmDiscardAttempt(hasActiveAttempt)) generateMutation.mutate();
+              if (confirmDiscardAttempt(hasActiveAttempt)) startTest();
             }} disabled={generateMutation.isPending}>
               <RefreshCcw className={generateMutation.isPending ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
               Новый набор
@@ -189,11 +251,11 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
 
       <AttemptExitNotice />
 
-      <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
-        <Panel className="space-y-5">
+      <div className="flex flex-col gap-4">
+        <Panel className="order-2 min-w-0 space-y-5">
           <div>
             <div className="mb-3 text-xs uppercase tracking-[0.24em] text-slate-400">Дисциплина</div>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
               {([
                 { key: "it-design", title: "ИТ и графика" },
                 { key: "management", title: "Менеджмент" },
@@ -206,7 +268,8 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
                   onClick={() => {
                     if (!confirmDiscardAttempt(hasActiveAttempt)) return;
                     setSelectedSubject(subject.key);
-                    setSelectedTopic("");
+                    setSelectedTopics([]);
+                    setSelectedWeakTopics([]);
                   }}
                   className={selectedSubject === subject.key
                     ? "rounded-2xl border border-cyan-300/40 bg-cyan-400/15 px-4 py-3 text-left text-white"
@@ -218,111 +281,151 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
             </div>
           </div>
 
-          <div>
-            <div className="mb-3 text-xs uppercase tracking-[0.24em] text-slate-400">Режим</div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {meta?.modes.map((mode) => (
-                <button
-                  type="button"
-                  key={mode.key}
-                  onClick={() => {
-                    if (mode.key === selectedMode || confirmDiscardAttempt(hasActiveAttempt)) setSelectedMode(mode.key);
-                  }}
-                  className={mode.key === selectedMode ? "rounded-2xl border border-cyan-300/40 bg-cyan-400/15 px-4 py-3 text-left text-white" : "rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-slate-300 transition hover:bg-white/10"}
-                >
-                  <div className="text-sm font-medium">{mode.title}</div>
-                  <div className="mt-1 text-xs text-slate-400">{mode.description}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <div className="mb-3 text-xs uppercase tracking-[0.24em] text-slate-400">Количество</div>
-            <div className="flex flex-wrap gap-2">
-              {COUNT_OPTIONS.map((count) => (
-                <button
-                  key={count}
-                  type="button"
-                  disabled={selectedMode === "exam"}
-                  onClick={() => {
-                    if (count === selectedCount || confirmDiscardAttempt(hasActiveAttempt)) setSelectedCount(count);
-                  }}
-                  className={selectedCount === count
-                    ? "rounded-full border border-cyan-300/40 bg-cyan-400/15 px-4 py-2 text-sm text-white disabled:opacity-100"
-                    : "rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"}
-                >
-                  {count}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => {
-                  if (selectedMode === "exam" || confirmDiscardAttempt(hasActiveAttempt)) setSelectedMode("exam");
-                }}
-                className={selectedMode === "exam" ? "rounded-full border border-violet-300/40 bg-violet-400/15 px-4 py-2 text-sm text-white" : "rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300 transition hover:bg-white/10"}
-              >
-                Экзамен
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <div className="mb-3 text-xs uppercase tracking-[0.24em] text-slate-400">Тема</div>
-            <select
-              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
-              value={selectedTopic}
-              onChange={(event) => {
-                if (confirmDiscardAttempt(hasActiveAttempt)) setSelectedTopic(event.target.value);
-              }}
-            >
-              <option value="">Все темы</option>
-              {filteredTopics.map((topic) => (
-                <option key={topic.key} value={topic.title}>
-                  {topic.title}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <StatCard label="Вопросов" value={questions.length} hint={selectedMode === "exam" ? englishExam ? "25 заданий: 100 баллов" : "Экзамен всегда на 30" : "Под выбранный режим"} accent="from-cyan-400 to-sky-500" />
-            <StatCard label="Отвечено" value={answeredCount} hint="Прогресс по сессии" accent="from-violet-400 to-fuchsia-500" />
-          </div>
-          {examTimeLeft !== null ? <StatCard label="Осталось" value={formatDuration(examTimeLeft)} hint="Лимит экзамена: 45 минут" accent="from-rose-400 to-pink-500" /> : null}
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between text-sm text-slate-400">
-              <span>Прогресс теста</span>
-              <span>{Math.round(progress)}%</span>
-            </div>
-            <ProgressBar value={progress} />
-          </div>
-
-          <div className="space-y-3">
-            <div className="text-xs uppercase tracking-[0.24em] text-slate-400">Слабые темы</div>
-            {weakTopics.length ? (
-              weakTopics.map((topic) => (
-                <GlassCard key={topic.key} className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium text-white">{topic.title}</div>
-                    <div className="text-xs text-slate-400">{topic.mastery}% mastery</div>
+          <details
+            open={settingsOpen}
+            onToggle={(event) => setSettingsOpen(event.currentTarget.open)}
+            className="group/settings"
+          >
+            <summary className="flex cursor-pointer list-none items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 [&::-webkit-details-marker]:hidden">
+              <span>Настроить тест</span>
+              <ChevronDown className="h-4 w-4 text-slate-400 transition-transform group-open/settings:rotate-180" />
+            </summary>
+            <div className="mt-5 space-y-5">
+              <details className="group/mode rounded-2xl border border-white/10 bg-white/[0.03]">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-white [&::-webkit-details-marker]:hidden">
+                  <span>Режим теста</span>
+                  <span className="flex items-center gap-2 text-xs font-normal text-slate-400"><span>{selectedModeTitle}</span><ChevronDown className="h-4 w-4 transition-transform group-open/mode:rotate-180" /></span>
+                </summary>
+                <div className="space-y-5 border-t border-white/10 px-4 py-4">
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {meta?.modes.map((mode) => (
+                      <button
+                        type="button"
+                        key={mode.key}
+                        onClick={() => {
+                          if (mode.key !== selectedMode && !confirmDiscardAttempt(hasActiveAttempt)) return;
+                          if (mode.key === "exam") {
+                            setSelectedTopics([]);
+                            setSelectedWeakTopics([]);
+                          }
+                          setSelectedMode(mode.key);
+                        }}
+                        className={mode.key === selectedMode ? "rounded-2xl border border-cyan-300/40 bg-cyan-400/15 px-4 py-3 text-left text-white" : "rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-slate-300 transition hover:bg-white/10"}
+                      >
+                        <div className="text-sm font-medium">{mode.title}</div>
+                        <div className="mt-1 text-xs text-slate-400">{mode.description}</div>
+                      </button>
+                    ))}
                   </div>
-                  <Link to={`/practice?mode=topic&topic=${encodeURIComponent(topic.title)}`} onClick={(event) => {
-                    if (!confirmDiscardAttempt(hasActiveAttempt)) event.preventDefault();
-                  }}>
-                    <Button variant="secondary">Повторить</Button>
-                  </Link>
-                </GlassCard>
-              ))
-            ) : (
-              <GlassCard className="text-sm text-slate-400">Пока нет слабых тем. Отличный старт.</GlassCard>
-            )}
-          </div>
+                  <div>
+                    <div className="mb-3 text-xs uppercase tracking-[0.24em] text-slate-400">Количество вопросов</div>
+                    <div className="flex flex-wrap gap-2">
+                      {COUNT_OPTIONS.map((count) => (
+                        <button
+                          key={count}
+                          type="button"
+                          disabled={selectedMode === "exam"}
+                          onClick={() => {
+                            if (count === selectedCount || confirmDiscardAttempt(hasActiveAttempt)) setSelectedCount(count);
+                          }}
+                          className={selectedMode === "exam"
+                            ? "cursor-not-allowed rounded-full border border-white/5 bg-white/[0.03] px-4 py-2 text-sm text-slate-500"
+                            : selectedCount === count
+                              ? "rounded-full border border-cyan-300/40 bg-cyan-400/15 px-4 py-2 text-sm text-white"
+                              : "rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300 transition hover:bg-white/10"}
+                        >
+                          {count}
+                        </button>
+                      ))}
+                      {selectedMode === "exam" ? (
+                        <span className="ml-auto inline-flex items-center px-1 text-sm font-medium text-slate-400">Экзамен</span>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </details>
+
+              <details className="group/topics rounded-2xl border border-white/10 bg-white/[0.03]">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-white [&::-webkit-details-marker]:hidden">
+                  <span>Темы</span>
+                  <span className="flex items-center gap-2 text-xs font-normal text-slate-400"><span>{selectedTopics.length ? `Выбрано: ${selectedTopics.length}` : "Все темы"}</span><ChevronDown className="h-4 w-4 transition-transform group-open/topics:rotate-180" /></span>
+                </summary>
+                <div className="border-t border-white/10 px-4 py-4">
+                  <TopicPicker
+                    topics={filteredTopics}
+                    selected={selectedTopics}
+                    subject={selectedSubject}
+                    disabled={selectedMode === "exam"}
+                    onToggle={(topic) => {
+                      if (selectedMode === "exam") return;
+                      if (!confirmDiscardAttempt(hasActiveAttempt)) return;
+                      setSelectedWeakTopics([]);
+                      setSelectedTopics((current) => current.includes(topic) ? current.filter((item) => item !== topic) : [...current, topic]);
+                    }}
+                  />
+                </div>
+              </details>
+
+              <details className="group/weak rounded-2xl border border-white/10 bg-white/[0.03]">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-white [&::-webkit-details-marker]:hidden">
+                  <span>Слабые темы</span>
+                  <span className="flex items-center gap-2 text-xs font-normal text-slate-400"><span>{selectedWeakTopics.length ? `Выбрано: ${selectedWeakTopics.length}` : `${weakTopics.length} тем`}</span><ChevronDown className="h-4 w-4 transition-transform group-open/weak:rotate-180" /></span>
+                </summary>
+                <div className="border-t border-white/10 px-4 py-4">
+                  {weakTopics.length ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      {weakTopics.map((topic) => {
+                        const active = selectedWeakTopics.includes(topic.title);
+                        return (
+                          <button
+                            key={topic.key}
+                            type="button"
+                            aria-pressed={active}
+                            disabled={selectedMode === "exam"}
+                            onClick={() => {
+                              if (selectedMode === "exam") return;
+                              if (!confirmDiscardAttempt(hasActiveAttempt)) return;
+                              setSelectedTopics([]);
+                              setSelectedWeakTopics((current) => current.includes(topic.title)
+                                ? current.filter((item) => item !== topic.title)
+                                : [...current, topic.title]);
+                            }}
+                            className={selectedMode === "exam"
+                              ? "min-w-0 cursor-not-allowed rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-left text-slate-500"
+                              : active
+                              ? "min-w-0 rounded-xl border border-rose-300/50 bg-rose-400/15 px-3 py-2 text-left text-rose-100"
+                              : "min-w-0 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-slate-300 transition hover:bg-white/10"}
+                          >
+                            <div className="truncate text-sm font-medium">{topic.title}</div>
+                            <div className="mt-0.5 text-xs text-slate-400">{topic.mastery}% пройдено</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-slate-400">Пока нет слабых тем. Отличный старт.</div>
+                  )}
+                </div>
+              </details>
+            </div>
+          </details>
         </Panel>
 
-        <Panel>
-          {generateMutation.isPending ? (
+        <Panel className="order-1 min-w-0">
+          {hasStarted ? <div className="mb-5 grid gap-3 sm:grid-cols-3">
+            <StatCard label="Вопрос" value={questions.length ? `${currentIndex + 1}/${questions.length}` : "—"} hint="Текущий вопрос" accent="from-cyan-400 to-sky-500" />
+            <StatCard label="Прогресс" value={`${Math.round(progress)}%`} hint={`${answeredCount} отвечено`} accent="from-violet-400 to-fuchsia-500" />
+            {examTimeLeft !== null ? <StatCard label="Осталось" value={formatDuration(examTimeLeft)} hint="Лимит экзамена: 45 минут" accent="from-rose-400 to-pink-500" /> : <StatCard label="Вопросов" value={questions.length} hint="В выбранном тесте" accent="from-emerald-400 to-teal-500" />}
+          </div> : null}
+          {!hasStarted ? (
+            <div className="grid min-h-[28vh] place-items-center py-8 text-center">
+              <div className="max-w-md space-y-4">
+                <div className="text-xl font-semibold text-white">Тест готов к запуску</div>
+                <p className="text-sm leading-6 text-slate-400">Выберите дисциплину и при необходимости настройте режим, темы и количество вопросов.</p>
+                <Button onClick={startTest}><Sparkles className="h-4 w-4" />Начать тест</Button>
+              </div>
+            </div>
+          ) : generateMutation.isPending ? (
             <div className="grid min-h-[55vh] place-items-center">
               <div className="space-y-3 text-center">
                 <div className="mx-auto h-14 w-14 animate-spin rounded-full border-4 border-cyan-400/20 border-t-cyan-400" />

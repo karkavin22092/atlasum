@@ -33,7 +33,7 @@ export const DuelRunnerPage = ({ meta: _meta }: AppPageProps) => {
     enabled: Boolean(token && duelId),
     retry: 0,
     refetchInterval: REALTIME_POLL_MS,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
   const duel = duelQuery.data;

@@ -42,7 +42,7 @@ export const TitleBlock = ({
   right?: ReactNode;
 }) => (
   <div className="v22-title-block mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-    <div>
+    <div className="min-w-0">
       {eyebrow ? <div className="v22-eyebrow mb-2 text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200/80">{eyebrow}</div> : null}
       <h1 className="v22-page-title text-2xl font-semibold text-white sm:text-4xl">{title}</h1>
       {description ? <p className="mt-2 max-w-3xl text-sm text-slate-300 sm:text-base">{description}</p> : null}

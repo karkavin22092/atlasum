@@ -1,4 +1,4 @@
-import React, { type ReactNode } from "react";
+import React, { lazy, Suspense, useEffect, type ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useTheme } from "./lib/theme";
 import { useQuery } from "@tanstack/react-query";
@@ -6,18 +6,6 @@ import { api } from "./lib/api";
 import { AnimatePresence, motion } from "framer-motion";
 import { Bell, Globe2, Lightbulb, LogIn, Mail, MessageCircle, MoonStar, Send, SunMedium, Sparkles, Trophy } from "lucide-react";
 import { HomePage } from "./pages/home";
-import { PracticePage } from "./pages/practice";
-import { GamesPage } from "./pages/games";
-import { GameRunnerPage } from "./pages/game-runner";
-import { DuelRunnerPage } from "./pages/duel-runner";
-import { AdminPage } from "./pages/admin";
-import { ReviewPage } from "./pages/review";
-import { AuthPage } from "./pages/auth";
-import { LeaderboardPage } from "./pages/leaderboard";
-import { MessagesPage } from "./pages/messages";
-import { BugsPage } from "./pages/bugs";
-import { NotificationsPage } from "./pages/notifications";
-import { ReportBugPage } from "./pages/report-bug";
 import { QUESTION_BANK_TOTAL, dashboardMeta, questionCountForTopic } from "@server/content";
 import type { DashboardMeta, Profile, ProfileStats } from "@shared/types";
 import { useAuth } from "./lib/auth";
@@ -27,8 +15,27 @@ import { getUnreadFeedbackCount, getUnreadNotificationCount } from "./lib/bugs";
 import { PRESENCE_POLL_MS, REALTIME_POLL_MS } from "./lib/realtime";
 import { isAdminUser } from "./lib/permissions";
 import { AvatarMenu } from "./components/avatar-menu";
-import { WhatsNewPage } from "./pages/whats-new";
 import { DESIGN_V22_ENABLED } from "./lib/design-version";
+
+const PracticePage = lazy(() => import("./pages/practice").then(({ PracticePage }) => ({ default: PracticePage })));
+const ReviewPage = lazy(() => import("./pages/review").then(({ ReviewPage }) => ({ default: ReviewPage })));
+const GamesPage = lazy(() => import("./pages/games").then(({ GamesPage }) => ({ default: GamesPage })));
+const GameRunnerPage = lazy(() => import("./pages/game-runner").then(({ GameRunnerPage }) => ({ default: GameRunnerPage })));
+const DuelRunnerPage = lazy(() => import("./pages/duel-runner").then(({ DuelRunnerPage }) => ({ default: DuelRunnerPage })));
+const AdminPage = lazy(() => import("./pages/admin").then(({ AdminPage }) => ({ default: AdminPage })));
+const AuthPage = lazy(() => import("./pages/auth").then(({ AuthPage }) => ({ default: AuthPage })));
+const LeaderboardPage = lazy(() => import("./pages/leaderboard").then(({ LeaderboardPage }) => ({ default: LeaderboardPage })));
+const MessagesPage = lazy(() => import("./pages/messages").then(({ MessagesPage }) => ({ default: MessagesPage })));
+const BugsPage = lazy(() => import("./pages/bugs").then(({ BugsPage }) => ({ default: BugsPage })));
+const NotificationsPage = lazy(() => import("./pages/notifications").then(({ NotificationsPage }) => ({ default: NotificationsPage })));
+const ReportBugPage = lazy(() => import("./pages/report-bug").then(({ ReportBugPage }) => ({ default: ReportBugPage })));
+const WhatsNewPage = lazy(() => import("./pages/whats-new").then(({ WhatsNewPage }) => ({ default: WhatsNewPage })));
+
+const DeferredPage = ({ children, meta, profileName }: { children: React.ReactElement; meta?: AppMeta; profileName?: string }) => (
+  <Suspense fallback={<div className="grid min-h-56 place-items-center text-sm text-slate-400">Загружаем раздел...</div>}>
+    {React.cloneElement(children, { meta, profileName })}
+  </Suspense>
+);
 
 type AppMeta = DashboardMeta & {
   profile: Profile;
@@ -129,7 +136,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     queryFn: () => api.meta(profileName),
     retry: 0,
     refetchInterval: PRESENCE_POLL_MS,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
 
@@ -140,7 +147,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     enabled: Boolean(user && meta.profile.id !== "guest"),
     retry: 0,
     refetchInterval: REALTIME_POLL_MS,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
   const unreadMessageCount = unreadMessagesQuery.data?.count ?? 0;
@@ -151,7 +158,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     enabled: Boolean(user && authToken && authenticatedUserId !== "guest"),
     retry: 0,
     refetchInterval: REALTIME_POLL_MS,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
   const unreadFeedbackQuery = useQuery({
@@ -160,7 +167,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     enabled: Boolean(admin && authToken && authenticatedUserId === "lonexnesss"),
     retry: 0,
     refetchInterval: REALTIME_POLL_MS,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
   const unreadNotificationCount = unreadNotificationsQuery.data?.count ?? 0;
@@ -169,6 +176,19 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const sourcePage = `${location.pathname}${location.search}`;
   const requestedSubject = new URLSearchParams(location.search).get("subject");
   const activeSubject = requestedSubject === "management" || requestedSubject === "economics" || requestedSubject === "english" ? requestedSubject : "it-design";
+  useEffect(() => {
+    if (location.pathname !== "/") return;
+    const frame = window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }));
+    return () => window.cancelAnimationFrame(frame);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!("scrollRestoration" in window.history)) return;
+    const previous = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+    return () => { window.history.scrollRestoration = previous; };
+  }, []);
+
   const handleLogoClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
     if (location.pathname !== "/") return;
     event.preventDefault();
@@ -194,7 +214,6 @@ const AppShell = ({ children }: { children: ReactNode }) => {
                 <span className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-200/80 sm:tracking-[0.25em]">Examora</span>
                 <span className="app-version rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-bold tracking-normal text-cyan-200">{APP_VERSION}</span>
               </div>
-              <div className="hidden truncate text-xs text-slate-400 sm:block">ИТ, компьютерная графика, менеджмент и экономика</div>
             </div>
           </Link>
 
@@ -367,22 +386,22 @@ const App = () => {
   return (
     <Routes>
       <Route path="/" element={<AppShell><HomePage /></AppShell>} />
-      <Route path="/practice" element={<RequireAuth><AppShell><PracticePage /></AppShell></RequireAuth>} />
-      <Route path="/review" element={<RequireAuth><AppShell><ReviewPage /></AppShell></RequireAuth>} />
-      <Route path="/games" element={<RequireAuth><AppShell><GamesPage /></AppShell></RequireAuth>} />
-      <Route path="/games/:gameId" element={<RequireAuth><AppShell><GameRunnerPage /></AppShell></RequireAuth>} />
-      <Route path="/duels/:duelId" element={<RequireAuth><AppShell><DuelRunnerPage /></AppShell></RequireAuth>} />
-      <Route path="/admin" element={<AppShell><AdminPage /></AppShell>} />
-      <Route path="/leaderboard" element={<AppShell><LeaderboardPage /></AppShell>} />
-      <Route path="/whats-new" element={<AppShell><WhatsNewPage /></AppShell>} />
-      <Route path="/messages" element={<AppShell><MessagesPage /></AppShell>} />
-      <Route path="/messages/:recipientId" element={<AppShell><MessagesPage /></AppShell>} />
-      <Route path="/proposals" element={<AppShell><BugsPage /></AppShell>} />
-      <Route path="/notifications" element={<AppShell><NotificationsPage /></AppShell>} />
-      <Route path="/suggest" element={<AppShell><ReportBugPage /></AppShell>} />
+      <Route path="/practice" element={<RequireAuth><AppShell><DeferredPage><PracticePage /></DeferredPage></AppShell></RequireAuth>} />
+      <Route path="/review" element={<RequireAuth><AppShell><DeferredPage><ReviewPage /></DeferredPage></AppShell></RequireAuth>} />
+      <Route path="/games" element={<RequireAuth><AppShell><DeferredPage><GamesPage /></DeferredPage></AppShell></RequireAuth>} />
+      <Route path="/games/:gameId" element={<RequireAuth><AppShell><DeferredPage><GameRunnerPage /></DeferredPage></AppShell></RequireAuth>} />
+      <Route path="/duels/:duelId" element={<RequireAuth><AppShell><DeferredPage><DuelRunnerPage /></DeferredPage></AppShell></RequireAuth>} />
+      <Route path="/admin" element={<AppShell><DeferredPage><AdminPage /></DeferredPage></AppShell>} />
+      <Route path="/leaderboard" element={<AppShell><DeferredPage><LeaderboardPage /></DeferredPage></AppShell>} />
+      <Route path="/whats-new" element={<AppShell><DeferredPage><WhatsNewPage /></DeferredPage></AppShell>} />
+      <Route path="/messages" element={<AppShell><DeferredPage><MessagesPage /></DeferredPage></AppShell>} />
+      <Route path="/messages/:recipientId" element={<AppShell><DeferredPage><MessagesPage /></DeferredPage></AppShell>} />
+      <Route path="/proposals" element={<AppShell><DeferredPage><BugsPage /></DeferredPage></AppShell>} />
+      <Route path="/notifications" element={<AppShell><DeferredPage><NotificationsPage /></DeferredPage></AppShell>} />
+      <Route path="/suggest" element={<AppShell><DeferredPage><ReportBugPage /></DeferredPage></AppShell>} />
       <Route path="/bugs" element={<Navigate to="/proposals" replace />} />
       <Route path="/report-bug" element={<Navigate to="/suggest" replace />} />
-      <Route path="/auth" element={<AuthPage />} />
+      <Route path="/auth" element={<DeferredPage><AuthPage /></DeferredPage>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

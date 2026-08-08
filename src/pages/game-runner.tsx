@@ -12,10 +12,12 @@ import { ArrowLeft, ArrowRight, CheckCircle2, EyeOff, Lightbulb, Shuffle, SkipFo
 import type { AppPageProps } from "./types";
 import type { FillQuestion, GeneratedTest, MatchingItem, Question, QuestionType, SequenceQuestion, SubmissionResponse } from "@shared/types";
 import { difficultyLabels } from "@/lib/question-labels";
+import { gameDescription } from "@/lib/game-copy";
+import { TopicPicker } from "@/components/topic-picker";
 
 const GAME_LABELS: Record<string, { title: string; mode: string; duration: number; questions: number; subtitle: string; questionType?: QuestionType }> = {
   cards: { title: "Карточки", mode: "practice", duration: 0, questions: 12, subtitle: "Переворот терминов и определений.", questionType: "single" },
-  speed: { title: "Кто быстрее", mode: "random", duration: 60_000, questions: 20, subtitle: "Максимум ответов за 60 секунд." },
+  speed: { title: "Кто быстрее", mode: "random", duration: 180_000, questions: 20, subtitle: "Максимум ответов за 3 минуты." },
   millionaire: { title: "Миллионер", mode: "random", duration: 0, questions: 15, subtitle: "15 вопросов с подсказками.", questionType: "single" },
   wheel: { title: "Колесо тем", mode: "random", duration: 0, questions: 8, subtitle: "Случайная тема и быстрый старт." },
   matching: { title: "Собери соответствия", mode: "topic", duration: 0, questions: 10, subtitle: "Соедините понятия и определения.", questionType: "matching" },
@@ -90,7 +92,8 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
   const [submitted, setSubmitted] = useState<SubmissionResponse | null>(null);
   const [flipped, setFlipped] = useState(false);
   const [wheelSpin, setWheelSpin] = useState(0);
-  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+  const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
+  const [hasStarted, setHasStarted] = useState(false);
   const [isAbandoning, setIsAbandoning] = useState(false);
   const [lifelines, setLifelines] = useState({
     fifty: true,
@@ -109,7 +112,8 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
         mode: game.mode,
         count: game.questions,
         subject,
-        topic: selectedTopic,
+        topic: selectedTopics.length === 1 ? selectedTopics[0] : null,
+        topics: selectedTopics,
         questionType: game.questionType,
       }),
     onSuccess: (value) => {
@@ -136,9 +140,10 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
   });
 
   useEffect(() => {
+    if (!hasStarted) return;
     generateMutation.mutate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameId, profileName, selectedTopic, subject]);
+  }, [gameId, profileName, selectedTopics, subject, hasStarted]);
 
   const questions = deck?.questions ?? [];
   const current = questions[index];
@@ -147,6 +152,14 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
   const progress = questions.length ? (answered / questions.length) * 100 : 0;
   const hasActiveAttempt = questions.length > 0 && !submitted && !isAbandoning;
   const timerQuestionIndex = gameId === "blitz" ? index : -1;
+
+  const startGame = () => {
+    if (hasStarted) {
+      generateMutation.mutate();
+      return;
+    }
+    setHasStarted(true);
+  };
 
   const memoryCards = useMemo(() => shuffleArray(
     questions.slice(0, 8).flatMap((question) => [
@@ -196,7 +209,7 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
       mode: gameId,
       count: questions.length,
       durationMs: Date.now() - startedAt,
-      topic: selectedTopic,
+      topic: selectedTopics.length === 1 ? selectedTopics[0] : selectedTopics.length ? selectedTopics.join(", ") : null,
       answers: questions.filter((question) => hasAnswer(answerSnapshot[question.id])).map((question) => ({
         questionId: question.id,
         answer: answerSnapshot[question.id],
@@ -408,13 +421,45 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
     );
   }
 
+  if (!hasStarted) {
+    return (
+      <div className="space-y-6">
+        <TitleBlock
+          eyebrow="Мини-игра"
+          title={game.title}
+          description={gameDescription(gameId, subject, game.subtitle)}
+          right={<BackButton to={`/games?subject=${subject}`} />}
+        />
+        <Panel className="space-y-6">
+          <div>
+            <div className="mb-3 text-xs uppercase tracking-[0.24em] text-slate-400">Темы игры</div>
+            <TopicPicker
+              topics={subjectTopics}
+              selected={selectedTopics}
+              subject={subject}
+              onToggle={(topic) => {
+                if (!confirmDiscardAttempt(false)) return;
+                setSelectedTopics((current) => current.includes(topic) ? current.filter((item) => item !== topic) : [...current, topic]);
+              }}
+            />
+            <div className="mt-3 text-sm text-slate-400">Можно выбрать несколько тем или оставить выбор пустым, чтобы использовать всю дисциплину.</div>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-5">
+            <div className="text-sm text-slate-300">Настройки готовы. Вопросы появятся после запуска.</div>
+            <Button onClick={startGame}><Trophy className="h-4 w-4" />Начать игру</Button>
+          </div>
+        </Panel>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <AttemptExitGuard active={hasActiveAttempt} />
       <TitleBlock
         eyebrow="Мини-игра"
         title={game.title}
-        description={game.subtitle}
+        description={gameDescription(gameId, subject, game.subtitle)}
         right={
           <div className="flex flex-wrap gap-2">
             <BackButton to={`/games?subject=${subject}`} />
@@ -422,7 +467,7 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
               <Button variant="secondary" onClick={() => {
                 if (!confirmDiscardAttempt(hasActiveAttempt)) return;
                 const topic = subjectTopics[Math.floor(Math.random() * subjectTopics.length)]?.title ?? null;
-                setSelectedTopic(topic);
+                setSelectedTopics(topic ? [topic] : []);
                 setWheelSpin((value) => value + 720);
               }}>
                 <TimerReset className="h-4 w-4" />
@@ -471,7 +516,7 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
               style={{ transform: `rotate(${wheelSpin}deg)` }}
             >
               <div className="flex h-24 w-24 items-center justify-center rounded-full bg-slate-950/80 text-sm font-semibold text-white">
-                {selectedTopic ?? "Тема"}
+                {selectedTopics[0] ?? "Тема"}
               </div>
             </div>
           </div>

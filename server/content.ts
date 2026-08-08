@@ -1434,7 +1434,7 @@ export const dashboardMeta: DashboardMeta = {
   ] satisfies Array<{ key: QuizMode; title: string; description: string }>,
   games: [
     { key: "cards", title: "Карточки", description: "Термин и определение на переворотных карточках." },
-    { key: "speed", title: "Кто быстрее", description: "60 секунд на максимум правильных ответов." },
+    { key: "speed", title: "Кто быстрее", description: "3 минуты на максимум правильных ответов." },
     { key: "millionaire", title: "Миллионер", description: "15 вопросов и подсказки." },
     { key: "wheel", title: "Колесо тем", description: "Колесо выбирает тему и запускает вопрос." },
     { key: "matching", title: "Собери соответствия", description: "Соедините термины и определения." },

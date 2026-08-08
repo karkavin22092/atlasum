@@ -35,7 +35,7 @@ export const DuelWidget = ({ leaderboard }: { leaderboard: Array<{ id: string; n
     enabled: Boolean(user && token),
     retry: 0,
     refetchInterval: REALTIME_POLL_MS,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
   const duels = duelsQuery.data ?? [];

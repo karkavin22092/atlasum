@@ -80,10 +80,17 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
       }
     };
     void refreshSummaries();
-    const interval = window.setInterval(() => void refreshSummaries(), REALTIME_POLL_MS);
+    const refreshVisible = () => {
+      if (!document.hidden) void refreshSummaries();
+    };
+    const interval = window.setInterval(refreshVisible, REALTIME_POLL_MS);
+    window.addEventListener("focus", refreshVisible);
+    document.addEventListener("visibilitychange", refreshVisible);
     return () => {
       active = false;
       window.clearInterval(interval);
+      window.removeEventListener("focus", refreshVisible);
+      document.removeEventListener("visibilitychange", refreshVisible);
     };
   }, [currentProfileId, user]);
 
@@ -122,7 +129,7 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
     const refreshVisible = () => {
       if (!document.hidden) void refresh();
     };
-    const interval = window.setInterval(() => void refresh(), REALTIME_POLL_MS);
+    const interval = window.setInterval(refreshVisible, REALTIME_POLL_MS);
     window.addEventListener("focus", refreshVisible);
     document.addEventListener("visibilitychange", refreshVisible);
     return () => {

@@ -379,6 +379,7 @@ const selectQuestions = async ({
   mode,
   count,
   topic,
+  topics,
   subject,
   questionType,
 }: {
@@ -386,6 +387,7 @@ const selectQuestions = async ({
   mode: string;
   count: number;
   topic?: string | null;
+  topics?: string[];
   subject?: SubjectId;
   questionType?: Question["type"];
 }) => {
@@ -405,6 +407,10 @@ const selectQuestions = async ({
 
   if (topic) {
     pool = pool.filter((item) => item.topic === topic);
+  }
+
+  if (topics?.length) {
+    pool = pool.filter((item) => topics.includes(item.topic));
   }
 
   if (questionType) {
@@ -834,6 +840,7 @@ app.post("/api/tests/generate", async (req, res) => {
     mode?: string;
     count?: number;
     topic?: string | null;
+    topics?: string[];
     subject?: SubjectId;
     questionType?: Question["type"];
   };
@@ -845,6 +852,7 @@ app.post("/api/tests/generate", async (req, res) => {
     mode: body.mode ?? "practice",
     count,
     topic: body.topic ?? null,
+    topics: body.topics?.filter(Boolean),
     subject: body.subject,
     questionType: body.questionType,
   });
