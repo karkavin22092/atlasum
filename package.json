@@ -12,6 +12,7 @@
     "build": "npm run questions:build && npm run build:web && npm run build:api",
     "build:web": "vite build",
     "build:api": "tsc -p tsconfig.server.json",
+    "migrate:netlify": "node scripts/migrate-netlify-blobs.mjs",
     "lint:types": "tsc -p tsconfig.json --noEmit",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
