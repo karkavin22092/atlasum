@@ -6,6 +6,7 @@ import { Button, GlassCard } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 import { APP_VERSION } from "@/lib/version";
+import { DESIGN_V22_ENABLED } from "@/lib/design-version";
 
 export const AuthPage = () => {
   const { user, login, register } = useAuth();
@@ -38,7 +39,7 @@ export const AuthPage = () => {
   };
 
   return (
-    <div className="theme-shell relative grid min-h-screen place-items-center overflow-hidden px-4 py-10 text-slate-100">
+    <div className={`theme-shell relative grid min-h-screen place-items-center overflow-hidden px-4 py-10 text-slate-100${DESIGN_V22_ENABLED ? " design-v22 v22-auth" : ""}`} data-subject="it-design">
       <div className="theme-atmosphere fixed inset-0 -z-20" />
       <div className="fixed inset-0 -z-10 soft-grid opacity-30" />
       <button
@@ -64,9 +65,15 @@ export const AuthPage = () => {
         </Link>
 
         <GlassCard className="p-6 sm:p-8">
-          <div className="mb-6 grid grid-cols-2 rounded-2xl border border-white/10 bg-black/15 p-1">
+          <div className="v22-auth-tabs mb-6 grid grid-cols-2 rounded-2xl border border-white/10 bg-black/15 p-1">
             {(["login", "register"] as const).map((item) => (
-              <button key={item} type="button" onClick={() => { setMode(item); setError(""); }} className={mode === item ? "rounded-xl bg-white/10 px-3 py-2.5 text-sm font-medium text-white" : "px-3 py-2.5 text-sm text-slate-400"}>
+              <button
+                key={item}
+                type="button"
+                aria-pressed={mode === item}
+                onClick={() => { setMode(item); setError(""); }}
+                className={mode === item ? "is-active rounded-xl bg-white/10 px-3 py-2.5 text-sm font-medium" : "px-3 py-2.5 text-sm text-slate-400"}
+              >
                 {item === "login" ? "Вход" : "Регистрация"}
               </button>
             ))}

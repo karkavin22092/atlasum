@@ -27,6 +27,11 @@ import type {
   SubmissionResponse,
 } from "@shared/types";
 import { sanitizeQuestionText } from "@shared/question-text";
+import {
+  createQuestionUniquenessState,
+  tryAddUniqueQuestion,
+  type QuestionUniquenessState,
+} from "@shared/question-uniqueness";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -66,7 +71,6 @@ const ensureProfile = async (profileName?: string) => {
       id,
       name,
       xp: 0,
-      coins: 0,
       level: 1,
       streak: 0,
       bestStreak: 0,
@@ -82,7 +86,6 @@ const toProfile = (profile: {
   id: string;
   name: string;
   xp: number;
-  coins: number;
   level: number;
   streak: number;
   bestStreak: number;
@@ -91,47 +94,71 @@ const toProfile = (profile: {
   id: profile.id,
   name: profile.name,
   xp: profile.xp,
-  coins: profile.coins,
   level: profile.level,
   streak: profile.streak,
   bestStreak: profile.bestStreak,
   lastActiveAt: profile.lastActiveAt ? profile.lastActiveAt.toISOString() : null,
 });
 
-const getProfileStats = async (profileId: string): Promise<ProfileStats> => {
-  const [answered, correct, reviewDue, mastered, weak] = await Promise.all([
-    prisma.attemptItem.count({
-      where: { attempt: { profileId } },
-    }),
-    prisma.attemptItem.count({
-      where: { attempt: { profileId }, isCorrect: true },
-    }),
-    prisma.questionReview.count({
-      where: {
-        nextReviewAt: {
-          lte: new Date(),
-        },
-      },
-    }),
-    prisma.questionReview.count({
-      where: {
-        mastery: {
-          gte: 0.8,
-        },
-      },
-    }),
-    prisma.questionReview.count({
-      where: {
-        mastery: {
-          lt: 0.45,
-        },
-      },
-    }),
-  ]);
+type ProfileReviewState = {
+  timesAnswered: number;
+  correctCount: number;
+  nextReviewAt: Date;
+  intervalDays: number;
+  easeFactor: number;
+  mastery: number;
+};
 
-  const profile = await prisma.profile.findUnique({
-    where: { id: profileId },
-  });
+type ReviewAttemptItem = {
+  questionId: string;
+  difficulty: string;
+  isCorrect: boolean;
+  createdAt: Date;
+};
+
+const replayProfileReviews = (items: ReviewAttemptItem[]) => {
+  const reviews = new Map<string, ProfileReviewState>();
+
+  for (const item of items) {
+    const current = reviews.get(item.questionId) ?? {
+      timesAnswered: 0,
+      correctCount: 0,
+      nextReviewAt: new Date(0),
+      intervalDays: 0,
+      easeFactor: 2.5,
+      mastery: 0,
+    };
+    const easeFactor = clamp(current.easeFactor + (item.isCorrect ? 0.08 : -0.18), 1.3, 3);
+    const intervalDays = item.isCorrect ? Math.max(1, Math.round((current.intervalDays || 1) * easeFactor)) : 1;
+    reviews.set(item.questionId, {
+      timesAnswered: current.timesAnswered + 1,
+      correctCount: current.correctCount + (item.isCorrect ? 1 : 0),
+      nextReviewAt: new Date(item.createdAt.getTime() + intervalDays * 24 * 60 * 60 * 1000),
+      intervalDays,
+      easeFactor,
+      mastery: clamp(item.isCorrect ? current.mastery + (item.difficulty === "hard" ? 0.08 : 0.12) : current.mastery - 0.14, 0, 1),
+    });
+  }
+
+  return reviews;
+};
+
+const getProfileStats = async (profileId: string): Promise<ProfileStats> => {
+  const [items, profile] = await Promise.all([
+    prisma.attemptItem.findMany({
+      where: { attempt: { profileId } },
+      orderBy: { createdAt: "asc" },
+      select: { questionId: true, difficulty: true, isCorrect: true, createdAt: true },
+    }),
+    prisma.profile.findUnique({ where: { id: profileId } }),
+  ]);
+  const reviews = replayProfileReviews(items);
+  const now = new Date();
+  const answered = items.length;
+  const correct = items.filter((item) => item.isCorrect).length;
+  const reviewDue = [...reviews.values()].filter((review) => review.timesAnswered > 0 && review.nextReviewAt <= now).length;
+  const mastered = [...reviews.values()].filter((review) => review.timesAnswered > 0 && review.mastery >= 0.8).length;
+  const weak = [...reviews.values()].filter((review) => review.timesAnswered > 0 && review.mastery < 0.45).length;
 
   const xp = profile?.xp ?? 0;
   const level = profile?.level ?? getLevel(xp);
@@ -333,6 +360,20 @@ const uniqueQuestionPool = <T extends { id: string; question: string }>(question
   });
 };
 
+const appendSemanticQuestions = <T extends { id: string; question: string; topic?: string; type?: string; meta?: unknown }>(
+  target: T[],
+  candidates: T[],
+  limit: number,
+  state: QuestionUniquenessState,
+) => {
+  if (target.length >= limit) return;
+  for (const question of candidates) {
+    if (target.length >= limit) break;
+    if (!tryAddUniqueQuestion(state, question)) continue;
+    target.push(question);
+  }
+};
+
 const selectQuestions = async ({
   profileId,
   mode,
@@ -371,6 +412,15 @@ const selectQuestions = async ({
   }
 
   const basePool = pool;
+  let profileReviews: Map<string, ProfileReviewState> | null = null;
+  if (mode === "hardOnly" || mode === "review") {
+    const reviewItems = await prisma.attemptItem.findMany({
+      where: { attempt: { profileId } },
+      orderBy: { createdAt: "asc" },
+      select: { questionId: true, difficulty: true, isCorrect: true, createdAt: true },
+    });
+    profileReviews = replayProfileReviews(reviewItems);
+  }
 
   if (mode === "mistakes") {
     const mistakeItems = await prisma.attemptItem.findMany({
@@ -394,16 +444,15 @@ const selectQuestions = async ({
 
   if (mode === "hardOnly") {
     pool = pool.filter((question) => {
-      const review = question.reviews[0];
-      return question.difficulty === "hard" || (review?.mastery ?? 0) < 0.45;
+      return question.difficulty === "hard" || (profileReviews?.get(question.id)?.mastery ?? 1) < 0.45;
     });
   }
 
   if (mode === "review") {
     const now = new Date();
     pool = pool.filter((question) => {
-      const review = question.reviews[0];
-      return !review?.nextReviewAt || review.nextReviewAt <= now || (review?.mastery ?? 0) < 0.7;
+      const review = profileReviews?.get(question.id);
+      return Boolean(review && (review.nextReviewAt <= now || review.mastery < 0.7));
     });
   }
 
@@ -423,23 +472,25 @@ const selectQuestions = async ({
       ),
     };
 
-    const chosen = [
-      ...byDifficulty.easy.slice(0, 9),
-      ...byDifficulty.medium.slice(0, 15),
-      ...byDifficulty.hard.slice(0, 6),
-    ];
-
-    return shuffle(uniqueQuestionPool(chosen).slice(0, 30), `${selectionSeed}:exam:final`);
+    const chosen: typeof pool = [];
+    const uniqueness = createQuestionUniquenessState();
+    appendSemanticQuestions(chosen, byDifficulty.easy, 9, uniqueness);
+    appendSemanticQuestions(chosen, byDifficulty.medium, 24, uniqueness);
+    appendSemanticQuestions(chosen, byDifficulty.hard, 30, uniqueness);
+    appendSemanticQuestions(chosen, shuffle(pool, `${selectionSeed}:exam:fallback`), 30, uniqueness);
+    return shuffle(chosen, `${selectionSeed}:exam:final`);
   }
 
-  if (pool.length === 0) {
+  if (pool.length === 0 && mode !== "review") {
     pool = basePool;
   }
 
   const sizedPool = [...pool];
   const sorted = sizedPool.sort((a, b) => weightQuestion(b as never, selectionSeed) - weightQuestion(a as never, selectionSeed));
   const maxCount = Math.min(count, sorted.length);
-  return shuffle(uniqueQuestionPool(sorted).slice(0, maxCount), `${selectionSeed}:picked`);
+  const selected: typeof sorted = [];
+  appendSemanticQuestions(selected, sorted, maxCount, createQuestionUniquenessState());
+  return shuffle(selected, `${selectionSeed}:picked`);
 };
 
 const gradeByPercent = (percent: number) => {
@@ -457,9 +508,7 @@ const computeXp = (results: Array<{ isCorrect: boolean; difficulty: string }>) =
     return sum + 10;
   }, 0);
 
-const computeCoins = (score: number, percent: number) => Math.max(1, Math.round(score * 1.5 + percent / 10));
-
-const updateProfileProgress = async (profileId: string, xpGained: number, coinsGained: number) => {
+const updateProfileProgress = async (profileId: string, xpGained: number) => {
   const profile = await prisma.profile.findUnique({ where: { id: profileId } });
   if (!profile) {
     throw new Error("Profile not found");
@@ -477,7 +526,6 @@ const updateProfileProgress = async (profileId: string, xpGained: number, coinsG
     where: { id: profileId },
     data: {
       xp,
-      coins: profile.coins + coinsGained,
       level,
       streak,
       bestStreak: Math.max(profile.bestStreak, streak),
@@ -859,7 +907,6 @@ app.post("/api/tests/submit", async (req, res) => {
   const percent = maxScore === 0 ? 0 : Math.round((score / maxScore) * 1000) / 10;
   const grade = gradeByPercent(percent);
   const xpGained = computeXp(results);
-  const coinsGained = computeCoins(score, percent);
   const durationMs = body.durationMs;
   const correctCount = results.filter((result) => result.isCorrect).length;
   const wrongCount = results.length - correctCount;
@@ -867,7 +914,7 @@ app.post("/api/tests/submit", async (req, res) => {
 
   if (results.length === 0) {
     return res.json({
-      attemptId: "", score: 0, maxScore: 0, percent: 0, grade: "—", xpGained: 0, coinsGained: 0,
+      attemptId: "", score: 0, maxScore: 0, percent: 0, grade: "—", xpGained: 0,
       level: profile.level, streak: profile.streak, bestStreak: profile.bestStreak, correctCount: 0, wrongCount: 0,
       durationMs, results: [], recommendations: [], achievements: [],
     } satisfies SubmissionResponse);
@@ -905,7 +952,7 @@ app.post("/api/tests/submit", async (req, res) => {
     ),
   );
 
-  await updateProfileProgress(profile.id, xpGained, coinsGained);
+  await updateProfileProgress(profile.id, xpGained);
   await updateActivity(profile.id, correctCount, xpGained, durationMs);
 
   const unlocked = await buildAchievements(profile.id);
@@ -919,7 +966,6 @@ app.post("/api/tests/submit", async (req, res) => {
     percent,
     grade,
     xpGained,
-    coinsGained,
     level: updatedProfile?.level ?? 1,
     streak: updatedProfile?.streak ?? 0,
     bestStreak: updatedProfile?.bestStreak ?? 0,
@@ -941,24 +987,31 @@ app.get("/api/ranking", async (_req, res) => {
 app.get("/api/reviews", async (req, res) => {
   const profileName = String(req.query.profileName ?? "Гость");
   const profile = await ensureProfile(profileName);
-  const reviews = await prisma.questionReview.findMany({
+  const items = await prisma.attemptItem.findMany({
+    where: { attempt: { profileId: profile.id } },
     include: { question: true },
-    orderBy: [{ mastery: "asc" }, { updatedAt: "desc" }],
+    orderBy: { createdAt: "asc" },
   });
+  const states = replayProfileReviews(items);
+  const latestItems = new Map<string, (typeof items)[number]>();
+  items.forEach((item) => latestItems.set(item.questionId, item));
+  const reviews = [...latestItems.values()]
+    .map((item) => ({ item, state: states.get(item.questionId)! }))
+    .sort((left, right) => left.state.mastery - right.state.mastery || right.item.createdAt.getTime() - left.item.createdAt.getTime());
 
   res.json(
-    reviews.map((review) => ({
-      questionId: review.questionId,
-      topic: review.question.topic,
-      difficulty: review.question.difficulty,
-      question: review.question.question,
-      mastery: review.mastery,
-      accuracy: review.timesAnswered === 0 ? 0 : Math.round((review.correctCount / review.timesAnswered) * 1000) / 10,
-      timesAnswered: review.timesAnswered,
-      correctCount: review.correctCount,
-      lastAnsweredAt: review.lastAnsweredAt?.toISOString() ?? null,
-      nextReviewAt: review.nextReviewAt?.toISOString() ?? null,
-      options: review.question.options,
+    reviews.map(({ item, state }) => ({
+      questionId: item.questionId,
+      topic: item.question.topic,
+      difficulty: item.question.difficulty,
+      question: item.question.question,
+      mastery: state.mastery,
+      accuracy: state.timesAnswered === 0 ? 0 : Math.round((state.correctCount / state.timesAnswered) * 1000) / 10,
+      timesAnswered: state.timesAnswered,
+      correctCount: state.correctCount,
+      lastAnsweredAt: item.createdAt.toISOString(),
+      nextReviewAt: state.nextReviewAt.toISOString(),
+      options: item.question.options,
     })),
   );
 });
@@ -975,7 +1028,7 @@ app.get("/api/profile", async (req, res) => {
 const clientDist = path.resolve(__dirname, "../dist/client");
 app.use(express.static(clientDist));
 
-app.get("*", (req, res, next) => {
+app.get("/{*splat}", (req, res, next) => {
   if (req.path.startsWith("/api")) {
     return next();
   }

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { BackButton, Badge, Button, GlassCard, Panel, TitleBlock } from "@/components/ui";
 import type { Question } from "@shared/types";
+import { difficultyLabels, questionTypeLabels } from "@/lib/question-labels";
 import { Download, FileUp, Plus, Save, Search, ShieldX, Trash2 } from "lucide-react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
@@ -177,8 +178,8 @@ const AdminContent = () => {
                   <div className="space-y-2">
                     <div className="flex flex-wrap gap-2">
                       <Badge tone="cyan">{question.topic}</Badge>
-                      <Badge tone={question.difficulty === "hard" ? "rose" : question.difficulty === "medium" ? "amber" : "emerald"}>{question.difficulty}</Badge>
-                      <Badge tone="violet">{question.type}</Badge>
+                      <Badge tone={question.difficulty === "hard" ? "rose" : question.difficulty === "medium" ? "amber" : "emerald"}>{difficultyLabels[question.difficulty]}</Badge>
+                      <Badge tone="violet">{questionTypeLabels[question.type]}</Badge>
                     </div>
                     <div className="text-sm font-medium text-white">{question.question}</div>
                     <div className="text-xs text-slate-500">{question.id}</div>
@@ -233,14 +234,16 @@ const AdminContent = () => {
             <label className="space-y-1 text-sm text-slate-300">
               <div>Сложность</div>
               <select value={draft.difficulty} onChange={(event) => setField("difficulty", event.target.value as Question["difficulty"])} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none">
-                <option value="easy">easy</option>
-                <option value="medium">medium</option>
-                <option value="hard">hard</option>
+                <option value="easy">Лёгкий</option>
+                <option value="medium">Средний</option>
+                <option value="hard">Сложный</option>
               </select>
             </label>
             <label className="space-y-1 text-sm text-slate-300">
               <div>Тип</div>
-              <input value={draft.type} onChange={(event) => setField("type", event.target.value as Question["type"])} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none" />
+              <select value={draft.type} onChange={(event) => setField("type", event.target.value as Question["type"])} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none">
+                {Object.entries(questionTypeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
             </label>
             <label className="space-y-1 text-sm text-slate-300">
               <div>Теги</div>

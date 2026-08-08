@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { BackButton, Badge, Button, GlassCard, Panel, ProgressBar, TitleBlock } from "@/components/ui";
 import { Link } from "react-router-dom";
 import type { AppPageProps } from "./types";
+import { difficultyLabels } from "@/lib/question-labels";
 
 export const ReviewPage = ({ profileName, meta }: AppPageProps) => {
   const reviewQuery = useQuery({
@@ -54,7 +55,7 @@ export const ReviewPage = ({ profileName, meta }: AppPageProps) => {
                   <div className="flex flex-wrap gap-2">
                     <Badge tone="cyan">{review.topic}</Badge>
                     <Badge tone={review.difficulty === "hard" ? "rose" : review.difficulty === "medium" ? "amber" : "emerald"}>
-                      {review.difficulty}
+                      {difficultyLabels[review.difficulty as keyof typeof difficultyLabels] ?? review.difficulty}
                     </Badge>
                     <Badge tone="violet">{Math.round(review.mastery * 100)}% освоено</Badge>
                   </div>

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigate } from "react-router-dom";
 import { Ban, CheckCircle2, ExternalLink, Gift, Lightbulb, LoaderCircle, XCircle } from "lucide-react";
 import { BackButton, Badge, Button, GlassCard, Panel, TitleBlock } from "@/components/ui";
-import { acceptFeedback, getFeedbackReports, markFeedbackReportsRead, rejectFeedback } from "@/lib/bugs";
+import { acceptFeedback, formatFeedbackPage, getFeedbackReports, markFeedbackReportsRead, rejectFeedback } from "@/lib/bugs";
 import { useAuth } from "@/lib/auth";
 import { isAdminUser } from "@/lib/permissions";
 import type { AppPageProps } from "./types";
@@ -75,7 +75,7 @@ export const BugsPage = ({ meta: _meta }: AppPageProps) => {
                   <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-300">{report.description}</p>
                   <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-500">
                     <span>Автор: <strong className="text-slate-300">{report.reporterName}</strong></span>
-                    <span className="inline-flex items-center gap-1"><ExternalLink className="h-3.5 w-3.5" />{report.pageUrl || "Страница не указана"}</span>
+                    <span className="inline-flex items-center gap-1" title={report.pageUrl || undefined}><ExternalLink className="h-3.5 w-3.5" />{formatFeedbackPage(report.pageUrl)}</span>
                     {report.fixedAt ? <span>Исправлено: {formatDate(report.fixedAt)}</span> : null}
                     {report.acceptedAt ? <span>Принято: {formatDate(report.acceptedAt)}</span> : null}
                     {report.rejectedAt ? <span>Отклонено: {formatDate(report.rejectedAt)}</span> : null}

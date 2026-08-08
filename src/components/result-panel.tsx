@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import type { AttemptResult, QuestionType, SubmissionResponse } from "@shared/types";
 import { BackButton, Badge, Button, GlassCard, Panel, ProgressBar, TitleBlock } from "./ui";
 import { formatDuration } from "@/lib/utils";
+import { difficultyLabels, questionTypeLabels } from "@/lib/question-labels";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -28,22 +29,6 @@ type Props = {
 
 type AnswerTone = "neutral" | "correct" | "wrong";
 
-const difficultyLabels = {
-  easy: "Лёгкий",
-  medium: "Средний",
-  hard: "Сложный",
-} as const;
-
-const typeLabels: Record<QuestionType, string> = {
-  single: "Один ответ",
-  multiple: "Несколько ответов",
-  trueFalse: "Верно или неверно",
-  matching: "Соответствие",
-  sequence: "Последовательность",
-  fill: "Заполнение пропуска",
-  imageChoice: "Выбор ответа",
-  scenario: "Практическая ситуация",
-};
 
 const answerToneClasses: Record<AnswerTone, string> = {
   neutral: "border-white/10 bg-white/5 text-slate-200",
@@ -121,7 +106,7 @@ const ReportCard = ({ item, index, total }: { item: AttemptResult; index: number
         <Badge tone={item.isCorrect ? "emerald" : "rose"}>
           {item.isCorrect ? "Правильно" : "Ошибка"}
         </Badge>
-        <Badge tone="cyan">{typeLabels[item.type]}</Badge>
+        <Badge tone="cyan">{questionTypeLabels[item.type]}</Badge>
       </div>
       <div className="text-xs font-medium text-slate-400">
         {item.topic} · {difficultyLabels[item.difficulty]}
@@ -151,13 +136,8 @@ const ReportCard = ({ item, index, total }: { item: AttemptResult; index: number
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-          {item.isCorrect ? "Пояснение" : "Почему ответ неверный"}
-        </div>
-        <p className="mt-2 text-sm leading-6 text-slate-300">
-          {item.isCorrect ? item.explanation : item.whyWrong}
-        </p>
-        {!item.isCorrect ? <p className="mt-2 text-sm leading-6 text-slate-400">{item.explanation}</p> : null}
+        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">Пояснение</div>
+        <p className="mt-2 text-sm leading-6 text-slate-300">{item.explanation}</p>
       </div>
     </div>
   </motion.article>
@@ -246,7 +226,6 @@ export const ResultPanel = ({
           <GlassCard>
             <div className="text-xs uppercase tracking-[0.24em] text-slate-400">Награда</div>
             <div className="mt-2 text-3xl font-semibold text-white">+{result.xpGained} XP</div>
-            <div className="mt-2 text-sm text-slate-400">Монеты +{result.coinsGained}</div>
           </GlassCard>
         </div>
 

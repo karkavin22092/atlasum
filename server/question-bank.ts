@@ -1,4 +1,4 @@
-import { QUESTION_BANK_TOTAL, questionCountForTopic, topicCatalog } from "./content";
+import { QUESTION_BANK_TOTAL, questionCountForTopic, topicCatalog, type TopicConcept } from "./content";
 import type {
   Difficulty,
   FillQuestion,
@@ -158,6 +158,61 @@ const buildFill = (prompt: string, answer: string, seed: string, distractors: st
   return { correct: fill, options };
 };
 
+const cleanClause = (value: string) =>
+  value.trim().replace(/\s+/g, " ").replace(/[.!?]+$/u, "");
+
+const shortExplanation = (first: string, second?: string) =>
+  [first, second]
+    .filter((part): part is string => Boolean(part?.trim()))
+    .slice(0, 2)
+    .map((part) => `${cleanClause(part)}.`)
+    .join(" ");
+
+const explanationDetail = (concept: TopicConcept, variant: number) => {
+  const details = [
+    concept.hint,
+    concept.scenario,
+    `Определяющий признак — «${concept.keyword}»`,
+    `Практический пример: ${cleanClause(concept.scenario)}`,
+    `На это значение указывает признак «${concept.keyword}»`,
+    `Отличительный ориентир — «${concept.keyword}»`,
+    `Смысл понятия раскрывает связь с признаком «${concept.keyword}»`,
+    `Пример «${cleanClause(concept.scenario)}» подтверждает это значение`,
+    `От близких понятий его отличает признак «${concept.keyword}»`,
+    `В определении важна характеристика «${concept.keyword}»`,
+    `Практическое проявление понятия: ${cleanClause(concept.scenario)}`,
+    `Подсказкой служит характеристика «${concept.keyword}»`,
+  ];
+  return details[variant % details.length];
+};
+
+const conceptExplanation = (concept: TopicConcept, variant: number) =>
+  shortExplanation(
+    `«${concept.term}» — ${cleanClause(concept.definition)}`,
+    explanationDetail(concept, variant),
+  );
+
+const falseStatementExplanation = (concept: TopicConcept, secondary: TopicConcept, variant: number) => {
+  const distinctions = [
+    `Приведённое определение относится к понятию «${secondary.term}», а не к «${concept.term}»`,
+    `В утверждении перепутаны «${concept.term}» и «${secondary.term}»`,
+    `Описание «${cleanClause(secondary.definition)}» раскрывает термин «${secondary.term}»`,
+    `Термин «${concept.term}» нельзя связывать с определением понятия «${secondary.term}»`,
+    `Указанный признак характеризует «${secondary.term}», поэтому утверждение неверно`,
+    `Определение взято у понятия «${secondary.term}» и не подходит к «${concept.term}»`,
+    `Смысл утверждения соответствует «${secondary.term}», а проверяется термин «${concept.term}»`,
+    `Здесь определение одного понятия ошибочно приписано другому`,
+    `Формулировка описывает «${secondary.term}» вместо «${concept.term}»`,
+    `Ошибка состоит в подмене значения «${concept.term}» значением «${secondary.term}»`,
+    `Признаки в утверждении принадлежат понятию «${secondary.term}»`,
+    `Определение и термин не совпадают: описание относится к «${secondary.term}»`,
+  ];
+  return shortExplanation(
+    distinctions[variant % distinctions.length],
+    `«${concept.term}» — ${cleanClause(concept.definition)}`,
+  );
+};
+
 export const generateQuestionBank = (): Question[] => {
   const questions: Question[] = [];
 
@@ -216,7 +271,7 @@ export const generateQuestionBank = (): Question[] => {
             question: prompts[promptVariant],
             options,
             correct: getCorrectOptionId(options),
-            explanation: `${concept.term} означает: ${concept.definition}`,
+            explanation: conceptExplanation(concept, promptOccurrence),
             source: topic.source,
             tags: commonTags,
             meta: { concept: concept.term },
@@ -259,7 +314,10 @@ export const generateQuestionBank = (): Question[] => {
             ][promptVariant],
             options,
             correct: options.filter((option) => option.isCorrect).map((option) => option.id),
-            explanation: `${concept.term}: ${concept.definition}. В учебной ситуации подходит и ${concept.scenario}.`,
+            explanation: shortExplanation(
+              `Оба верных утверждения относятся к «${concept.term}»: ${cleanClause(concept.definition)}`,
+              explanationDetail(concept, promptOccurrence),
+            ),
             source: topic.source,
             tags: commonTags,
             meta: { concept: concept.term, count: 2 },
@@ -291,8 +349,11 @@ export const generateQuestionBank = (): Question[] => {
             options,
             correct: isTrue,
             explanation: isTrue
-              ? `${concept.term}: ${concept.definition}`
-              : `Неверно. Определение «${secondary.definition}» относится к понятию «${secondary.term}». ${concept.term}: ${concept.definition}`,
+              ? shortExplanation(
+                  `Утверждение верно: «${concept.term}» — ${cleanClause(concept.definition)}`,
+                  explanationDetail(concept, promptOccurrence),
+                )
+              : falseStatementExplanation(concept, secondary, promptOccurrence),
             source: topic.source,
             tags: commonTags,
             meta: { concept: concept.term, statement: isTrue ? concept.definition : secondary.definition },
@@ -321,7 +382,10 @@ export const generateQuestionBank = (): Question[] => {
             question: prompt,
             options,
             correct,
-            explanation: `${concept.term}: ${concept.definition}`,
+            explanation: shortExplanation(
+              `Искомый термин — «${concept.term}»: ${cleanClause(concept.definition)}`,
+              explanationDetail(concept, promptOccurrence),
+            ),
             source: topic.source,
             tags: commonTags,
             meta: { concept: concept.term },
@@ -351,7 +415,10 @@ export const generateQuestionBank = (): Question[] => {
             ][promptVariant],
             options,
             correct: getCorrectOptionId(options),
-            explanation: `${concept.term} подходит лучше всего, потому что ${concept.definition.toLowerCase()}`,
+            explanation: shortExplanation(
+              `В ситуации показано понятие «${concept.term}»: ${cleanClause(concept.definition)}`,
+              explanationDetail(concept, promptOccurrence),
+            ),
             source: topic.source,
             tags: [...commonTags, "scenario"],
             meta: { concept: concept.term },
@@ -376,7 +443,10 @@ export const generateQuestionBank = (): Question[] => {
             ][promptVariant],
             options: matching.options,
             correct: matching.correct,
-            explanation: `Пара правильна, если термин соответствует своему определению. В этой теме важно помнить: ${concept.term} — ${concept.definition}`,
+            explanation: shortExplanation(
+              `Верные соответствия: ${matching.correct.map((pair) => `«${pair.left}» — ${cleanClause(pair.right)}`).join("; ")}`,
+              explanationDetail(concept, promptOccurrence),
+            ),
             source: topic.source,
             tags: [...commonTags, "matching"],
             meta: { left: matching.meta.left, right: matching.meta.right },
@@ -401,7 +471,10 @@ export const generateQuestionBank = (): Question[] => {
             ][promptVariant],
             options: sequence.options,
             correct: sequence.correct,
-            explanation: `Последовательность строится так: ${steps.join(" → ")}.`,
+            explanation: shortExplanation(
+              `Процесс идёт от «${steps[0]}» к «${steps[steps.length - 1]}»: ${steps.join(" → ")}`,
+              `Для понятия «${concept.term}» ${cleanClause(explanationDetail(concept, promptOccurrence)).toLowerCase()}`,
+            ),
             source: topic.source,
             tags: [...commonTags, "sequence"],
             meta: { steps },
@@ -418,7 +491,7 @@ export const generateQuestionBank = (): Question[] => {
             question: `Что означает термин «${concept.term}»?`,
             options,
             correct: getCorrectOptionId(options),
-            explanation: `${concept.term}: ${concept.definition}`,
+            explanation: conceptExplanation(concept, promptOccurrence),
             source: topic.source,
             tags: commonTags,
           };
@@ -461,14 +534,21 @@ export const validateQuestionBank = (questions: Question[]) => {
 
   const ids = new Set<string>();
   const prompts = new Map<string, string>();
+  const explanations = new Map<string, string>();
 
   for (const question of questions) {
     requireValid(!ids.has(question.id), question.id, "идентификатор должен быть уникальным");
     requireValid(!prompts.has(question.question), question.id, `текст вопроса должен быть уникальным; совпадает с ${prompts.get(question.question) ?? "неизвестным вопросом"}`);
     requireValid(!/Раздел «.+», вариант \d+/iu.test(question.question), question.id, "в тексте осталась служебная приписка");
     requireValid(question.question.trim().endsWith("?"), question.id, "текст должен содержать только вопрос");
+    const explanationSentences = question.explanation.trim().split(/(?<=[.!?])\s+/u).filter(Boolean);
+    requireValid(Boolean(question.explanation.trim()), question.id, "пояснение не должно быть пустым");
+    requireValid(explanationSentences.length <= 2, question.id, "пояснение должно содержать не больше двух предложений");
+    requireValid(!question.explanation.startsWith("В условии нужно"), question.id, "обнаружено общее шаблонное пояснение");
+    requireValid(!explanations.has(question.explanation), question.id, `пояснение должно быть отдельным; совпадает с ${explanations.get(question.explanation) ?? "неизвестным вопросом"}`);
     ids.add(question.id);
     prompts.set(question.question, question.id);
+    explanations.set(question.explanation, question.id);
 
     const topic = topicCatalog.find((item) => item.title === question.topic);
     requireValid(Boolean(topic), question.id, "неизвестная тема");

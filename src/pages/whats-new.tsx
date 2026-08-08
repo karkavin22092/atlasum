@@ -5,12 +5,52 @@ import type { AppPageProps } from "./types";
 
 const releases = [
   {
+    version: "2.2",
+    date: "8 августа 2026",
+    current: true,
+    title: "Новый учебный интерфейс Examora",
+    items: [
+      "Главная стала учебным рабочим центром: дисциплина выбирается сразу наверху, а экзамен, практика, игры и показатели профиля доступны в первом экране.",
+      "Добавлена новая система мягких скруглений, спокойных поверхностей, крупных зон нажатия и понятных состояний элементов без перегруженных декоративных эффектов.",
+      "ИТ и графика, менеджмент и экономика получили собственные парные палитры и разный ритм фоновой сетки, сохранив единый характер Examora.",
+      "Появились короткие анимации переключения, появления и наведения; при системной настройке уменьшения движения они автоматически отключаются.",
+      "Светлая и тёмная темы, формы, навигация и учебные экраны адаптированы для телефона, планшета и компьютера.",
+      "Добавлены эффекты жидкого стекла: мягкая прозрачность, размытие фона и аккуратные подсветки элементов.",
+      "Каждый из 3560 вопросов получил отдельное предметное пояснение длиной не больше двух предложений; общие шаблонные разборы из отчётов убраны.",
+      "Отбор вопросов усилен: внутри теста, мини-игры или дуэли исключаются совпадения по тексту, понятию, наборам соответствий и одинаковым последовательностям.",
+      "Система монет временно отключена: теперь основной наградой за прохождение и победы остаётся XP.",
+    ],
+  },
+  {
+    version: "2.1",
+    date: "7 августа 2026",
+    current: false,
+    title: "Полностью русские обозначения",
+    items: [
+      "В карточках вопросов, практике, мини-играх, отчётах и админке технические типы single, multiple, trueFalse и другие заменены русскими названиями.",
+      "Уровни сложности easy, medium и hard теперь отображаются как «Лёгкий», «Средний» и «Сложный».",
+    ],
+  },
+  {
+    version: "2.01",
+    date: "7 августа 2026",
+    current: false,
+    title: "Честные тесты и удобные последовательности",
+    items: [
+      "В одном тесте, экзамене, мини-игре или дуэли больше не повторяются вопросы по одному и тому же понятию.",
+      "Текстовые ответы проверяются без учёта регистра: строчные и заглавные буквы считаются одинаковыми.",
+      "Элементы последовательности можно перетаскивать в список и менять их порядок за специальную ручку.",
+      "Практика, экзамены, повторение, мини-игры и дуэли теперь доступны только после регистрации или входа.",
+      "Добавлены инструкции для локального тестирования сайта без публикации в Git и без расходования build-токенов Netlify.",
+    ],
+  },
+  {
     version: "2.0",
     date: "7 августа 2026",
-    current: true,
+    current: false,
     title: "Синхронизированные онлайн-дуэли",
     items: [
-      "Добавлен отдельный режим 1 на 1: можно пригласить игрока, который сейчас онлайн, и выбрать ИТ/графику или менеджмент.",
+      "Добавлен отдельный режим 1 на 1: можно пригласить игрока, который сейчас онлайн, и выбрать ИТ/графику, менеджмент или экономику.",
       "Оба участника получают один случайный набор из 10 вопросов и 10 минут на прохождение; ответы проверяются на сервере.",
       "Победитель получает +150 XP, а проигравший получает +50 XP только при результате больше половины правильных ответов.",
       "Приглашение отменяется при выходе приглашающего, а досрочный выход соперника засчитывается как поражение с аннулированием ответов.",
@@ -56,10 +96,10 @@ export const WhatsNewPage = ({ meta: _meta }: AppPageProps) => (
     />
     <div className="space-y-4">
       {releases.map((release) => (
-        <article key={release.version} className={release.current ? "glass-strong rounded-3xl border-cyan-300/30 p-5 shadow-glow sm:p-6" : "glass rounded-3xl p-5 sm:p-6"}>
+        <article key={release.version} className={release.current ? "v22-release is-current glass-strong rounded-3xl border-cyan-300/30 p-5 shadow-glow sm:p-6" : "v22-release glass rounded-3xl p-5 sm:p-6"}>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex items-start gap-3">
-              <div className={release.current ? "grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-cyan-400/15 text-cyan-200" : "grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/10 text-slate-300"}>
+              <div className={release.current ? "v22-release-icon grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-cyan-400/15 text-cyan-200" : "grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/10 text-slate-300"}>
                 {release.current ? <Sparkles className="h-5 w-5" /> : <CheckCircle2 className="h-5 w-5" />}
               </div>
               <div>
@@ -70,7 +110,7 @@ export const WhatsNewPage = ({ meta: _meta }: AppPageProps) => (
             <div className="text-sm font-medium text-slate-300">{release.title}</div>
           </div>
           <ul className="mt-5 space-y-3 border-t border-white/10 pt-5">
-            {release.items.map((item) => <li key={item} className="flex gap-3 text-sm leading-6 text-slate-300"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-300" />{item}</li>)}
+            {release.items.map((item) => <li key={item} className="flex gap-3 text-sm leading-6 text-slate-300"><span className="v22-release-bullet mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-300" />{item}</li>)}
           </ul>
         </article>
       ))}

@@ -42,7 +42,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   meta: (profileName: string) => withLocalFallback(() => request<DashboardMeta & {
-    profile: { id: string; name: string; xp: number; coins: number; level: number; streak: number; bestStreak: number; lastActiveAt: string | null };
+    profile: { id: string; name: string; xp: number; level: number; streak: number; bestStreak: number; lastActiveAt: string | null };
     stats: {
       totalQuestionsAnswered: number;
       totalCorrect: number;

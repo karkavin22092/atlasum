@@ -35,6 +35,39 @@ export type FeedbackCooldown = {
   nextAllowedAt: string | null;
 };
 
+const feedbackPageNames: Record<string, string> = {
+  "/": "Главная",
+  "/practice": "Практика и экзамены",
+  "/games": "Мини-игры",
+  "/duels": "Онлайн-дуэли",
+  "/review": "Повторение",
+  "/leaderboard": "Рейтинг",
+  "/messages": "Сообщения",
+  "/notifications": "Уведомления",
+  "/whats-new": "Что нового?",
+  "/suggest": "Предложения и сообщения о багах",
+};
+
+const feedbackSubjectNames: Record<string, string> = {
+  "it-design": "ИТ и графика",
+  management: "Менеджмент",
+  economics: "Экономика",
+};
+
+export const formatFeedbackPage = (pageUrl: string) => {
+  if (!pageUrl) return "Страница не указана";
+  try {
+    const url = new URL(pageUrl, "https://examora.local");
+    const pageName = feedbackPageNames[url.pathname] ?? "Страница Examora";
+    const subject = url.searchParams.get("subject");
+    return subject && feedbackSubjectNames[subject]
+      ? pageName + " · " + feedbackSubjectNames[subject]
+      : pageName;
+  } catch {
+    return "Страница Examora";
+  }
+};
+
 export class FeedbackRequestError extends Error {
   remainingSeconds: number;
   nextAllowedAt: string | null;

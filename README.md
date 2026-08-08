@@ -15,6 +15,41 @@
 - Регистрация, вход и таблица лидеров
 - Общие личные сообщения между зарегистрированными участниками рейтинга
 
+## Локальное тестирование без Git и Netlify
+
+Для Windows сначала установите Node.js LTS. Откройте PowerShell от имени пользователя и выполните:
+
+```powershell
+winget install OpenJS.NodeJS.LTS
+```
+
+После установки полностью закройте PowerShell, откройте новое окно и проверьте:
+
+```powershell
+node --version
+npm --version
+```
+
+Если команда `winget` недоступна, установите Node.js LTS с официальной страницы [nodejs.org](https://nodejs.org/en/download), затем также откройте новый PowerShell.
+
+Обычный режим разработки не отправляет код в GitHub и не расходует build-токены Netlify:
+
+```powershell
+npm install
+npm run dev
+```
+
+После запуска откройте `http://localhost:5173`. Изменения в интерфейсе применяются автоматически. Для остановки сервера нажмите `Ctrl+C`.
+
+Чтобы локально проверить production-версию и Netlify Functions, соберите сайт на своём компьютере и запустите Netlify Dev:
+
+```powershell
+npm run build:web
+npx netlify dev --dir dist/client --port 8888
+```
+
+Затем откройте `http://localhost:8888`. Локальная сборка выполняется на компьютере и не использует минуты или build-токены облачной сборки Netlify.
+
 ## Запуск
 
 ```bash

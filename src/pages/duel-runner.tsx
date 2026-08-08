@@ -9,6 +9,7 @@ import { getDuel, leaveDuel, submitDuel, type Duel } from "@/lib/duels";
 import { formatDuration } from "@/lib/utils";
 import type { Question } from "@shared/types";
 import type { AppPageProps } from "./types";
+import { difficultyLabels } from "@/lib/question-labels";
 
 const subjectTitle = (subject: Duel["subject"]) => subject === "management" ? "Менеджмент" : subject === "economics" ? "Экономика" : "ИТ и графика";
 
@@ -107,7 +108,7 @@ export const DuelRunnerPage = ({ meta: _meta }: AppPageProps) => {
         <>
           <div className="grid gap-3 sm:grid-cols-4"><GlassCard><div className="text-xs text-slate-400">Вопрос</div><div className="mt-1 text-2xl font-semibold text-white">{index + 1}/{questions.length}</div></GlassCard><GlassCard><div className="text-xs text-slate-400">Ваши ответы</div><div className="mt-1 text-2xl font-semibold text-white">{answered}/{questions.length}</div></GlassCard><GlassCard><div className="text-xs text-slate-400">Время</div><div className="mt-1 text-2xl font-semibold text-white">{formatDuration(timeLeft)}</div></GlassCard><GlassCard><div className="text-xs text-slate-400">Соперник</div><div className="mt-1 truncate text-lg font-semibold text-white">{duel.opponent.name}</div></GlassCard></div>
           <Panel className="space-y-5">
-            {publicQuestion ? <><div className="flex flex-wrap items-center gap-2"><Badge tone="cyan">{current?.topic}</Badge><Badge tone="violet">{current?.difficulty}</Badge></div><h2 className="text-2xl font-semibold leading-9 text-white">{current?.question}</h2><QuestionRenderer question={publicQuestion} value={answers[current!.id]} onChange={(value) => setAnswers((prev) => ({ ...prev, [current!.id]: value }))} /></> : null}
+            {publicQuestion ? <><div className="flex flex-wrap items-center gap-2"><Badge tone="cyan">{current?.topic}</Badge><Badge tone="violet">{current ? difficultyLabels[current.difficulty] : ""}</Badge></div><h2 className="text-2xl font-semibold leading-9 text-white">{current?.question}</h2><QuestionRenderer question={publicQuestion} value={answers[current!.id]} onChange={(value) => setAnswers((prev) => ({ ...prev, [current!.id]: value }))} /></> : null}
             <div className="flex flex-wrap items-center justify-between gap-3"><Button variant="secondary" onClick={() => setIndex((value) => Math.max(0, value - 1))} disabled={index === 0}><ArrowLeft className="h-4 w-4" />Назад</Button><div className="flex gap-2"><Button variant="secondary" onClick={() => setIndex((value) => Math.min(questions.length - 1, value + 1))} disabled={index === questions.length - 1}>Далее<ArrowLeft className="h-4 w-4 rotate-180" /></Button><Button onClick={() => submit()} disabled={submitMutation.isPending}>{submitMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}Завершить</Button></div></div>
           </Panel>
         </>

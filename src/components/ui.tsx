@@ -12,7 +12,7 @@ export const GlassCard = ({
   children: ReactNode;
   className?: string;
 } & HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("glass rounded-3xl p-4 sm:p-5", className)} {...props}>
+  <div className={cn("glass v22-card rounded-3xl p-4 sm:p-5", className)} {...props}>
     {children}
   </div>
 );
@@ -25,7 +25,7 @@ export const Panel = ({
   children: ReactNode;
   className?: string;
 } & HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("glass-strong rounded-3xl p-4 sm:p-6", className)} {...props}>
+  <div className={cn("glass-strong v22-panel rounded-3xl p-4 sm:p-6", className)} {...props}>
     {children}
   </div>
 );
@@ -41,10 +41,10 @@ export const TitleBlock = ({
   description?: string;
   right?: ReactNode;
 }) => (
-  <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+  <div className="v22-title-block mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
     <div>
-      {eyebrow ? <div className="mb-2 text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200/80">{eyebrow}</div> : null}
-      <h1 className="text-2xl font-semibold text-white sm:text-4xl">{title}</h1>
+      {eyebrow ? <div className="v22-eyebrow mb-2 text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200/80">{eyebrow}</div> : null}
+      <h1 className="v22-page-title text-2xl font-semibold text-white sm:text-4xl">{title}</h1>
       {description ? <p className="mt-2 max-w-3xl text-sm text-slate-300 sm:text-base">{description}</p> : null}
     </div>
     {right}
@@ -62,7 +62,7 @@ export const StatCard = ({
   hint?: string;
   accent?: string;
 }) => (
-  <GlassCard className="relative overflow-hidden">
+  <GlassCard className="v22-stat relative overflow-hidden">
     <div className={cn("absolute inset-x-0 top-0 h-1 bg-gradient-to-r", accent)} />
     <div className="text-xs uppercase tracking-[0.24em] text-slate-400">{label}</div>
     <div className="mt-2 text-2xl font-semibold text-white">{value}</div>
@@ -89,7 +89,8 @@ export const Button = ({
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium transition duration-200 disabled:cursor-not-allowed disabled:opacity-50",
+        "v22-button inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium transition duration-200 disabled:cursor-not-allowed disabled:opacity-50",
+        `v22-button-${variant}`,
         styles[variant],
         className,
       )}
@@ -119,16 +120,16 @@ export const Badge = ({
   };
 
   return (
-    <span className={cn("theme-badge inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium", `theme-badge-${tone}`, tones[tone], className)}>
+    <span className={cn("theme-badge v22-badge inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium", `theme-badge-${tone}`, tones[tone], className)}>
       {children}
     </span>
   );
 };
 
 export const ProgressBar = ({ value }: { value: number }) => (
-  <div className="h-2 overflow-hidden rounded-full bg-white/10">
+  <div className="v22-progress h-2 overflow-hidden rounded-full bg-white/10">
     <motion.div
-      className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-violet-500"
+      className="v22-progress-value h-full rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-violet-500"
       initial={{ width: 0 }}
       animate={{ width: `${Math.max(0, Math.min(100, value))}%` }}
       transition={{ duration: 0.6, ease: "easeOut" }}
@@ -148,7 +149,7 @@ export const BackButton = ({
   <Link
     to={to}
     className={cn(
-      "inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:-translate-y-0.5 hover:bg-white/10 hover:text-white",
+      "v22-back-button inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:-translate-y-0.5 hover:bg-white/10 hover:text-white",
       className,
     )}
   >

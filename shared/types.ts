@@ -88,7 +88,6 @@ export type Profile = {
   id: string;
   name: string;
   xp: number;
-  coins: number;
   level: number;
   streak: number;
   bestStreak: number;
@@ -154,7 +153,6 @@ export type SubmissionResponse = {
   percent: number;
   grade: string;
   xpGained: number;
-  coinsGained: number;
   level: number;
   streak: number;
   bestStreak: number;

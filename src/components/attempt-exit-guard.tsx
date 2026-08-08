@@ -3,7 +3,7 @@ import { useBlocker } from "react-router-dom";
 import { AlertTriangle, LogOut, ShieldCheck } from "lucide-react";
 import { Button, Panel } from "./ui";
 
-export const ATTEMPT_EXIT_MESSAGE = "Если выйти сейчас, попытка не сохранится: баллы, XP и монеты не будут начислены. Выйти без сохранения?";
+export const ATTEMPT_EXIT_MESSAGE = "Если выйти сейчас, попытка не сохранится: баллы и XP не будут начислены. Выйти без сохранения?";
 
 export const confirmDiscardAttempt = (active: boolean) => !active || window.confirm(ATTEMPT_EXIT_MESSAGE);
 
@@ -12,7 +12,7 @@ export const AttemptExitNotice = () => (
     <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
     <div>
       <div className="font-semibold">Завершите попытку, чтобы получить баллы</div>
-      <div className="mt-1 text-amber-100/75">При досрочном выходе результат не сохраняется, XP и монеты не начисляются.</div>
+      <div className="mt-1 text-amber-100/75">При досрочном выходе результат не сохраняется и XP не начисляется.</div>
     </div>
   </div>
 );
@@ -43,7 +43,7 @@ export const AttemptExitGuard = ({ active }: { active: boolean }) => {
           <div>
             <div id="attempt-exit-title" className="text-xl font-semibold text-white">Выйти досрочно?</div>
             <div className="mt-2 text-sm leading-6 text-slate-300">
-              Попытка не будет сохранена. Баллы, XP и монеты за неё не начислятся.
+              Попытка не будет сохранена. Баллы и XP за неё не начислятся.
             </div>
           </div>
         </div>

@@ -11,6 +11,7 @@ import { ArrowLeft, ArrowRight, RefreshCcw, Shuffle, Sparkles } from "lucide-rea
 import { Link, useSearchParams } from "react-router-dom";
 import type { AppPageProps } from "./types";
 import type { GeneratedTest, SubjectId, SubmissionResponse } from "@shared/types";
+import { difficultyLabels, questionTypeLabels } from "@/lib/question-labels";
 
 const COUNT_OPTIONS = [10, 20, 30, 50, 100];
 
@@ -314,13 +315,13 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
                 <Badge tone="cyan">{test?.title}</Badge>
                 <Badge tone="slate">{currentIndex + 1}/{questions.length}</Badge>
                 <Badge tone={currentQuestion.difficulty === "hard" ? "rose" : currentQuestion.difficulty === "medium" ? "amber" : "emerald"}>
-                  {currentQuestion.difficulty}
+                  {difficultyLabels[currentQuestion.difficulty]}
                 </Badge>
                 <Badge tone="violet">{currentQuestion.topic}</Badge>
               </div>
 
               <GlassCard className="space-y-3">
-                <div className="text-xs uppercase tracking-[0.24em] text-slate-400">{currentQuestion.type}</div>
+                <div className="text-xs uppercase tracking-[0.24em] text-slate-400">{questionTypeLabels[currentQuestion.type]}</div>
                 <div className="text-xl font-semibold leading-8 text-white">{currentQuestion.question}</div>
               </GlassCard>
 

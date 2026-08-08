@@ -9,6 +9,7 @@ const envFile = path.join(root, ".env");
 const envExample = path.join(root, ".env.example");
 const dataFile = path.join(root, "data", "questions.json");
 const dbFile = path.join(root, "prisma", "dev.db");
+const prismaClientFile = path.join(root, "node_modules", ".prisma", "client", "index.js");
 
 if (!existsSync(envFile) && existsSync(envExample)) {
   writeFileSync(envFile, readFileSync(envExample, "utf8"), "utf8");
@@ -16,8 +17,10 @@ if (!existsSync(envFile) && existsSync(envExample)) {
 
 mkdirSync(path.join(root, "data"), { recursive: true });
 
-execSync("npx prisma generate", { stdio: "inherit" });
-execSync("npx prisma db push", { stdio: "inherit" });
+if (!existsSync(prismaClientFile)) {
+  execSync("npx prisma generate", { stdio: "inherit" });
+}
+execSync("npx prisma db push --skip-generate", { stdio: "inherit" });
 
 if (!existsSync(dataFile)) {
   execSync("tsx scripts/generate-questions.ts", { stdio: "inherit" });
@@ -32,7 +35,6 @@ const ensureProfile = async () => {
       id: "local-user",
       name: "Гость",
       xp: 0,
-      coins: 0,
       level: 1,
       streak: 0,
       bestStreak: 0,
@@ -63,25 +65,23 @@ const ensureQuestionBank = async () => {
     });
   }
 
-  if (existingQuestions.size !== questions.length) {
-    const existingGeneratedQuestions = questions.filter((question) => existingQuestions.has(question.id));
-    for (let index = 0; index < existingGeneratedQuestions.length; index += 100) {
-      await prisma.$transaction(existingGeneratedQuestions.slice(index, index + 100).map((question) => prisma.question.update({
-        where: { id: question.id },
-        data: {
-          topic: question.topic,
-          difficulty: question.difficulty,
-          type: question.type,
-          question: question.question,
-          options: question.options as never,
-          correct: question.correct as never,
-          explanation: question.explanation,
-          source: question.source,
-          tags: question.tags as never,
-          meta: (question.meta ?? null) as never,
-        },
-      })));
-    }
+  const existingGeneratedQuestions = questions.filter((question) => existingQuestions.has(question.id));
+  for (let index = 0; index < existingGeneratedQuestions.length; index += 100) {
+    await prisma.$transaction(existingGeneratedQuestions.slice(index, index + 100).map((question) => prisma.question.update({
+      where: { id: question.id },
+      data: {
+        topic: question.topic,
+        difficulty: question.difficulty,
+        type: question.type,
+        question: question.question,
+        options: question.options as never,
+        correct: question.correct as never,
+        explanation: question.explanation,
+        source: question.source,
+        tags: question.tags as never,
+        meta: (question.meta ?? null) as never,
+      },
+    })));
   }
 
   const existingReviews = new Set((await prisma.questionReview.findMany({ select: { questionId: true } })).map((review) => review.questionId));

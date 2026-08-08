@@ -27,6 +27,7 @@ import { getUnreadFeedbackCount, getUnreadNotificationCount } from "./lib/bugs";
 import { isAdminUser } from "./lib/permissions";
 import { AvatarMenu } from "./components/avatar-menu";
 import { WhatsNewPage } from "./pages/whats-new";
+import { DESIGN_V22_ENABLED } from "./lib/design-version";
 
 type AppMeta = DashboardMeta & {
   profile: Profile;
@@ -78,7 +79,6 @@ const fallbackMeta: AppMeta = {
     id: "local-user",
     name: "Гость",
     xp: 0,
-    coins: 0,
     level: 1,
     streak: 0,
     bestStreak: 0,
@@ -162,15 +162,20 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const unreadFeedbackCount = unreadFeedbackQuery.data?.count ?? 0;
   const badgeLabel = (count: number) => count > 99 ? "99+" : String(count);
   const sourcePage = `${location.pathname}${location.search}`;
+  const requestedSubject = new URLSearchParams(location.search).get("subject");
+  const activeSubject = requestedSubject === "management" || requestedSubject === "economics" ? requestedSubject : "it-design";
 
   return (
-    <div className="theme-shell min-h-screen text-slate-100">
+    <div
+      className={`theme-shell min-h-screen text-slate-100${DESIGN_V22_ENABLED ? " design-v22" : ""}`}
+      data-subject={activeSubject}
+    >
       <div className="fixed inset-0 -z-10 soft-grid opacity-35" />
       <div className="theme-atmosphere fixed inset-0 -z-20" />
 
-      <header className="theme-header sticky top-0 z-40 border-b backdrop-blur-xl">
+      <header className="theme-header v22-header sticky top-0 z-40 border-b backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
-          <Link to="/" className="flex min-w-0 items-center gap-2.5 transition hover:opacity-90 sm:gap-3">
+          <Link to={`/?subject=${activeSubject}`} className="v22-brand flex min-w-0 items-center gap-2.5 transition hover:opacity-90 sm:gap-3">
             <div className="theme-brand-mark flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400 via-sky-500 to-violet-500 shadow-glow sm:h-11 sm:w-11">
               <Sparkles className="h-5 w-5 text-white" />
             </div>
@@ -183,7 +188,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             </div>
           </Link>
 
-          <div className="hidden items-center gap-2 xl:flex">
+          <div className="v22-desktop-nav hidden items-center gap-2 xl:flex">
             {user ? (
               <Link to="/messages" className="glass relative inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm text-slate-200 transition hover:bg-white/10">
                 <MessageCircle className="h-4 w-4 text-cyan-300" />
@@ -243,11 +248,11 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             </button>
           </div>
 
-          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2 xl:hidden">
-            <Link to="/whats-new" aria-label="Что нового?" className="glass inline-flex h-10 w-10 items-center justify-center rounded-full">
+          <div className="v22-mobile-nav flex shrink-0 items-center gap-1.5 sm:gap-2 xl:hidden">
+            <Link to="/whats-new" aria-label="Что нового?" className="v22-mobile-extra glass inline-flex h-10 w-10 items-center justify-center rounded-full">
               <Sparkles className="h-4 w-4 text-cyan-300" />
             </Link>
-            <Link to="/leaderboard" aria-label="Рейтинг" className="glass inline-flex h-10 w-10 items-center justify-center rounded-full">
+            <Link to="/leaderboard" aria-label="Рейтинг" className="v22-mobile-extra glass inline-flex h-10 w-10 items-center justify-center rounded-full">
               <Trophy className="h-4 w-4 text-amber-300" />
             </Link>
             {user ? (
@@ -269,7 +274,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-3 pb-28 pt-4 sm:px-6 sm:pt-6 xl:pb-14 lg:px-8">
+      <main className="v22-main mx-auto max-w-7xl px-3 pb-28 pt-4 sm:px-6 sm:pt-6 xl:pb-14 lg:px-8">
         {metaQuery.isLoading ? (
           <div className="mb-4 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-50">
             Загружаю базу вопросов...
@@ -297,7 +302,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         </AnimatePresence>
       </main>
 
-      <footer className={`border-t border-white/10 ${user ? "pb-28 xl:pb-8" : "pb-8"}`}>
+      <footer className={`v22-footer border-t border-white/10 ${user ? "pb-28 xl:pb-8" : "pb-8"}`}>
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-6 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <div>
             <div className="text-sm font-semibold text-white">Создатель Examora · lonexnesss</div>
@@ -312,7 +317,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
       </footer>
 
       {user ? (
-        <nav className="glass-strong fixed inset-x-2 bottom-2 z-50 flex items-center justify-around rounded-3xl px-1 py-1.5 sm:inset-x-3 sm:bottom-3 sm:px-2 sm:py-2 xl:hidden" aria-label="Быстрые действия">
+        <nav className="glass-strong v22-bottom-nav fixed inset-x-2 bottom-2 z-50 flex items-center justify-around rounded-3xl px-1 py-1.5 sm:inset-x-3 sm:bottom-3 sm:px-2 sm:py-2 xl:hidden" aria-label="Быстрые действия">
           <Link to="/messages" className="relative grid min-w-14 place-items-center gap-1 rounded-2xl px-2 py-2 text-[10px] text-slate-300">
             <MessageCircle className="h-5 w-5 text-cyan-300" /><span>Чаты</span>
             {unreadMessageCount ? <span className="message-unread-badge absolute right-1 top-0 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold">{unreadLabel}</span> : null}
@@ -341,15 +346,22 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   );
 };
 
+const RequireAuth = ({ children }: { children: ReactNode }) => {
+  const { user } = useAuth();
+  const location = useLocation();
+  if (!user) return <Navigate to="/auth" replace state={{ from: `${location.pathname}${location.search}` }} />;
+  return <>{children}</>;
+};
+
 const App = () => {
   return (
     <Routes>
       <Route path="/" element={<AppShell><HomePage /></AppShell>} />
-      <Route path="/practice" element={<AppShell><PracticePage /></AppShell>} />
-      <Route path="/review" element={<AppShell><ReviewPage /></AppShell>} />
-      <Route path="/games" element={<AppShell><GamesPage /></AppShell>} />
-      <Route path="/games/:gameId" element={<AppShell><GameRunnerPage /></AppShell>} />
-      <Route path="/duels/:duelId" element={<AppShell><DuelRunnerPage /></AppShell>} />
+      <Route path="/practice" element={<RequireAuth><AppShell><PracticePage /></AppShell></RequireAuth>} />
+      <Route path="/review" element={<RequireAuth><AppShell><ReviewPage /></AppShell></RequireAuth>} />
+      <Route path="/games" element={<RequireAuth><AppShell><GamesPage /></AppShell></RequireAuth>} />
+      <Route path="/games/:gameId" element={<RequireAuth><AppShell><GameRunnerPage /></AppShell></RequireAuth>} />
+      <Route path="/duels/:duelId" element={<RequireAuth><AppShell><DuelRunnerPage /></AppShell></RequireAuth>} />
       <Route path="/admin" element={<AppShell><AdminPage /></AppShell>} />
       <Route path="/leaderboard" element={<AppShell><LeaderboardPage /></AppShell>} />
       <Route path="/whats-new" element={<AppShell><WhatsNewPage /></AppShell>} />

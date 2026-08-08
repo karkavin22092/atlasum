@@ -6,7 +6,6 @@ export type AppPageProps = {
       id: string;
       name: string;
       xp: number;
-      coins: number;
       level: number;
       streak: number;
       bestStreak: number;

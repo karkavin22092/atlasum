@@ -1,6 +1,7 @@
 import { getStore } from "@netlify/blobs";
 import questionData from "../../data/questions.json";
 import { dashboardMeta } from "../../server/content";
+import { uniqueQuestions } from "../../shared/question-uniqueness";
 
 type SubjectId = "it-design" | "management" | "economics";
 type DuelStatus = "pending" | "active" | "finished" | "cancelled" | "declined";
@@ -92,7 +93,7 @@ const subjectQuestions = (subject: SubjectId) => {
   const allowed = new Set(dashboardMeta.topics.filter((topic) => topic.subject === subject).map((topic) => topic.title));
   const pool = questions.filter((question) => allowed.has(question.topic));
   const shuffled = [...pool].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, TOTAL_QUESTIONS);
+  return uniqueQuestions(shuffled, TOTAL_QUESTIONS);
 };
 const normalizeText = (value: string) => value.toLowerCase().replace(/ё/g, "е").replace(/[^a-zа-я0-9]+/giu, "");
 const isCorrect = (question: DuelQuestion, answer: unknown) => {

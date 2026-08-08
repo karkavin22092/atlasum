@@ -11,6 +11,7 @@ import { hasAnswer } from "@/lib/answers";
 import { ArrowLeft, ArrowRight, CheckCircle2, EyeOff, Lightbulb, Shuffle, SkipForward, TimerReset, Trophy, RotateCcw } from "lucide-react";
 import type { AppPageProps } from "./types";
 import type { FillQuestion, GeneratedTest, MatchingItem, Question, QuestionType, SequenceQuestion, SubmissionResponse } from "@shared/types";
+import { difficultyLabels } from "@/lib/question-labels";
 
 const GAME_LABELS: Record<string, { title: string; mode: string; duration: number; questions: number; subtitle: string; questionType?: QuestionType }> = {
   cards: { title: "Карточки", mode: "practice", duration: 0, questions: 12, subtitle: "Переворот терминов и определений.", questionType: "single" },
@@ -332,7 +333,7 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
             <Badge tone="cyan">{index + 1}/{questions.length}</Badge>
             <Badge tone="violet">{current.topic}</Badge>
             <Badge tone={current.difficulty === "hard" ? "rose" : current.difficulty === "medium" ? "amber" : "emerald"}>
-              {current.difficulty}
+              {difficultyLabels[current.difficulty]}
             </Badge>
           </div>
           <div className="mt-4 text-2xl font-semibold leading-9 text-white">{current.question}</div>

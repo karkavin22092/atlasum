@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ImagePlus, LoaderCircle, LogOut, Trash2, UserRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -13,6 +13,28 @@ export const AvatarMenu = ({ compact = false }: { compact?: boolean }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const closeMenu = (event: PointerEvent) => {
+      const menu = detailsRef.current;
+      if (menu?.open && event.target instanceof Node && !menu.contains(event.target)) {
+        menu.removeAttribute("open");
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && detailsRef.current?.open) {
+        detailsRef.current.removeAttribute("open");
+        detailsRef.current.querySelector("summary")?.focus();
+      }
+    };
+
+    document.addEventListener("pointerdown", closeMenu);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeMenu);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, []);
 
   if (!user) return null;
 
@@ -51,22 +73,25 @@ export const AvatarMenu = ({ compact = false }: { compact?: boolean }) => {
   };
 
   return (
-    <details ref={detailsRef} className="relative">
+    <details ref={detailsRef} className="avatar-menu relative">
       <summary
         aria-label="Открыть меню профиля"
         title="Профиль и аватар"
-        className={`grid cursor-pointer list-none place-items-center overflow-hidden rounded-full border border-white/10 bg-white/10 text-xs font-semibold text-white transition hover:border-cyan-300/30 hover:bg-white/15 [&::-webkit-details-marker]:hidden ${compact ? "h-10 w-10" : "h-8 w-8"}`}
+        className={`avatar-trigger relative grid cursor-pointer list-none place-items-center overflow-hidden rounded-full border border-white/10 bg-white/10 text-xs font-semibold text-white transition hover:border-cyan-300/30 hover:bg-white/15 [&::-webkit-details-marker]:hidden ${compact ? "h-10 w-10" : "h-9 w-9"}`}
       >
         {pending ? (
           <LoaderCircle className="h-4 w-4 animate-spin text-cyan-300" />
         ) : user.avatarUrl ? (
           <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" />
         ) : (
-          initials(user.name) || <UserRound className="h-4 w-4" />
+          <>
+            <span>{initials(user.name)}</span>
+            <span className="avatar-add-badge" aria-hidden="true"><ImagePlus /></span>
+          </>
         )}
       </summary>
 
-      <div className="glass-strong absolute right-0 top-full z-50 mt-2 w-60 rounded-2xl p-2 shadow-2xl">
+      <div className="avatar-popover glass-strong absolute right-0 top-full z-50 mt-2 w-64 rounded-2xl p-2 shadow-2xl">
         <div className="flex items-center gap-3 border-b border-white/10 px-2 pb-3 pt-1">
           <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-white/10 text-xs font-semibold text-white">
             {user.avatarUrl ? <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" /> : initials(user.name)}
@@ -77,7 +102,7 @@ export const AvatarMenu = ({ compact = false }: { compact?: boolean }) => {
           </div>
         </div>
 
-        <button type="button" onClick={() => inputRef.current?.click()} disabled={pending} className="mt-2 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-slate-200 transition hover:bg-white/10 disabled:opacity-50">
+        <button type="button" onClick={() => inputRef.current?.click()} disabled={pending} className="avatar-upload-action mt-2 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-slate-200 transition hover:bg-white/10 disabled:opacity-50">
           <ImagePlus className="h-4 w-4 text-cyan-300" />Загрузить аватар
         </button>
         {user.avatarUrl ? (

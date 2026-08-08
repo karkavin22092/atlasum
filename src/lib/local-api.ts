@@ -4,6 +4,7 @@ import { ADMIN_USERNAME } from "./permissions";
 import { hasAnswer } from "./answers";
 import { isDeletedAccountName } from "./deleted-accounts";
 import { hasLegacyQuestionMetadata, sanitizeQuestionText } from "@shared/question-text";
+import { createQuestionUniquenessState, tryAddUniqueQuestion, uniqueQuestions } from "@shared/question-uniqueness";
 import type {
   AttemptResult,
   AttemptSubmission,
@@ -87,12 +88,10 @@ const rebuildProfileProgress = (profile: StoredProfile) => {
   const reviews: Record<string, ReviewRecord> = {};
   const activity: StoredProfile["activity"] = {};
   let xp = 0;
-  let coins = 0;
 
   attempts.forEach((attempt) => {
     const attemptXp = attempt.items.reduce((sum, result) => sum + xpForResult(result), 0);
     xp += attemptXp;
-    coins += Math.max(1, Math.round(attempt.score * 1.5 + attempt.percent / 10));
     const date = attempt.createdAt.slice(0, 10);
     const day = activity[date] ?? { attempts: 0, correct: 0, xp: 0 };
     activity[date] = { attempts: day.attempts + 1, correct: day.correct + attempt.score, xp: day.xp + attemptXp };
@@ -130,7 +129,6 @@ const rebuildProfileProgress = (profile: StoredProfile) => {
   profile.reviews = reviews;
   profile.activity = activity;
   profile.xp = xp;
-  profile.coins = coins;
   profile.level = Math.floor(xp / 250) + 1;
   profile.streak = activeDates.length ? runningStreak : 0;
   profile.bestStreak = bestStreak;
@@ -168,6 +166,17 @@ const removeLegacyBuiltInOverrides = (database: LocalDatabase) => {
   return staleIds.length > 0;
 };
 
+const removeLegacyCoinData = (database: LocalDatabase) => {
+  let changed = false;
+  Object.values(database.profiles).forEach((profile) => {
+    const legacyProfile = profile as StoredProfile & { coins?: unknown };
+    if (!("coins" in legacyProfile)) return;
+    delete legacyProfile.coins;
+    changed = true;
+  });
+  return changed;
+};
+
 const readDatabase = (): LocalDatabase => {
   if (typeof window === "undefined") return emptyDatabase();
   try {
@@ -175,7 +184,8 @@ const readDatabase = (): LocalDatabase => {
     const deletedProfiles = removeDeletedProfiles(database);
     const removedAttempts = removeCorruptedAttempts(database);
     const removedLegacyQuestions = removeLegacyBuiltInOverrides(database);
-    const changed = deletedProfiles || removedAttempts || removedLegacyQuestions;
+    const removedLegacyCoins = removeLegacyCoinData(database);
+    const changed = deletedProfiles || removedAttempts || removedLegacyQuestions || removedLegacyCoins;
     if (changed) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(database));
     return database;
   } catch {
@@ -211,7 +221,6 @@ const ensureProfile = (database: LocalDatabase, profileName?: string) => {
       id,
       name,
       xp: 0,
-      coins: 0,
       level: 1,
       streak: 0,
       bestStreak: 0,
@@ -338,7 +347,7 @@ const userAnswerPreview = (question: Question, answer: unknown): unknown => {
 };
 
 const weightedSample = (questions: Question[], profile: StoredProfile, count: number) =>
-  questions
+  uniqueQuestions(questions
     .map((question) => {
       const review = profile.reviews[question.id];
       const difficultyWeight = question.difficulty === "hard" ? 2 : question.difficulty === "medium" ? 1.35 : 1;
@@ -346,8 +355,7 @@ const weightedSample = (questions: Question[], profile: StoredProfile, count: nu
       return { question, score: Math.pow(Math.random(), 1 / (difficultyWeight * masteryWeight)) };
     })
     .sort((left, right) => right.score - left.score)
-    .slice(0, count)
-    .map((entry) => entry.question);
+    .map((entry) => entry.question), count);
 
 const uniqueQuestionPool = (questions: Question[]) => {
   const ids = new Set<string>();
@@ -384,7 +392,7 @@ const getStats = (profile: StoredProfile): ProfileStats => {
     xpPerLevel: 250,
     nextLevelXp,
     levelProgress: Math.min(100, Math.max(0, ((profile.xp - levelStart) / 250) * 100)),
-    reviewDue: reviews.filter((review) => !review.nextReviewAt || new Date(review.nextReviewAt).getTime() <= now).length,
+    reviewDue: reviews.filter((review) => review.timesAnswered > 0 && (!review.nextReviewAt || new Date(review.nextReviewAt).getTime() <= now)).length,
     mastered: reviews.filter((review) => review.mastery >= 0.8).length,
     weak: reviews.filter((review) => review.timesAnswered > 0 && review.mastery < 0.45).length,
   };
@@ -537,11 +545,21 @@ export const localApi = {
 
     let selected: Question[];
     if (payload.mode === "exam") {
-      selected = shuffle([
-        ...shuffle(pool.filter((question) => question.difficulty === "easy")).slice(0, 9),
-        ...shuffle(pool.filter((question) => question.difficulty === "medium")).slice(0, 15),
-        ...shuffle(pool.filter((question) => question.difficulty === "hard")).slice(0, 6),
-      ]);
+      const chosen: Question[] = [];
+      const uniqueness = createQuestionUniquenessState();
+      const append = (candidates: Question[], target: number) => {
+        if (chosen.length >= target) return;
+        for (const question of candidates) {
+          if (chosen.length >= target) break;
+          if (!tryAddUniqueQuestion(uniqueness, question)) continue;
+          chosen.push(question);
+        }
+      };
+      append(shuffle(pool.filter((question) => question.difficulty === "easy")), 9);
+      append(shuffle(pool.filter((question) => question.difficulty === "medium")), 24);
+      append(shuffle(pool.filter((question) => question.difficulty === "hard")), 30);
+      append(shuffle(pool), 30);
+      selected = shuffle(chosen);
     } else {
       selected = weightedSample(pool, profile, Math.min(Math.max(1, payload.count), 100));
     }
@@ -576,10 +594,9 @@ export const localApi = {
     const percent = maxScore ? Math.round((score / maxScore) * 1000) / 10 : 0;
     const grade = percent >= 90 ? "5" : percent >= 75 ? "4" : percent >= 50 ? "3" : "2";
     const xpGained = results.reduce((sum, result) => sum + (result.isCorrect ? result.difficulty === "hard" ? 25 : result.difficulty === "medium" ? 15 : 10 : 0), 0);
-    const coinsGained = results.length ? Math.max(1, Math.round(score * 1.5 + percent / 10)) : 0;
     if (!results.length) {
       return {
-        attemptId: "", score: 0, maxScore: 0, percent: 0, grade: "—", xpGained: 0, coinsGained: 0,
+        attemptId: "", score: 0, maxScore: 0, percent: 0, grade: "—", xpGained: 0,
         level: profile.level, streak: profile.streak, bestStreak: profile.bestStreak, correctCount: 0, wrongCount: 0,
         durationMs: payload.durationMs, results: [], recommendations: [], achievements: [],
       };
@@ -593,7 +610,6 @@ export const localApi = {
     profile.streak = lastDate === today ? Math.max(1, profile.streak) : lastDate === yesterday ? profile.streak + 1 : 1;
     profile.bestStreak = Math.max(profile.bestStreak, profile.streak);
     profile.xp += xpGained;
-    profile.coins += coinsGained;
     profile.level = Math.floor(profile.xp / 250) + 1;
     profile.lastActiveAt = now.toISOString();
     const activity = profile.activity[today] ?? { attempts: 0, correct: 0, xp: 0 };
@@ -604,7 +620,7 @@ export const localApi = {
     const wrongTopics = results.filter((result) => !result.isCorrect).map((result) => result.topic);
     writeDatabase(database);
     return {
-      attemptId, score, maxScore, percent, grade, xpGained, coinsGained, level: profile.level, streak: profile.streak, bestStreak: profile.bestStreak,
+      attemptId, score, maxScore, percent, grade, xpGained, level: profile.level, streak: profile.streak, bestStreak: profile.bestStreak,
       correctCount: score, wrongCount: maxScore - score, durationMs: payload.durationMs, results,
       recommendations: [...new Set(wrongTopics)].slice(0, 5), achievements: buildAchievements(profile).map(({ unlockedAt: _unlockedAt, ...achievement }) => achievement),
     };

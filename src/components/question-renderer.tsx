@@ -26,12 +26,19 @@ const optionClasses = (selected: boolean, correct?: boolean) =>
 export const QuestionRenderer = ({ question, value, onChange, locked, hiddenOptionIds = [] }: Props) => {
   const meta = (question.meta ?? {}) as Record<string, unknown>;
   const [fillText, setFillText] = useState(typeof value === "string" ? value : "");
+  const [draggedSequenceItem, setDraggedSequenceItem] = useState<string | null>(null);
+  const [dragOverSequenceIndex, setDragOverSequenceIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (question.type === "fill") {
       setFillText(typeof value === "string" ? value : "");
     }
   }, [question.id, question.type, value]);
+
+  useEffect(() => {
+    setDraggedSequenceItem(null);
+    setDragOverSequenceIndex(null);
+  }, [question.id]);
 
   const sequenceItems = useMemo(() => {
     if (question.type !== "sequence") return [];
@@ -132,6 +139,22 @@ export const QuestionRenderer = ({ question, value, onChange, locked, hiddenOpti
       [next[index], next[swapIndex]] = [next[swapIndex], next[index]];
       onChange(next);
     };
+    const placeAt = (item: string, targetIndex: number) => {
+      if (locked || !item || !sequenceItems.includes(item)) return;
+      const sourceIndex = selected.indexOf(item);
+      const next = selected.filter((value) => value !== item);
+      const adjustedIndex = sourceIndex >= 0 && sourceIndex < targetIndex ? targetIndex - 1 : targetIndex;
+      next.splice(Math.max(0, Math.min(adjustedIndex, next.length)), 0, item);
+      onChange(next);
+      setDraggedSequenceItem(null);
+      setDragOverSequenceIndex(null);
+    };
+    const beginDrag = (item: string, dataTransfer: DataTransfer) => {
+      if (locked) return;
+      setDraggedSequenceItem(item);
+      dataTransfer.effectAllowed = "move";
+      dataTransfer.setData("text/plain", item);
+    };
 
     return (
       <div className="space-y-4">
@@ -145,9 +168,13 @@ export const QuestionRenderer = ({ question, value, onChange, locked, hiddenOpti
                   <button
                     key={item}
                     type="button"
-                    className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 transition hover:bg-white/10"
+                    draggable={!locked}
+                    onDragStart={(event) => beginDrag(item, event.dataTransfer)}
+                    onDragEnd={() => { setDraggedSequenceItem(null); setDragOverSequenceIndex(null); }}
+                    className="cursor-grab rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 transition hover:bg-white/10 active:cursor-grabbing"
                     onClick={() => add(item)}
                     disabled={locked}
+                    title="Перетащите в список или нажмите"
                   >
                     {item}
                   </button>
@@ -156,15 +183,35 @@ export const QuestionRenderer = ({ question, value, onChange, locked, hiddenOpti
           </GlassCard>
           <GlassCard className="space-y-3">
             <div className="text-sm font-medium text-slate-300">Порядок</div>
-            <div className="space-y-2">
+            <div
+              className="min-h-24 space-y-2"
+              onDragOver={(event) => { if (!locked) { event.preventDefault(); setDragOverSequenceIndex(selected.length); } }}
+              onDrop={(event) => { event.preventDefault(); placeAt(draggedSequenceItem ?? event.dataTransfer.getData("text/plain"), selected.length); }}
+            >
               {selected.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-slate-500">
                   Нажимайте на элементы слева, чтобы собрать последовательность
                 </div>
               ) : (
                 selected.map((item, index) => (
-                  <div key={item} className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-                    <GripVertical className="h-4 w-4 text-slate-500" />
+                  <div
+                    key={item}
+                    onDragOver={(event) => { if (!locked) { event.preventDefault(); event.stopPropagation(); setDragOverSequenceIndex(index); } }}
+                    onDrop={(event) => { event.preventDefault(); event.stopPropagation(); placeAt(draggedSequenceItem ?? event.dataTransfer.getData("text/plain"), index); }}
+                    className={dragOverSequenceIndex === index ? "flex items-center gap-2 rounded-2xl border border-cyan-300/50 bg-cyan-400/10 px-3 py-2" : "flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2"}
+                  >
+                    <button
+                      type="button"
+                      draggable={!locked}
+                      onDragStart={(event) => beginDrag(item, event.dataTransfer)}
+                      onDragEnd={() => { setDraggedSequenceItem(null); setDragOverSequenceIndex(null); }}
+                      className="cursor-grab rounded-lg p-1 text-slate-400 hover:bg-white/10 hover:text-white active:cursor-grabbing"
+                      title="Перетащить выше или ниже"
+                      aria-label={`Перетащить ${item}`}
+                      disabled={locked}
+                    >
+                      <GripVertical className="h-4 w-4" />
+                    </button>
                     <div className="flex-1 text-sm text-white">{item}</div>
                     <button type="button" onClick={() => move(index, -1)} disabled={locked || index === 0} className="rounded-full p-1 text-slate-300 hover:bg-white/5 disabled:opacity-40">
                       <Minus className="h-4 w-4" />

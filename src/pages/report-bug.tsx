@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle2, Clock3, Gift, Lightbulb, LogIn, Send } fro
 import { BackButton, Button, GlassCard, Panel, TitleBlock } from "@/components/ui";
 import {
   FeedbackRequestError,
+  formatFeedbackPage,
   getFeedbackCooldown,
   submitFeedback,
   type FeedbackKind,
@@ -37,6 +38,7 @@ export const ReportBugPage = ({ meta: _meta }: AppPageProps) => {
   const { user } = useAuth();
   const location = useLocation();
   const sourcePage = (location.state as { sourcePage?: string } | null)?.sourcePage ?? "/";
+  const sourcePageLabel = formatFeedbackPage(sourcePage);
   const [kind, setKind] = useState<FeedbackKind>("improvement");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -255,7 +257,7 @@ export const ReportBugPage = ({ meta: _meta }: AppPageProps) => {
           </GlassCard>
           <GlassCard>
             <div className="text-xs uppercase tracking-[0.22em] text-slate-500">Страница</div>
-            <div className="mt-2 break-all text-sm text-slate-300">{sourcePage}</div>
+            <div className="mt-2 text-sm text-slate-300">{sourcePageLabel}</div>
           </GlassCard>
         </div>
       </div>
