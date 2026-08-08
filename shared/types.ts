@@ -113,6 +113,7 @@ export type TopicMeta = {
   source: string;
   color: string;
   subject?: SubjectId;
+  examOnly?: boolean;
 };
 
 export type DashboardMeta = {

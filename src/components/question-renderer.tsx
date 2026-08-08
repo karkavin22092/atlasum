@@ -1,5 +1,6 @@
 import type { Question } from "@shared/types";
 import { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import { Button, GlassCard } from "./ui";
 import { cn, shuffleArray } from "@/lib/utils";
 import { ArrowDown, ArrowUp, GripVertical, X } from "lucide-react";
@@ -166,6 +167,26 @@ export const QuestionRenderer = ({ question, value, onChange, locked, hiddenOpti
       setDraggedSequenceItem(null);
       setDragOverSequenceIndex(null);
     };
+    const dropToAvailable = () => {
+      if (locked || !draggedSequenceItem) return;
+      if (selected.includes(draggedSequenceItem)) {
+        onChange(selected.filter((value) => value !== draggedSequenceItem));
+      }
+      setDraggedSequenceItem(null);
+      setDragOverSequenceIndex(null);
+    };
+    const beginPointerDrag = (item: string) => {
+      if (locked) return;
+      setDraggedSequenceItem(item);
+    };
+    const movePointerOver = (index: number) => {
+      if (locked || !draggedSequenceItem) return;
+      setDragOverSequenceIndex(index);
+    };
+    const dropPointerAt = (index: number) => {
+      if (locked || !draggedSequenceItem) return;
+      placeAt(draggedSequenceItem, index);
+    };
 
     return (
       <div className="space-y-4">
@@ -174,25 +195,32 @@ export const QuestionRenderer = ({ question, value, onChange, locked, hiddenOpti
             className="space-y-3"
             onDragOver={(event) => { if (!locked) event.preventDefault(); }}
             onDrop={returnToAvailable}
+            onPointerUp={(event) => { if (event.target === event.currentTarget) dropToAvailable(); }}
           >
             <div className="text-sm font-medium text-slate-300">Элементы</div>
             <div className="flex flex-wrap gap-2">
               {sequenceItems
                 .filter((item) => !selected.includes(item))
                 .map((item) => (
-                  <button
+                  <motion.button
                     key={item}
                     type="button"
                     draggable={!locked}
                     onDragStart={(event) => beginDrag(item, event.dataTransfer)}
                     onDragEnd={() => { setDraggedSequenceItem(null); setDragOverSequenceIndex(null); }}
-                    className="cursor-grab rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 transition hover:bg-white/10 active:cursor-grabbing"
-                    onClick={() => add(item)}
+                    onPointerDown={() => beginPointerDrag(item)}
+                    onPointerEnter={() => { if (draggedSequenceItem) movePointerOver(selected.length); }}
+                    onPointerUp={() => { if (draggedSequenceItem && selected.includes(draggedSequenceItem)) dropToAvailable(); else add(item); }}
+                    layout
+                    whileHover={{ y: -2, scale: 1.02 }}
+                    whileTap={{ scale: 0.97 }}
+                    animate={{ opacity: draggedSequenceItem === item ? 0.45 : 1 }}
+                    className="touch-none select-none cursor-grab rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 transition hover:bg-white/10 active:cursor-grabbing"
                     disabled={locked}
                     title="Перетащите в список или нажмите"
                   >
                     {item}
-                  </button>
+                  </motion.button>
                 ))}
             </div>
           </GlassCard>
@@ -202,6 +230,8 @@ export const QuestionRenderer = ({ question, value, onChange, locked, hiddenOpti
               className="min-h-24 space-y-2"
               onDragOver={(event) => { if (!locked) { event.preventDefault(); setDragOverSequenceIndex(selected.length); } }}
               onDrop={(event) => { event.preventDefault(); placeAt(draggedSequenceItem ?? event.dataTransfer.getData("text/plain"), selected.length); }}
+              onPointerEnter={() => { if (draggedSequenceItem) movePointerOver(selected.length); }}
+              onPointerUp={() => dropPointerAt(selected.length)}
             >
               {selected.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-slate-500">
@@ -209,17 +239,22 @@ export const QuestionRenderer = ({ question, value, onChange, locked, hiddenOpti
                 </div>
               ) : (
                 selected.map((item, index) => (
-                  <div
+                  <motion.div
                     key={item}
+                    layout
+                    transition={{ layout: { type: "spring", stiffness: 520, damping: 38 } }}
                     onDragOver={(event) => { if (!locked) { event.preventDefault(); event.stopPropagation(); setDragOverSequenceIndex(index); } }}
                     onDrop={(event) => { event.preventDefault(); event.stopPropagation(); placeAt(draggedSequenceItem ?? event.dataTransfer.getData("text/plain"), index); }}
-                    className={dragOverSequenceIndex === index ? "flex items-center gap-2 rounded-2xl border border-cyan-300/50 bg-cyan-400/10 px-3 py-2" : "flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2"}
+                    onPointerEnter={() => movePointerOver(index)}
+                    onPointerUp={() => dropPointerAt(index)}
+                    className={cn("touch-none select-none flex items-center gap-2 rounded-2xl border px-3 py-2 transition-colors", dragOverSequenceIndex === index ? "border-cyan-300/60 bg-cyan-400/15 shadow-[0_0_0_2px_rgba(103,232,249,0.14)]" : "border-white/10 bg-white/5", draggedSequenceItem === item ? "scale-[0.98] opacity-60" : "")}
                   >
                     <button
                       type="button"
                       draggable={!locked}
                       onDragStart={(event) => beginDrag(item, event.dataTransfer)}
                       onDragEnd={() => { setDraggedSequenceItem(null); setDragOverSequenceIndex(null); }}
+                      onPointerDown={() => beginPointerDrag(item)}
                       className="cursor-grab rounded-lg p-1 text-slate-400 hover:bg-white/10 hover:text-white active:cursor-grabbing"
                       title="Перетащить выше или ниже"
                       aria-label={`Перетащить ${item}`}
@@ -237,7 +272,7 @@ export const QuestionRenderer = ({ question, value, onChange, locked, hiddenOpti
                     <button type="button" onClick={() => remove(item)} disabled={locked} className="rounded-full p-1 text-slate-300 hover:bg-white/5" title="Убрать из списка" aria-label="Убрать из списка">
                       <X className="h-4 w-4" />
                     </button>
-                  </div>
+                  </motion.div>
                 ))
               )}
             </div>

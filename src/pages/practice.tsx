@@ -13,6 +13,8 @@ import type { AppPageProps } from "./types";
 import type { GeneratedTest, SubjectId, SubmissionResponse } from "@shared/types";
 import { difficultyLabels, questionTypeLabels } from "@/lib/question-labels";
 import { TopicPicker } from "@/components/topic-picker";
+import { EnglishTenseTheory } from "@/components/english-tense-theory";
+import { getEnglishTenseTheory, isEnglishTenseTopic } from "@/lib/english-tense-theory";
 
 const COUNT_OPTIONS = [10, 20, 30, 50, 100];
 const EXAM_DURATION_MS = 45 * 60 * 1000;
@@ -35,6 +37,8 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
   const [timeoutNotice, setTimeoutNotice] = useState<{ answered: number; total: number } | null>(null);
   const [showTimeoutReport, setShowTimeoutReport] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [theoryOpen, setTheoryOpen] = useState(false);
+  const [theoryPage, setTheoryPage] = useState(0);
   const timeoutHandledRef = useRef(false);
   const topicsForTest = selectedTopics.length ? selectedTopics : selectedWeakTopics;
 
@@ -43,7 +47,7 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
       api.generateTest({
         profileName,
         mode: selectedMode,
-        count: selectedMode === "exam" ? selectedSubject === "english" ? 25 : 30 : selectedCount,
+        count: selectedMode === "exam" ? 30 : selectedCount,
         subject: selectedSubject,
         topic: topicsForTest.length === 1 ? topicsForTest[0] : null,
         topics: topicsForTest,
@@ -96,6 +100,7 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
     if (selectedMode !== "exam") return;
     setSelectedTopics([]);
     setSelectedWeakTopics([]);
+    setTheoryOpen(false);
   }, [selectedMode]);
 
   const questions = test?.questions ?? [];
@@ -154,6 +159,13 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
 
   const filteredTopics = meta?.topics.filter((topic) => topic.subject === selectedSubject) ?? [];
   const selectedModeTitle = meta?.modes.find((mode) => mode.key === selectedMode)?.title ?? "Режим";
+  const selectedTenseTheory = selectedSubject === "english" && selectedTopics.length === 1 ? getEnglishTenseTheory(selectedTopics[0]) : null;
+  const hasTenseTopicSelection = selectedSubject === "english" && topicsForTest.some(isEnglishTenseTopic);
+  const countOptions = hasTenseTopicSelection ? [10] : COUNT_OPTIONS;
+
+  useEffect(() => {
+    if (hasTenseTopicSelection && selectedCount !== 10) setSelectedCount(10);
+  }, [hasTenseTopicSelection, selectedCount]);
 
   useEffect(() => {
     if (!meta) return;
@@ -174,13 +186,20 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
     setSelectedMode("mistakes");
     setSelectedTopics([]);
     setSelectedWeakTopics([]);
+    setTheoryOpen(false);
   };
 
   const startTest = () => {
+    if (!hasStarted && selectedTenseTheory && selectedMode !== "exam" && !theoryOpen) {
+      setTheoryPage(0);
+      setTheoryOpen(true);
+      return;
+    }
     if (hasStarted) {
       generateMutation.mutate();
       return;
     }
+    setTheoryOpen(false);
     setHasStarted(true);
   };
 
@@ -270,6 +289,7 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
                     setSelectedSubject(subject.key);
                     setSelectedTopics([]);
                     setSelectedWeakTopics([]);
+                    setTheoryOpen(false);
                   }}
                   className={selectedSubject === subject.key
                     ? "rounded-2xl border border-cyan-300/40 bg-cyan-400/15 px-4 py-3 text-left text-white"
@@ -320,7 +340,7 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
                   <div>
                     <div className="mb-3 text-xs uppercase tracking-[0.24em] text-slate-400">Количество вопросов</div>
                     <div className="flex flex-wrap gap-2">
-                      {COUNT_OPTIONS.map((count) => (
+                      {countOptions.map((count) => (
                         <button
                           key={count}
                           type="button"
@@ -356,9 +376,12 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
                     selected={selectedTopics}
                     subject={selectedSubject}
                     disabled={selectedMode === "exam"}
+                    allowExamOnly={selectedMode === "exam"}
                     onToggle={(topic) => {
-                      if (selectedMode === "exam") return;
+                      const isExamOnlyTopic = filteredTopics.some((item) => item.title === topic && item.examOnly);
+                      if (selectedMode === "exam" && !isExamOnlyTopic) return;
                       if (!confirmDiscardAttempt(hasActiveAttempt)) return;
+                      setTheoryOpen(false);
                       setSelectedWeakTopics([]);
                       setSelectedTopics((current) => current.includes(topic) ? current.filter((item) => item !== topic) : [...current, topic]);
                     }}
@@ -385,6 +408,7 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
                             onClick={() => {
                               if (selectedMode === "exam") return;
                               if (!confirmDiscardAttempt(hasActiveAttempt)) return;
+                              setTheoryOpen(false);
                               setSelectedTopics([]);
                               setSelectedWeakTopics((current) => current.includes(topic.title)
                                 ? current.filter((item) => item !== topic.title)
@@ -418,13 +442,23 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
             {examTimeLeft !== null ? <StatCard label="Осталось" value={formatDuration(examTimeLeft)} hint="Лимит экзамена: 45 минут" accent="from-rose-400 to-pink-500" /> : <StatCard label="Вопросов" value={questions.length} hint="В выбранном тесте" accent="from-emerald-400 to-teal-500" />}
           </div> : null}
           {!hasStarted ? (
-            <div className="grid min-h-[28vh] place-items-center py-8 text-center">
-              <div className="max-w-md space-y-4">
-                <div className="text-xl font-semibold text-white">Тест готов к запуску</div>
-                <p className="text-sm leading-6 text-slate-400">Выберите дисциплину и при необходимости настройте режим, темы и количество вопросов.</p>
-                <Button onClick={startTest}><Sparkles className="h-4 w-4" />Начать тест</Button>
+            theoryOpen && selectedTenseTheory && selectedMode !== "exam" ? (
+              <EnglishTenseTheory
+                theory={selectedTenseTheory}
+                page={theoryPage}
+                onPageChange={setTheoryPage}
+                onClose={() => setTheoryOpen(false)}
+                onStart={startTest}
+              />
+            ) : (
+              <div className="grid min-h-[28vh] place-items-center py-8 text-center">
+                <div className="max-w-md space-y-4">
+                  <div className="text-xl font-semibold text-white">Тест готов к запуску</div>
+                  <p className="text-sm leading-6 text-slate-400">Выберите дисциплину и при необходимости настройте режим, темы и количество вопросов.</p>
+                  <Button onClick={startTest}><Sparkles className="h-4 w-4" />Начать тест</Button>
+                </div>
               </div>
-            </div>
+            )
           ) : generateMutation.isPending ? (
             <div className="grid min-h-[55vh] place-items-center">
               <div className="space-y-3 text-center">

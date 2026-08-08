@@ -256,7 +256,36 @@ const shuffle = <T,>(items: T[]) => {
 };
 
 const normalizeText = (value: string) =>
-  value.toLowerCase().replace(/ё/g, "е").replace(/[^a-zа-я0-9]+/giu, "").trim();
+  value.toLowerCase()
+    .replaceAll("won't", "will not")
+    .replaceAll("wont", "will not")
+    .replaceAll("don't", "do not")
+    .replaceAll("dont", "do not")
+    .replaceAll("doesn't", "does not")
+    .replaceAll("doesnt", "does not")
+    .replaceAll("isn't", "is not")
+    .replaceAll("isnt", "is not")
+    .replaceAll("aren't", "are not")
+    .replaceAll("arent", "are not")
+    .replaceAll("wasn't", "was not")
+    .replaceAll("wasnt", "was not")
+    .replaceAll("weren't", "were not")
+    .replaceAll("werent", "were not")
+    .replaceAll("haven't", "have not")
+    .replaceAll("havent", "have not")
+    .replaceAll("hasn't", "has not")
+    .replaceAll("hasnt", "has not")
+    .replaceAll("hadn't", "had not")
+    .replaceAll("hadnt", "had not")
+    .replaceAll("can't", "cannot")
+    .replaceAll("cant", "cannot")
+    .replaceAll("couldn't", "could not")
+    .replaceAll("couldnt", "could not")
+    .replaceAll("shouldn't", "should not")
+    .replaceAll("shouldnt", "should not")
+    .replaceAll("wouldn't", "would not")
+    .replaceAll("wouldnt", "would not")
+    .replace(/ё/g, "е").replace(/[^a-zа-я0-9]+/giu, "").trim();
 
 const normalizeList = (answer: unknown) =>
   (Array.isArray(answer) ? answer : typeof answer === "string" ? answer.split(",") : [])
@@ -529,6 +558,10 @@ export const localApi = {
       : null;
     const selectedTopics = payload.topics?.filter(Boolean) ?? [];
     let pool = source.filter((question) => (!subjectTopics || subjectTopics.has(question.topic)) && (!selectedTopics.length ? (!payload.topic || question.topic === payload.topic) : selectedTopics.includes(question.topic)));
+    if (payload.mode !== "exam") {
+      const examOnlyTopics = new Set(dashboardMeta.topics.filter((topic) => topic.examOnly).map((topic) => topic.title));
+      pool = pool.filter((question) => !examOnlyTopics.has(question.topic));
+    }
     if (payload.questionType) pool = pool.filter((question) => question.type === payload.questionType);
     const basePool = pool;
     if (payload.mode === "mistakes") pool = pool.filter((question) => {
@@ -557,18 +590,26 @@ export const localApi = {
         }
       };
       if (payload.subject === "english") {
-        const category = (value: string) => shuffle(pool.filter((question) => (question.meta as Record<string, unknown> | undefined)?.englishCategory === value));
-        append(category("vocabulary"), 10);
-        append(category("grammar"), 20);
-        append(category("matching"), 24);
-        append(category("sequence"), 25);
+        const selectedExamOnlyTopic = [...selectedTopics, payload.topic ?? ""].some((value) => dashboardMeta.topics.some((topic) => topic.examOnly && topic.title === value));
+        if (selectedExamOnlyTopic) {
+          selected = shuffle(pool).slice(0, Math.min(payload.count, pool.length));
+        } else {
+          const newTenseTopics = new Set(dashboardMeta.topics.filter((topic) => topic.key.startsWith("english-tense")).map((topic) => topic.title));
+          pool = pool.filter((question) => !newTenseTopics.has(question.topic));
+          const category = (value: string) => shuffle(pool.filter((question) => (question.meta as Record<string, unknown> | undefined)?.englishCategory === value));
+          append(category("vocabulary"), 10);
+          append(category("grammar"), 20);
+          append(category("matching"), 24);
+          append(category("sequence"), 25);
+          selected = shuffle(chosen);
+        }
       } else {
         append(shuffle(pool.filter((question) => question.difficulty === "easy")), 9);
         append(shuffle(pool.filter((question) => question.difficulty === "medium")), 24);
         append(shuffle(pool.filter((question) => question.difficulty === "hard")), 30);
         append(shuffle(pool), 30);
       }
-      selected = shuffle(chosen);
+      if (payload.subject !== "english") selected = shuffle(chosen);
     } else {
       selected = weightedSample(pool, profile, Math.min(Math.max(1, payload.count), 100));
     }

@@ -1415,7 +1415,10 @@ export const topicCatalog: TopicBlueprint[] = [
 export const questionCountForTopic = (topic: Pick<TopicBlueprint, "key" | "subject">) => {
   if (topic.subject === "it-design") return 60;
   if (topic.subject === "management") return topic.key === managementTopicCatalog[0].key ? 112 : 111;
-  if (topic.subject === "english") return englishTopicCatalog.findIndex((item) => item.key === topic.key) < 4 ? 84 : 83;
+  if (topic.subject === "english") {
+    if (topic.key === "english-tenses-mixed-exam") return 200;
+    return topic.key.startsWith("english-tense-") ? 150 : englishTopicCatalog.findIndex((item) => item.key === topic.key) < 4 ? 84 : 83;
+  }
   return topic.key === economicsTopicCatalog[0].key ? 334 : 333;
 };
 

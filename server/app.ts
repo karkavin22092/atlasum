@@ -9,6 +9,7 @@ import {
   buildQuestionBankSummary,
   createRandom,
   evaluateQuestion,
+  generateQuestionBank,
   getCorrectAnswerPreview,
   getUserAnswerPreview,
   getTopicByTitle,
@@ -374,6 +375,57 @@ const appendSemanticQuestions = <T extends { id: string; question: string; topic
   }
 };
 
+const syncedGeneratedTopics = new Set<string>();
+
+const syncGeneratedQuestions = async (generatedQuestions: Question[]) => {
+  if (!generatedQuestions.length) return;
+  const cacheKey = Array.from(new Set(generatedQuestions.map((question) => question.topic))).sort().join("|");
+  if (syncedGeneratedTopics.has(cacheKey)) return;
+
+  const existing = new Set((await prisma.question.findMany({
+    where: { id: { in: generatedQuestions.map((question) => question.id) } },
+    select: { id: true },
+  })).map((question) => question.id));
+  const missing = generatedQuestions.filter((question) => !existing.has(question.id));
+  if (missing.length) {
+    await prisma.question.createMany({
+      data: missing.map((question) => ({
+        id: question.id,
+        topic: question.topic,
+        difficulty: question.difficulty,
+        type: question.type,
+        question: question.question,
+        options: question.options as never,
+        correct: question.correct as never,
+        explanation: question.explanation,
+        source: question.source,
+        tags: question.tags as never,
+        meta: (question.meta ?? null) as never,
+      })),
+    });
+  }
+
+  const existingGenerated = generatedQuestions.filter((question) => existing.has(question.id));
+  for (let index = 0; index < existingGenerated.length; index += 100) {
+    await prisma.$transaction(existingGenerated.slice(index, index + 100).map((question) => prisma.question.update({
+      where: { id: question.id },
+      data: {
+        topic: question.topic,
+        difficulty: question.difficulty,
+        type: question.type,
+        question: question.question,
+        options: question.options as never,
+        correct: question.correct as never,
+        explanation: question.explanation,
+        source: question.source,
+        tags: question.tags as never,
+        meta: (question.meta ?? null) as never,
+      },
+    })));
+  }
+  syncedGeneratedTopics.add(cacheKey);
+};
+
 const selectQuestions = async ({
   profileId,
   mode,
@@ -392,6 +444,16 @@ const selectQuestions = async ({
   questionType?: Question["type"];
 }) => {
   const selectionSeed = `${profileId}:${mode}:${nanoid()}`;
+  const selectedTitles = new Set([...(topics ?? []), topic ?? ""]);
+  const selectedTenseTopic = subject === "english"
+    && [...selectedTitles].some((value) => dashboardMeta.topics.some((item) => item.key.startsWith("english-tense") && item.title === value));
+  const selectedExamOnlyTopic = mode === "exam" && subject === "english"
+    && [...(topics ?? []), topic ?? ""].some((value) => dashboardMeta.topics.some((item) => item.examOnly && item.title === value));
+
+  if (selectedExamOnlyTopic || selectedTenseTopic) {
+    await syncGeneratedQuestions(generateQuestionBank().filter((question) => selectedTitles.has(question.topic)));
+  }
+
   const questions = await prisma.question.findMany({
     include: {
       reviews: true,
@@ -411,6 +473,11 @@ const selectQuestions = async ({
 
   if (topics?.length) {
     pool = pool.filter((item) => topics.includes(item.topic));
+  }
+
+  if (mode !== "exam") {
+    const examOnlyTopics = new Set(dashboardMeta.topics.filter((item) => item.examOnly).map((item) => item.title));
+    pool = pool.filter((item) => !examOnlyTopics.has(item.topic));
   }
 
   if (questionType) {
@@ -466,6 +533,9 @@ const selectQuestions = async ({
     if (subject === "english") {
       const chosen: typeof pool = [];
       const uniqueness = createQuestionUniquenessState();
+      if (selectedExamOnlyTopic) return shuffle(pool, `${selectionSeed}:english:exam-only`).slice(0, count);
+      const newTenseTopics = new Set(dashboardMeta.topics.filter((item) => item.key.startsWith("english-tense")).map((item) => item.title));
+      pool = pool.filter((question) => !newTenseTopics.has(question.topic));
       const byCategory = (category: string) => shuffle(
         pool.filter((question) => question.meta && (question.meta as Record<string, unknown>).englishCategory === category),
         `${selectionSeed}:english:${category}`,
@@ -846,7 +916,7 @@ app.post("/api/tests/generate", async (req, res) => {
   };
 
   const profile = await ensureProfile(body.profileName);
-  const count = body.mode === "exam" ? body.subject === "english" ? 25 : 30 : Math.max(1, Math.min(body.count ?? 10, 100));
+  const count = body.mode === "exam" ? 30 : Math.max(1, Math.min(body.count ?? 10, 100));
   const questions = await selectQuestions({
     profileId: profile.id,
     mode: body.mode ?? "practice",

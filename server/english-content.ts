@@ -1,4 +1,5 @@
 import type { Question, TopicMeta } from "@shared/types";
+import { englishTenseTopicCatalog, generateEnglishMixedTenseQuestions, generateEnglishTenseQuestions } from "./english-tenses-content";
 
 export const englishTopicCatalog: Array<TopicMeta & { concepts: never[]; process: string[]; imageSet: string[] }> = [
   { key: "english-academic-vocabulary", title: "Академическая и научная лексика", description: "Лексика для учебных, научных и исследовательских текстов.", source: "Программа экзамена по английскому языку, 2025", color: "from-rose-400 to-fuchsia-600", subject: "english", concepts: [], process: [], imageSet: [] },
@@ -13,6 +14,7 @@ export const englishTopicCatalog: Array<TopicMeta & { concepts: never[]; process
   { key: "english-clauses", title: "Сложноподчиненные предложения", description: "Союзы, относительные и придаточные предложения.", source: "Программа экзамена по английскому языку, 2025", color: "from-rose-400 to-fuchsia-600", subject: "english", concepts: [], process: [], imageSet: [] },
   { key: "english-reported-speech", title: "Прямая и косвенная речь", description: "Передача высказываний, вопросов и просьб.", source: "Программа экзамена по английскому языку, 2025", color: "from-rose-400 to-fuchsia-600", subject: "english", concepts: [], process: [], imageSet: [] },
   { key: "english-text-skills", title: "Термины и связность текста", description: "Соответствия терминов и восстановление логики текста.", source: "Программа экзамена по английскому языку, 2025", color: "from-rose-400 to-fuchsia-600", subject: "english", concepts: [], process: [], imageSet: [] },
+  ...englishTenseTopicCatalog.map((topic) => ({ ...topic, concepts: [], process: [], imageSet: [] })),
 ];
 
 type ChoiceSeed = { sentence: string; answer: string; distractors: [string, string, string]; explanation: string; topic: string };
@@ -231,6 +233,8 @@ const sequenceQuestions = (): Question[] => Array.from({ length: 50 }, (_, index
 export const generateEnglishQuestionBank = (): Question[] => [
   ...vocabulary.flatMap((seed, index) => variants(seed, index + 1, "vocabulary", index)),
   ...grammarSeeds.flatMap((seed, index) => variants(seed, index + 1, "grammar", index)),
+  ...generateEnglishTenseQuestions(),
+  ...generateEnglishMixedTenseQuestions(),
   ...matchingQuestions(),
   ...sequenceQuestions(),
 ];
