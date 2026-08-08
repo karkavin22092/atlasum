@@ -555,10 +555,18 @@ export const localApi = {
           chosen.push(question);
         }
       };
-      append(shuffle(pool.filter((question) => question.difficulty === "easy")), 9);
-      append(shuffle(pool.filter((question) => question.difficulty === "medium")), 24);
-      append(shuffle(pool.filter((question) => question.difficulty === "hard")), 30);
-      append(shuffle(pool), 30);
+      if (payload.subject === "english") {
+        const category = (value: string) => shuffle(pool.filter((question) => (question.meta as Record<string, unknown> | undefined)?.englishCategory === value));
+        append(category("vocabulary"), 10);
+        append(category("grammar"), 20);
+        append(category("matching"), 24);
+        append(category("sequence"), 25);
+      } else {
+        append(shuffle(pool.filter((question) => question.difficulty === "easy")), 9);
+        append(shuffle(pool.filter((question) => question.difficulty === "medium")), 24);
+        append(shuffle(pool.filter((question) => question.difficulty === "hard")), 30);
+        append(shuffle(pool), 30);
+      }
       selected = shuffle(chosen);
     } else {
       selected = weightedSample(pool, profile, Math.min(Math.max(1, payload.count), 100));
@@ -569,7 +577,14 @@ export const localApi = {
       title: titleForMode(payload.mode, payload.topic),
       mode: payload.mode,
       topic: payload.topic,
-      questions: selected.map((question) => ({ ...question, scoreWeight: question.difficulty === "hard" ? 3 : question.difficulty === "medium" ? 2 : 1 })),
+      questions: selected.map((question) => ({
+        ...question,
+        scoreWeight: payload.mode === "exam" && payload.subject === "english"
+          ? (question.meta as Record<string, unknown> | undefined)?.englishCategory === "vocabulary" ? 2
+            : (question.meta as Record<string, unknown> | undefined)?.englishCategory === "grammar" ? 4
+              : 8
+          : question.difficulty === "hard" ? 3 : question.difficulty === "medium" ? 2 : 1,
+      })),
     };
   },
 
@@ -589,8 +604,13 @@ export const localApi = {
         isCorrect: evaluation.isCorrect, userAnswer: userAnswerPreview(question, entry.answer), correctAnswer: correctAnswerPreview(question), explanation: question.explanation, whyWrong: evaluation.whyWrong,
       } satisfies AttemptResult];
     });
-    const score = results.filter((result) => result.isCorrect).length;
-    const maxScore = results.length;
+    const examWeight = (questionId: string) => {
+      const category = (questions.get(questionId)?.meta as Record<string, unknown> | undefined)?.englishCategory;
+      return category === "vocabulary" ? 2 : category === "grammar" ? 4 : category === "matching" || category === "sequence" ? 8 : 1;
+    };
+    const isEnglishExam = payload.mode === "exam" && results.every((result) => (questions.get(result.questionId)?.meta as Record<string, unknown> | undefined)?.englishCategory);
+    const score = isEnglishExam ? results.reduce((sum, result) => sum + (result.isCorrect ? examWeight(result.questionId) : 0), 0) : results.filter((result) => result.isCorrect).length;
+    const maxScore = isEnglishExam ? results.reduce((sum, result) => sum + examWeight(result.questionId), 0) : results.length;
     const percent = maxScore ? Math.round((score / maxScore) * 1000) / 10 : 0;
     const grade = percent >= 90 ? "5" : percent >= 75 ? "4" : percent >= 50 ? "3" : "2";
     const xpGained = results.reduce((sum, result) => sum + (result.isCorrect ? result.difficulty === "hard" ? 25 : result.difficulty === "medium" ? 15 : 10 : 0), 0);

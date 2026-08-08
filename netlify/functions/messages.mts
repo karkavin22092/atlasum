@@ -69,6 +69,31 @@ const listConversation = async (firstUserId: string, secondUserId: string) => {
     .slice(-300);
 };
 
+const listConversationSummaries = async (userId: string) => {
+  const messages = messagesStore();
+  const { blobs } = await messages.list();
+  const values = await Promise.all(blobs.map((blob) => messages.get(blob.key, { type: "json", consistency: "strong" })));
+  const summaries = new Map<string, { contactId: string; latest: ChatMessage; unreadCount: number }>();
+  for (const value of values) {
+    const message = value as ChatMessage | null;
+    if (!message || (message.senderId !== userId && message.recipientId !== userId)) continue;
+    const contactId = message.senderId === userId ? message.recipientId : message.senderId;
+    const current = summaries.get(contactId);
+    if (!current || current.latest.createdAt < message.createdAt) {
+      summaries.set(contactId, {
+        contactId,
+        latest: normalizeStoredMessage(message),
+        unreadCount: current?.unreadCount ?? 0,
+      });
+    }
+    if (message.recipientId === userId && !message.readAt) {
+      const summary = summaries.get(contactId);
+      if (summary) summary.unreadCount += 1;
+    }
+  }
+  return [...summaries.values()].sort((left, right) => right.latest.createdAt.localeCompare(left.latest.createdAt));
+};
+
 const markIncomingMessagesRead = async (viewerId: string, messages: ChatMessage[]) => {
   const readAt = new Date().toISOString();
   const messageStore = messagesStore();
@@ -94,6 +119,11 @@ export default async (request: Request) => {
       if (userId) {
         if (!await requireUser(userId)) return jsonError("Пользователь не найден в рейтинге", 403);
         return Response.json(await listInbox(userId));
+      }
+      const summariesFor = cleanUserId(url.searchParams.get("summariesFor"));
+      if (summariesFor) {
+        if (!await requireUser(summariesFor)) return jsonError("Пользователь не найден в рейтинге", 403);
+        return Response.json(await listConversationSummaries(summariesFor));
       }
       const firstUserId = cleanUserId(url.searchParams.get("firstUserId"));
       const secondUserId = cleanUserId(url.searchParams.get("secondUserId"));

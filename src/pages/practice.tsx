@@ -20,20 +20,21 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedMode, setSelectedMode] = useState(searchParams.get("mode") ?? "practice");
   const [selectedCount, setSelectedCount] = useState(Number(searchParams.get("count") ?? 10));
-  const [selectedSubject, setSelectedSubject] = useState<SubjectId>(searchParams.get("subject") === "management" ? "management" : searchParams.get("subject") === "economics" ? "economics" : "it-design");
+  const [selectedSubject, setSelectedSubject] = useState<SubjectId>(searchParams.get("subject") === "management" ? "management" : searchParams.get("subject") === "economics" ? "economics" : searchParams.get("subject") === "english" ? "english" : "it-design");
   const [selectedTopic, setSelectedTopic] = useState(searchParams.get("topic") ?? "");
   const [test, setTest] = useState<GeneratedTest | null>(null);
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
   const [currentIndex, setCurrentIndex] = useState(0);
   const [result, setResult] = useState<SubmissionResponse | null>(null);
   const [startedAt, setStartedAt] = useState<number>(Date.now());
+  const [now, setNow] = useState(Date.now());
 
   const generateMutation = useMutation({
     mutationFn: () =>
       api.generateTest({
         profileName,
         mode: selectedMode,
-        count: selectedMode === "exam" ? 30 : selectedCount,
+        count: selectedMode === "exam" ? selectedSubject === "english" ? 25 : 30 : selectedCount,
         subject: selectedSubject,
         topic: selectedTopic || null,
       }),
@@ -43,6 +44,7 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
       setCurrentIndex(0);
       setResult(null);
       setStartedAt(Date.now());
+      setNow(Date.now());
     },
   });
 
@@ -76,6 +78,8 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
   }, [selectedMode, selectedCount, selectedSubject, selectedTopic, profileName]);
 
   const questions = test?.questions ?? [];
+  const englishExam = selectedMode === "exam" && selectedSubject === "english";
+  const examTimeLeft = englishExam ? Math.max(0, 45 * 60 * 1000 - (now - startedAt)) : null;
   const currentQuestion = questions[currentIndex];
   const answeredCount = Object.values(answers).filter(hasAnswer).length;
   const progress = questions.length === 0 ? 0 : (answeredCount / questions.length) * 100;
@@ -86,7 +90,7 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
     setAnswers((current) => ({ ...current, [questionId]: value }));
   };
 
-  const submit = async () => {
+  const submit = async (timedOut = false) => {
     if (!test) return;
     await submitMutation.mutateAsync({
       profileName,
@@ -94,12 +98,26 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
       count: questions.length,
       durationMs: Date.now() - startedAt,
       topic: selectedTopic || null,
-      answers: questions.filter((question) => hasAnswer(answers[question.id])).map((question) => ({
+      answers: questions.filter((question) => timedOut || hasAnswer(answers[question.id])).map((question) => ({
         questionId: question.id,
-        answer: answers[question.id],
+        answer: answers[question.id] ?? "__timeout__",
       })),
     });
   };
+
+  useEffect(() => {
+    if (!englishExam || !test || result || examTimeLeft === null || examTimeLeft <= 0) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, [englishExam, examTimeLeft, result, test]);
+
+  useEffect(() => {
+    if (englishExam && test && !result && examTimeLeft === 0 && !submitMutation.isPending) {
+      void submit(true);
+    }
+    // submit is intentionally recreated with the current answers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [englishExam, examTimeLeft, result, test, submitMutation.isPending]);
 
   const weakTopics = useMemo(() => {
     if (!meta) return [];
@@ -175,11 +193,12 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
         <Panel className="space-y-5">
           <div>
             <div className="mb-3 text-xs uppercase tracking-[0.24em] text-slate-400">Дисциплина</div>
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               {([
                 { key: "it-design", title: "ИТ и графика" },
                 { key: "management", title: "Менеджмент" },
                 { key: "economics", title: "Экономика" },
+                { key: "english", title: "Английский язык" },
               ] as const).map((subject) => (
                 <button
                   key={subject.key}
@@ -267,9 +286,10 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <StatCard label="Вопросов" value={questions.length} hint={selectedMode === "exam" ? "Экзамен всегда на 30" : "Под выбранный режим"} accent="from-cyan-400 to-sky-500" />
+            <StatCard label="Вопросов" value={questions.length} hint={selectedMode === "exam" ? englishExam ? "25 заданий: 100 баллов" : "Экзамен всегда на 30" : "Под выбранный режим"} accent="from-cyan-400 to-sky-500" />
             <StatCard label="Отвечено" value={answeredCount} hint="Прогресс по сессии" accent="from-violet-400 to-fuchsia-500" />
           </div>
+          {examTimeLeft !== null ? <StatCard label="Осталось" value={formatDuration(examTimeLeft)} hint="Лимит экзамена: 45 минут" accent="from-rose-400 to-pink-500" /> : null}
 
           <div className="space-y-3">
             <div className="flex items-center justify-between text-sm text-slate-400">

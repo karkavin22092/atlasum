@@ -12,6 +12,12 @@ export type ChatMessage = {
   reactions?: Record<string, string[]>;
 };
 
+export type ConversationSummary = {
+  contactId: string;
+  latest: ChatMessage;
+  unreadCount: number;
+};
+
 export const REACTION_EMOJIS = ["👍", "❤️", "😂", "🔥", "👏", "🤔"] as const;
 export const MESSAGE_EMOJIS = ["😀", "😊", "😂", "😍", "🤓", "😎", "🤔", "👍", "👏", "🔥", "❤️", "🎉", "💡", "✅", "🚀", "💯"] as const;
 
@@ -82,6 +88,40 @@ export const getConversation = async (firstUserId: string, secondUserId: string)
 
 export const getLatestMessage = (firstUserId: string, secondUserId: string) =>
   getLocalConversation(firstUserId, secondUserId).at(-1) ?? null;
+
+const getLocalConversationSummaries = (userId: string): ConversationSummary[] => {
+  const summaries = new Map<string, ConversationSummary>();
+  for (const message of readMessages()) {
+    if (message.senderId !== userId && message.recipientId !== userId) continue;
+    const contactId = message.senderId === userId ? message.recipientId : message.senderId;
+    const current = summaries.get(contactId);
+    if (!current || current.latest.createdAt < message.createdAt) {
+      summaries.set(contactId, {
+        contactId,
+        latest: message,
+        unreadCount: current?.unreadCount ?? 0,
+      });
+    }
+    if (message.senderId !== userId && !message.readAt) {
+      const next = summaries.get(contactId);
+      if (next) next.unreadCount += 1;
+    }
+  }
+  return [...summaries.values()].sort((left, right) => right.latest.createdAt.localeCompare(left.latest.createdAt));
+};
+
+export const getConversationSummaries = async (userId: string) => {
+  try {
+    const query = new URLSearchParams({ summariesFor: userId });
+    const response = await fetch(`/.netlify/functions/messages?${query.toString()}`, { cache: "no-store" });
+    if (!response.ok) throw new Error(await response.text());
+    const summaries = await response.json() as ConversationSummary[];
+    summaries.forEach((summary) => replaceLocalMessage(summary.latest));
+    return summaries;
+  } catch {
+    return getLocalConversationSummaries(userId);
+  }
+};
 
 export const markConversationRead = (userId: string, contactId: string, messages: ChatMessage[]) => {
   const readAt = new Date().toISOString();

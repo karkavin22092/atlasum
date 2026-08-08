@@ -52,6 +52,7 @@ const feedbackSubjectNames: Record<string, string> = {
   "it-design": "ИТ и графика",
   management: "Менеджмент",
   economics: "Экономика",
+  english: "Английский язык",
 };
 
 export const formatFeedbackPage = (pageUrl: string) => {

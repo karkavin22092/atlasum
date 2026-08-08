@@ -3,7 +3,7 @@ import questionData from "../../data/questions.json";
 import { dashboardMeta } from "../../server/content";
 import { uniqueQuestions } from "../../shared/question-uniqueness";
 
-type SubjectId = "it-design" | "management" | "economics";
+type SubjectId = "it-design" | "management" | "economics" | "english";
 type DuelStatus = "pending" | "active" | "finished" | "cancelled" | "declined";
 type DuelAnswer = { questionId: string; answer: unknown };
 type DuelQuestion = {
@@ -259,7 +259,7 @@ export default async (request: Request) => {
     if (request.method === "POST" && payload.action === "invite") {
       const opponentId = cleanId(payload.opponentId);
       if (!opponentId || opponentId === userId) return jsonError("Выберите другого игрока", 400);
-      const subject: SubjectId = payload.subject === "management" || payload.subject === "economics" ? payload.subject : "it-design";
+      const subject: SubjectId = payload.subject === "management" || payload.subject === "economics" || payload.subject === "english" ? payload.subject : "it-design";
       const [inviter, invitee, storedOpponent] = await Promise.all([getPlayer(userId), getPlayer(opponentId), leaderboardStore().get(opponentId, { type: "json", consistency: "strong" }) as Promise<LeaderboardEntry | null>]);
       if (!inviter || !invitee || !isOnline(storedOpponent)) return jsonError("Игрок сейчас не в сети", 409);
       const existing = (await listDuels()).find((candidate) =>
@@ -273,7 +273,7 @@ export default async (request: Request) => {
         winnerId: null, result: null, cancelReason: null, answers: {}, rewardXp: {}, rewardsApplied: false,
       };
       await saveDuel(duel);
-      const subjectLabel = subject === "management" ? "менеджменту" : subject === "economics" ? "экономике" : "ИТ и графике";
+      const subjectLabel = subject === "management" ? "менеджменту" : subject === "economics" ? "экономике" : subject === "english" ? "английскому языку" : "ИТ и графике";
       await notify(opponentId, "duel-invite", "Вас пригласили в игру 1 на 1", `${inviter.name} предлагает сыграть 10 вопросов по ${subjectLabel}.`, duel.id);
       return Response.json(publicDuel(duel, userId), { status: 201 });
     }

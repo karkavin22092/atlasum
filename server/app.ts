@@ -457,6 +457,19 @@ const selectQuestions = async ({
   }
 
   if (mode === "exam") {
+    if (subject === "english") {
+      const chosen: typeof pool = [];
+      const uniqueness = createQuestionUniquenessState();
+      const byCategory = (category: string) => shuffle(
+        pool.filter((question) => question.meta && (question.meta as Record<string, unknown>).englishCategory === category),
+        `${selectionSeed}:english:${category}`,
+      );
+      appendSemanticQuestions(chosen, byCategory("vocabulary"), 10, uniqueness);
+      appendSemanticQuestions(chosen, byCategory("grammar"), 20, uniqueness);
+      appendSemanticQuestions(chosen, byCategory("matching"), 24, uniqueness);
+      appendSemanticQuestions(chosen, byCategory("sequence"), 25, uniqueness);
+      return shuffle(chosen, `${selectionSeed}:english:final`);
+    }
     const byDifficulty = {
       easy: shuffle(
         pool.filter((question) => question.difficulty === "easy"),
@@ -826,7 +839,7 @@ app.post("/api/tests/generate", async (req, res) => {
   };
 
   const profile = await ensureProfile(body.profileName);
-  const count = body.mode === "exam" ? 30 : Math.max(1, Math.min(body.count ?? 10, 100));
+  const count = body.mode === "exam" ? body.subject === "english" ? 25 : 30 : Math.max(1, Math.min(body.count ?? 10, 100));
   const questions = await selectQuestions({
     profileId: profile.id,
     mode: body.mode ?? "practice",
@@ -854,7 +867,11 @@ app.post("/api/tests/generate", async (req, res) => {
     topic: body.topic ?? null,
     questions: questions.map((question) => ({
       ...toJsonQuestion(question),
-      scoreWeight: question.difficulty === "hard" ? 3 : question.difficulty === "medium" ? 2 : 1,
+      scoreWeight: body.mode === "exam" && body.subject === "english"
+        ? (question.meta as Record<string, unknown> | null)?.englishCategory === "vocabulary" ? 2
+          : (question.meta as Record<string, unknown> | null)?.englishCategory === "grammar" ? 4
+            : 8
+        : question.difficulty === "hard" ? 3 : question.difficulty === "medium" ? 2 : 1,
     })),
   };
 
@@ -902,8 +919,13 @@ app.post("/api/tests/submit", async (req, res) => {
     } satisfies AttemptResult];
   });
 
-  const score = results.filter((result) => result.isCorrect).length;
-  const maxScore = results.length;
+  const examWeight = (questionId: string) => {
+    const category = (questionMap.get(questionId)?.meta as Record<string, unknown> | undefined)?.englishCategory;
+    return category === "vocabulary" ? 2 : category === "grammar" ? 4 : category === "matching" || category === "sequence" ? 8 : 1;
+  };
+  const isEnglishExam = body.mode === "exam" && results.every((result) => (questionMap.get(result.questionId)?.meta as Record<string, unknown> | undefined)?.englishCategory);
+  const score = isEnglishExam ? results.reduce((sum, result) => sum + (result.isCorrect ? examWeight(result.questionId) : 0), 0) : results.filter((result) => result.isCorrect).length;
+  const maxScore = isEnglishExam ? results.reduce((sum, result) => sum + examWeight(result.questionId), 0) : results.length;
   const percent = maxScore === 0 ? 0 : Math.round((score / maxScore) * 1000) / 10;
   const grade = gradeByPercent(percent);
   const xpGained = computeXp(results);

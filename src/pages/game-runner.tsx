@@ -79,7 +79,7 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
   const navigate = useNavigate();
   const gameId = params.gameId ?? "cards";
   const game = GAME_LABELS[gameId] ?? GAME_LABELS.cards;
-  const subject = searchParams.get("subject") === "management" ? "management" : searchParams.get("subject") === "economics" ? "economics" : "it-design";
+  const subject = searchParams.get("subject") === "management" ? "management" : searchParams.get("subject") === "economics" ? "economics" : searchParams.get("subject") === "english" ? "english" : "it-design";
   const subjectTopics = meta?.topics.filter((topic) => topic.subject === subject) ?? [];
 
   const [deck, setDeck] = useState<GeneratedTest | null>(null);

@@ -48,7 +48,7 @@ type AppMeta = DashboardMeta & {
     lastSeenAt: string | null;
   }>;
   activity: Array<{ date: string; attempts: number; correct: number; xp: number }>;
-  topicProgress: Array<{ key: string; title: string; description: string; source: string; color: string; subject?: "it-design" | "management" | "economics"; mastery: number; answered: number }>;
+  topicProgress: Array<{ key: string; title: string; description: string; source: string; color: string; subject?: "it-design" | "management" | "economics" | "english"; mastery: number; answered: number }>;
   attempts: Array<{
     id: string;
     mode: string;
@@ -168,7 +168,12 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const badgeLabel = (count: number) => count > 99 ? "99+" : String(count);
   const sourcePage = `${location.pathname}${location.search}`;
   const requestedSubject = new URLSearchParams(location.search).get("subject");
-  const activeSubject = requestedSubject === "management" || requestedSubject === "economics" ? requestedSubject : "it-design";
+  const activeSubject = requestedSubject === "management" || requestedSubject === "economics" || requestedSubject === "english" ? requestedSubject : "it-design";
+  const handleLogoClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    if (location.pathname !== "/") return;
+    event.preventDefault();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   return (
     <div
@@ -180,7 +185,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
 
       <header className="theme-header v22-header sticky top-0 z-40 border-b backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
-          <Link to={`/?subject=${activeSubject}`} className="v22-brand flex min-w-0 items-center gap-2.5 transition hover:opacity-90 sm:gap-3">
+          <Link to={`/?subject=${activeSubject}`} onClick={handleLogoClick} className="v22-brand flex min-w-0 items-center gap-2.5 transition hover:opacity-90 sm:gap-3">
             <div className="theme-brand-mark flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400 via-sky-500 to-violet-500 shadow-glow sm:h-11 sm:w-11">
               <Sparkles className="h-5 w-5 text-white" />
             </div>
@@ -200,7 +205,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
                 Сообщения
                 {unreadMessageCount ? (
                   <span className="message-unread-badge inline-flex min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[11px] font-bold leading-none shadow-[0_0_14px_rgba(244,63,94,0.65)]">
-                    {unreadLabel}
+                    <span className="message-unread-value">{unreadLabel}</span>
                   </span>
                 ) : null}
               </Link>
@@ -209,13 +214,13 @@ const AppShell = ({ children }: { children: ReactNode }) => {
               <Link to="/proposals" className="glass relative inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm text-slate-200 transition hover:bg-white/10">
                 <Lightbulb className="h-4 w-4 text-amber-300" />
                 Предложения
-                {unreadFeedbackCount ? <span className="message-unread-badge inline-flex min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[11px] font-bold leading-none">{badgeLabel(unreadFeedbackCount)}</span> : null}
+                {unreadFeedbackCount ? <span className="message-unread-badge inline-flex min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[11px] font-bold leading-none"><span className="message-unread-value">{badgeLabel(unreadFeedbackCount)}</span></span> : null}
               </Link>
             ) : null}
             {user ? (
               <Link to="/notifications" aria-label={unreadNotificationCount ? `Уведомления, новых: ${unreadNotificationCount}` : "Уведомления"} className="glass relative inline-flex h-11 w-11 items-center justify-center rounded-full text-slate-200 transition hover:bg-white/10">
                 <Bell className="h-4 w-4 text-cyan-300" />
-                {unreadNotificationCount ? <span className="message-unread-badge absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none">{badgeLabel(unreadNotificationCount)}</span> : null}
+                {unreadNotificationCount ? <span className="message-unread-badge absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none"><span className="message-unread-value">{badgeLabel(unreadNotificationCount)}</span></span> : null}
               </Link>
             ) : null}
             {user && !admin ? (
@@ -325,17 +330,17 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         <nav className="glass-strong v22-bottom-nav fixed inset-x-2 bottom-2 z-50 flex items-center justify-around rounded-3xl px-1 py-1.5 sm:inset-x-3 sm:bottom-3 sm:px-2 sm:py-2 xl:hidden" aria-label="Быстрые действия">
           <Link to="/messages" className="relative grid min-w-14 place-items-center gap-1 rounded-2xl px-2 py-2 text-[10px] text-slate-300">
             <MessageCircle className="h-5 w-5 text-cyan-300" /><span>Чаты</span>
-            {unreadMessageCount ? <span className="message-unread-badge absolute right-1 top-0 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold">{unreadLabel}</span> : null}
+            {unreadMessageCount ? <span className="message-unread-badge absolute right-1 top-0 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold"><span className="message-unread-value">{unreadLabel}</span></span> : null}
           </Link>
           {admin ? (
             <Link to="/proposals" className="relative grid min-w-14 place-items-center gap-1 rounded-2xl px-2 py-2 text-[10px] text-slate-300">
               <Lightbulb className="h-5 w-5 text-amber-300" /><span>Предложения</span>
-              {unreadFeedbackCount ? <span className="message-unread-badge absolute right-1 top-0 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold">{badgeLabel(unreadFeedbackCount)}</span> : null}
+              {unreadFeedbackCount ? <span className="message-unread-badge absolute right-1 top-0 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold"><span className="message-unread-value">{badgeLabel(unreadFeedbackCount)}</span></span> : null}
             </Link>
           ) : null}
           <Link to="/notifications" className="relative grid min-w-12 place-items-center gap-1 rounded-2xl px-1 py-2 text-[10px] text-slate-300 sm:min-w-14 sm:px-2">
             <Bell className="h-5 w-5 text-cyan-300" /><span>События</span>
-            {unreadNotificationCount ? <span className="message-unread-badge absolute right-1 top-0 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold">{badgeLabel(unreadNotificationCount)}</span> : null}
+            {unreadNotificationCount ? <span className="message-unread-badge absolute right-1 top-0 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold"><span className="message-unread-value">{badgeLabel(unreadNotificationCount)}</span></span> : null}
           </Link>
           {!admin ? (
             <Link to="/suggest" state={{ sourcePage }} className="grid min-w-14 place-items-center gap-1 rounded-2xl px-1 py-2 text-[10px] text-slate-300 sm:min-w-16 sm:px-2">

@@ -3,7 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Badge, Button, GlassCard, Panel, ProgressBar, StatCard, TitleBlock } from "@/components/ui";
-import { BookOpen, Brain, BriefcaseBusiness, CircleDollarSign, Gamepad2, Laptop2, LineChart, Medal, ShieldCheck, Sparkles, Swords, Target, Trophy, UserRound } from "lucide-react";
+import { BookOpen, Brain, BriefcaseBusiness, CircleDollarSign, Gamepad2, Languages, Laptop2, LineChart, Medal, ShieldCheck, Sparkles, Swords, Target, Trophy, UserRound } from "lucide-react";
 import type { AppPageProps } from "./types";
 import type { SubjectId } from "@shared/types";
 import { levelLabel } from "@/lib/utils";
@@ -28,6 +28,11 @@ const subjectPresentation: Record<SubjectId, { title: string; shortTitle: string
     shortTitle: "Экономика",
     description: "Экономическая теория, микро- и макроэкономика: практика, экзамены и игровые режимы.",
   },
+  english: {
+    title: "Английский язык",
+    shortTitle: "Английский",
+    description: "Академическая, научная и общеэкономическая лексика, грамматика B2 и работа со связностью текста: практика, экзамены и игровые режимы.",
+  },
 };
 
 export const HomePage = ({ meta }: AppPageProps) => {
@@ -37,7 +42,7 @@ export const HomePage = ({ meta }: AppPageProps) => {
   const admin = isAdminUser(user);
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedSubject = searchParams.get("subject");
-  const [selectedSubject, setSelectedSubject] = useState<SubjectId>(requestedSubject === "management" || requestedSubject === "economics" ? requestedSubject : "it-design");
+  const [selectedSubject, setSelectedSubject] = useState<SubjectId>(requestedSubject === "management" || requestedSubject === "economics" || requestedSubject === "english" ? requestedSubject : "it-design");
   const [selectedTopic, setSelectedTopic] = useState("");
   const filteredTopics = meta?.topics.filter((topic) => topic.subject === selectedSubject) ?? [];
   const firstTopic = filteredTopics[0]?.title ?? "";
@@ -81,8 +86,12 @@ export const HomePage = ({ meta }: AppPageProps) => {
               <CircleDollarSign className="h-4 w-4" />
               <span>{subjectPresentation.economics.shortTitle}</span>
             </button>
+            <button type="button" aria-pressed={selectedSubject === "english"} onClick={() => selectSubject("english")}>
+              <Languages className="h-4 w-4" />
+              <span>{subjectPresentation.english.shortTitle}</span>
+            </button>
           </div>
-          <div className="v22-question-count"><span>{meta?.questionBank.total ?? 3560}</span> вопросов в базе</div>
+          <div className="v22-question-count"><span>{meta?.questionBank.total ?? 4560}</span> вопросов в базе</div>
         </div>
 
         <div className="v22-hero-layout grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">

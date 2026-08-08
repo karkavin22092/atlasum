@@ -12,7 +12,7 @@ import type { AppPageProps } from "./types";
 import { difficultyLabels } from "@/lib/question-labels";
 import { REALTIME_POLL_MS } from "@/lib/realtime";
 
-const subjectTitle = (subject: Duel["subject"]) => subject === "management" ? "Менеджмент" : subject === "economics" ? "Экономика" : "ИТ и графика";
+const subjectTitle = (subject: Duel["subject"]) => subject === "management" ? "Менеджмент" : subject === "economics" ? "Экономика" : subject === "english" ? "Английский язык" : "ИТ и графика";
 
 const playerName = (duel: Duel, id: string | null) => id === duel.inviter.id ? duel.inviter.name : id === duel.invitee.id ? duel.invitee.name : "Игрок";
 

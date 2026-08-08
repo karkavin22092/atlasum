@@ -1,4 +1,5 @@
 import { QUESTION_BANK_TOTAL, questionCountForTopic, topicCatalog, type TopicConcept } from "./content";
+import { generateEnglishQuestionBank } from "./english-content";
 import type {
   Difficulty,
   FillQuestion,
@@ -217,6 +218,7 @@ export const generateQuestionBank = (): Question[] => {
   const questions: Question[] = [];
 
   for (const topic of topicCatalog) {
+    if (topic.subject === "english") continue;
     const concepts = topic.concepts;
     const termPairs = concepts.map((concept) => ({ term: concept.term, definition: concept.definition }));
     const questionCount = questionCountForTopic(topic);
@@ -513,6 +515,8 @@ export const generateQuestionBank = (): Question[] => {
     }
   }
 
+  questions.push(...generateEnglishQuestionBank());
+
   validateQuestionBank(questions);
   return questions;
 };
@@ -562,6 +566,8 @@ export const validateQuestionBank = (questions: Question[]) => {
 
     const conceptName = typeof question.meta?.concept === "string" ? question.meta.concept : "";
     const concept = topic.concepts.find((item) => item.term === conceptName);
+
+    if (topic.subject === "english") continue;
 
     if (question.type === "single" || question.type === "scenario") {
       const correctId = String(question.correct);

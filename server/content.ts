@@ -1,6 +1,7 @@
 import type { DashboardMeta, GameId, QuizMode, TopicMeta } from "@shared/types";
 import { managementTopicCatalog } from "./management-content";
 import { economicsTopicCatalog } from "./economics-content";
+import { englishTopicCatalog } from "./english-content";
 
 export type TopicConcept = {
   term: string;
@@ -1408,11 +1409,13 @@ export const topicCatalog: TopicBlueprint[] = [
   ...technologyTopicCatalog.map((topic) => ({ ...topic, subject: "it-design" as const })),
   ...managementTopicCatalog,
   ...economicsTopicCatalog,
+  ...englishTopicCatalog,
 ];
 
 export const questionCountForTopic = (topic: Pick<TopicBlueprint, "key" | "subject">) => {
   if (topic.subject === "it-design") return 60;
   if (topic.subject === "management") return topic.key === managementTopicCatalog[0].key ? 112 : 111;
+  if (topic.subject === "english") return englishTopicCatalog.findIndex((item) => item.key === topic.key) < 4 ? 84 : 83;
   return topic.key === economicsTopicCatalog[0].key ? 334 : 333;
 };
 
