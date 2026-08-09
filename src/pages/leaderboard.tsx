@@ -2,6 +2,7 @@ import { Award, Crown, Medal, MessageCircle, Trophy, UserRound } from "lucide-re
 import { Link } from "react-router-dom";
 import { BackButton, Badge, Button, GlassCard, Panel, TitleBlock } from "@/components/ui";
 import { getPresence } from "@/lib/presence";
+import { countLabel, formatXp } from "@/lib/utils";
 import type { AppPageProps } from "./types";
 
 const rankIcon = (rank: number) => {
@@ -47,14 +48,14 @@ export const LeaderboardPage = ({ meta, profileName }: AppPageProps) => (
                     {entry.name}
                     {isCurrent ? <Badge tone="cyan">Это вы</Badge> : null}
                   </div>
-                  <div className="mt-1 text-xs text-slate-400">{entry.attempts} тестов · точность {entry.accuracy}% · серия {entry.streak}</div>
+                  <div className="mt-1 text-xs text-slate-400">{countLabel(entry.attempts, "тест", "теста", "тестов")} · точность {entry.accuracy}% · серия {entry.streak}</div>
                   <div className={presence.online ? "mt-1.5 flex items-center gap-1.5 text-xs font-medium text-emerald-400" : "mt-1.5 flex items-center gap-1.5 text-xs text-slate-500"}>
                     <span className={presence.online ? "h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" : "h-2 w-2 rounded-full bg-slate-500"} />
                     {presence.label}
                   </div>
                 </div>
                 <Badge tone="violet">Уровень {entry.level}</Badge>
-                <div className="text-right text-lg font-semibold text-cyan-200">{entry.xp} XP</div>
+                <div className="text-right text-lg font-semibold text-cyan-200">{formatXp(entry.xp)} XP</div>
                 {isCurrent ? null : (
                   <Link to={`/messages/${entry.id}`}>
                     <Button variant="secondary" className="w-full sm:w-auto">

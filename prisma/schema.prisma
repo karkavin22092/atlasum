@@ -21,6 +21,18 @@ model Profile {
   attempts     Attempt[]
   activities   ActivityDay[]
   achievements ProfileAchievement[]
+  theoryProgress NashelingoTheoryProgress[]
+}
+
+model NashelingoTheoryProgress {
+  id          Int      @id @default(autoincrement())
+  profileId   String
+  profile     Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  subject     String
+  topic       String
+  completedAt DateTime @default(now())
+
+  @@unique([profileId, subject, topic])
 }
 
 model Question {

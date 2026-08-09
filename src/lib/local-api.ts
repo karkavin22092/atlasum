@@ -8,8 +8,10 @@ import { createQuestionUniquenessState, tryAddUniqueQuestion, uniqueQuestions } 
 import type {
   AttemptResult,
   AttemptSubmission,
+  Difficulty,
   FillQuestion,
   GeneratedTest,
+  NashelingoTheoryProgress,
   MatchingItem,
   Profile,
   ProfileStats,
@@ -48,6 +50,7 @@ type StoredProfile = Profile & {
   reviews: Record<string, ReviewRecord>;
   attempts: StoredAttempt[];
   activity: Record<string, { attempts: number; correct: number; xp: number }>;
+  theoryProgress: Record<string, NashelingoTheoryProgress>;
 };
 
 type LocalDatabase = {
@@ -228,9 +231,11 @@ const ensureProfile = (database: LocalDatabase, profileName?: string) => {
       reviews: {},
       attempts: [],
       activity: {},
+      theoryProgress: {},
     };
   }
   database.profiles[id].name = name;
+  database.profiles[id].theoryProgress ??= {};
   return database.profiles[id];
 };
 
@@ -540,7 +545,8 @@ export const localApi = {
       leaderboard,
       activity: Object.entries(profile.activity).sort(([left], [right]) => left.localeCompare(right)).map(([date, value]) => ({ date, ...value })),
       topicProgress,
-      attempts: profile.attempts.slice().reverse().slice(0, 20),
+      theoryProgress: Object.values(profile.theoryProgress ?? {}),
+      attempts: profile.attempts.slice().reverse().slice(0, 500),
       achievements: buildAchievements(profile),
       questionBank: {
         total: questions.length,
@@ -549,7 +555,22 @@ export const localApi = {
     };
   },
 
-  async generateTest(payload: { profileName: string; mode: string; count: number; topic?: string | null; topics?: string[]; subject?: SubjectId; questionType?: QuestionType }): Promise<GeneratedTest> {
+  async completeNashelingoTheory(payload: { profileName: string; subject: SubjectId; topic: string }): Promise<NashelingoTheoryProgress> {
+    const database = readDatabase();
+    const profile = ensureProfile(database, payload.profileName);
+    profile.theoryProgress ??= {};
+    const key = `${payload.subject}:${payload.topic}`;
+    const current = profile.theoryProgress[key] ?? {
+      subject: payload.subject,
+      topic: payload.topic,
+      completedAt: new Date().toISOString(),
+    };
+    profile.theoryProgress[key] = current;
+    writeDatabase(database);
+    return current;
+  },
+
+  async generateTest(payload: { profileName: string; mode: string; count: number; topic?: string | null; topics?: string[]; subject?: SubjectId; questionType?: QuestionType; lessonIndex?: number }): Promise<GeneratedTest> {
     const database = readDatabase();
     const profile = ensureProfile(database, payload.profileName);
     const source = uniqueQuestionPool(allQuestions(database));
@@ -610,6 +631,28 @@ export const localApi = {
         append(shuffle(pool), 30);
       }
       if (payload.subject !== "english") selected = shuffle(chosen);
+    } else if (payload.lessonIndex !== undefined && payload.mode === "topic") {
+      const level = Math.max(0, Math.min(4, payload.lessonIndex));
+      const preferred: Record<number, Difficulty[]> = {
+        0: ["easy", "medium", "hard"],
+        1: ["easy", "medium", "hard"],
+        2: ["medium", "easy", "hard"],
+        3: ["medium", "hard", "easy"],
+        4: ["hard", "medium", "easy"],
+      };
+      const ordered = [...pool].sort((left, right) => {
+        const leftRank = preferred[level].indexOf(left.difficulty);
+        const rightRank = preferred[level].indexOf(right.difficulty);
+        return leftRank - rightRank || left.id.localeCompare(right.id);
+      });
+      const offset = level * payload.count;
+      const levelPool = [...ordered.slice(offset, offset + payload.count * 3), ...ordered];
+      const uniqueness = createQuestionUniquenessState();
+      selected = [];
+      for (const question of levelPool) {
+        if (selected.length >= payload.count) break;
+        if (tryAddUniqueQuestion(uniqueness, question)) selected.push(question);
+      }
     } else {
       selected = weightedSample(pool, profile, Math.min(Math.max(1, payload.count), 100));
     }
@@ -633,7 +676,8 @@ export const localApi = {
   async submitTest(payload: AttemptSubmission): Promise<SubmissionResponse> {
     const database = readDatabase();
     const profile = ensureProfile(database, payload.profileName);
-    const questions = new Map(allQuestions(database).map((question) => [question.id, question]));
+    const questionSnapshot = payload.questionSnapshot?.filter((question) => typeof question?.id === "string") ?? [];
+    const questions = new Map((questionSnapshot.length ? questionSnapshot : allQuestions(database)).map((question) => [question.id, question]));
     const submittedAnswers = payload.answers.filter((entry) => hasAnswer(entry.answer));
     const testModes = new Set(["practice", "exam", "hardOnly", "mistakes", "topic", "random", "review"]);
     const incompleteTest = testModes.has(String(payload.mode)) && submittedAnswers.length < payload.count;

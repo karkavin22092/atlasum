@@ -2,6 +2,7 @@ import type {
   AttemptSubmission,
   DashboardMeta,
   GeneratedTest,
+  NashelingoTheoryProgress,
   Profile,
   ProfileStats,
   Question,
@@ -67,11 +68,12 @@ export const api = {
     leaderboard: Array<{ rank: number; id: string; name: string; avatarUrl: string | null; xp: number; level: number; streak: number; bestStreak: number; attempts: number; accuracy: number; lastActiveAt: string | null; lastSeenAt: string | null }>;
     activity: Array<{ date: string; attempts: number; correct: number; xp: number }>;
     topicProgress: Array<{ key: string; title: string; description: string; source: string; color: string; subject?: SubjectId; mastery: number; answered: number }>;
+    theoryProgress: NashelingoTheoryProgress[];
     attempts: Array<{ id: string; mode: string; count: number; score: number; maxScore: number; percent: number; grade: string; durationMs: number; topic: string | null; createdAt: string; items: Array<{ questionId: string; topic: string; difficulty: string; isCorrect: boolean; userAnswer: unknown; correctAnswer: unknown; explanation: string }>; }>;
     achievements: Array<{ key: string; title: string; description: string; icon: string; unlockedAt: string }>;
     questionBank: { total: number; topics: Array<{ key: string; title: string; questions: number }> };
   }>(`/api/meta?profileName=${encodeURIComponent(profileName)}`), localFallback((localApi) => localApi.meta(profileName))),
-  generateTest: (payload: { profileName: string; mode: string; count: number; topic?: string | null; topics?: string[]; subject?: SubjectId; questionType?: QuestionType }) =>
+  generateTest: (payload: { profileName: string; mode: string; count: number; topic?: string | null; topics?: string[]; subject?: SubjectId; questionType?: QuestionType; lessonIndex?: number }) =>
     withLocalFallback(() => request<GeneratedTest>("/api/tests/generate", {
       method: "POST",
       body: JSON.stringify(payload),
@@ -81,6 +83,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }), localFallback((localApi) => localApi.submitTest(payload))),
+  completeNashelingoTheory: (payload: { profileName: string; subject: SubjectId; topic: string }) =>
+    withLocalFallback(() => request<NashelingoTheoryProgress>("/api/nashelingo/theory/complete", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }), localFallback((localApi) => localApi.completeNashelingoTheory(payload))),
   questions: (params?: { topic?: string; difficulty?: string; search?: string }) => {
     const query = new URLSearchParams();
     if (params?.topic) query.set("topic", params.topic);

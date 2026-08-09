@@ -434,6 +434,7 @@ const selectQuestions = async ({
   topics,
   subject,
   questionType,
+  lessonIndex,
 }: {
   profileId: string;
   mode: string;
@@ -442,8 +443,9 @@ const selectQuestions = async ({
   topics?: string[];
   subject?: SubjectId;
   questionType?: Question["type"];
+  lessonIndex?: number;
 }) => {
-  const selectionSeed = `${profileId}:${mode}:${nanoid()}`;
+  const selectionSeed = `${profileId}:${mode}:${topic ?? ""}:${(topics ?? []).join("|")}`;
   const selectedTitles = new Set([...(topics ?? []), topic ?? ""]);
   const selectedTenseTopic = subject === "english"
     && [...selectedTitles].some((value) => dashboardMeta.topics.some((item) => item.key.startsWith("english-tense") && item.title === value));
@@ -577,6 +579,22 @@ const selectQuestions = async ({
   const sizedPool = [...pool];
   const sorted = sizedPool.sort((a, b) => weightQuestion(b as never, selectionSeed) - weightQuestion(a as never, selectionSeed));
   const maxCount = Math.min(count, sorted.length);
+  if (lessonIndex !== undefined && mode === "topic") {
+    const level = Math.max(0, Math.min(4, lessonIndex));
+    const preferred = ["easy", "medium", "hard"] as const;
+    const ordered = [...sorted].sort((left, right) => {
+      const leftRank = Math.abs(preferred.indexOf(left.difficulty as typeof preferred[number]) - Math.min(level, 2));
+      const rightRank = Math.abs(preferred.indexOf(right.difficulty as typeof preferred[number]) - Math.min(level, 2));
+      return leftRank - rightRank || weightQuestion(right as never, `${selectionSeed}:level` ) - weightQuestion(left as never, `${selectionSeed}:level`);
+    });
+    const offset = level * count;
+    const window = ordered.slice(offset, offset + maxCount);
+    const selectedLevel: typeof ordered = [];
+    const levelUniqueness = createQuestionUniquenessState();
+    appendSemanticQuestions(selectedLevel, window, maxCount, levelUniqueness);
+    if (selectedLevel.length < maxCount) appendSemanticQuestions(selectedLevel, ordered, maxCount, levelUniqueness);
+    return selectedLevel.slice(0, maxCount);
+  }
   const selected: typeof sorted = [];
   appendSemanticQuestions(selected, sorted, maxCount, createQuestionUniquenessState());
   return shuffle(selected, `${selectionSeed}:picked`);
@@ -724,15 +742,19 @@ app.get("/api/health", (_req, res) => {
 app.get("/api/meta", async (req, res) => {
   const profileName = String(req.query.profileName ?? "Гость");
   const profile = await ensureProfile(profileName);
-  const [stats, leaderboard, activity, topicProgress, attempts, achievements] = await Promise.all([
+  const [stats, leaderboard, activity, topicProgress, theoryProgress, attempts, achievements] = await Promise.all([
     getProfileStats(profile.id),
     buildLeaderboard(),
     buildActivity(profile.id),
     buildTopicProgress(),
+    prisma.nashelingoTheoryProgress.findMany({
+      where: { profileId: profile.id },
+      select: { subject: true, topic: true, completedAt: true },
+    }),
     prisma.attempt.findMany({
       where: { profileId: profile.id },
       orderBy: { createdAt: "desc" },
-      take: 10,
+      take: 500,
       include: { items: true },
     }),
     prisma.profileAchievement.findMany({
@@ -748,9 +770,42 @@ app.get("/api/meta", async (req, res) => {
     leaderboard,
     activity,
     topicProgress,
+    theoryProgress: theoryProgress.map((entry) => ({
+      subject: entry.subject as SubjectId,
+      topic: entry.topic,
+      completedAt: entry.completedAt.toISOString(),
+    })),
     attempts,
     achievements,
     questionBank: buildQuestionBankSummary(),
+  });
+});
+
+app.post("/api/nashelingo/theory/complete", async (req, res) => {
+  const body = req.body as { profileName?: string; subject?: SubjectId; topic?: string };
+  const subject = body.subject;
+  const topic = body.topic?.trim();
+  const validSubject = subject === "it-design" || subject === "management" || subject === "economics" || subject === "english";
+  const validTopic = validSubject
+    && topic
+    && topicCatalog.some((entry) => entry.subject === subject && entry.title === topic && !entry.examOnly);
+
+  if (!validTopic || !subject || !topic) {
+    return res.status(400).send("Unknown Nashelingo topic");
+  }
+
+  const profile = await ensureProfile(body.profileName);
+  const progress = await prisma.nashelingoTheoryProgress.upsert({
+    where: { profileId_subject_topic: { profileId: profile.id, subject, topic } },
+    create: { profileId: profile.id, subject, topic },
+    update: {},
+    select: { subject: true, topic: true, completedAt: true },
+  });
+
+  return res.json({
+    subject: progress.subject as SubjectId,
+    topic: progress.topic,
+    completedAt: progress.completedAt.toISOString(),
   });
 });
 
@@ -913,6 +968,7 @@ app.post("/api/tests/generate", async (req, res) => {
     topics?: string[];
     subject?: SubjectId;
     questionType?: Question["type"];
+    lessonIndex?: number;
   };
 
   const profile = await ensureProfile(body.profileName);
@@ -925,6 +981,7 @@ app.post("/api/tests/generate", async (req, res) => {
     topics: body.topics?.filter(Boolean),
     subject: body.subject,
     questionType: body.questionType,
+    lessonIndex: body.lessonIndex,
   });
 
   const test: GeneratedTest = {
@@ -968,15 +1025,18 @@ app.post("/api/tests/submit", async (req, res) => {
   const testModes = new Set(["practice", "exam", "hardOnly", "mistakes", "topic", "random", "review"]);
   const answersToEvaluate = testModes.has(String(body.mode)) && submittedAnswers.length < body.count ? [] : submittedAnswers;
   const profile = await ensureProfile(body.profileName);
-  const questions = await prisma.question.findMany({
+  const snapshotQuestions = body.questionSnapshot?.filter((question) =>
+    typeof question?.id === "string" && answersToEvaluate.some((entry) => entry.questionId === question.id)) ?? [];
+  const storedQuestions = snapshotQuestions.length ? [] : await prisma.question.findMany({
     where: {
       id: {
         in: answersToEvaluate.map((entry) => entry.questionId),
       },
     },
   });
-
-  const questionMap = new Map<string, Question>(questions.map((question) => [question.id, toJsonQuestion(question)]));
+  const questionMap = new Map<string, Question>(snapshotQuestions.length
+    ? snapshotQuestions.map((question) => [question.id, sanitizeQuestionText(question)])
+    : storedQuestions.map((question) => [question.id, toJsonQuestion(question)]));
   const results: AttemptResult[] = answersToEvaluate.flatMap((entry) => {
     const question = questionMap.get(entry.questionId);
     if (!question) {

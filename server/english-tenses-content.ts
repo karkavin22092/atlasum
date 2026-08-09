@@ -69,6 +69,33 @@ const have = (subject: Subject) => subject.singular ? "has" : "have";
 const be = (subject: Subject) => subject.singular ? "is" : "are";
 const pastBe = (subject: Subject) => subject.singular ? "was" : "were";
 
+type RussianVerbForm = {
+  present: [string, string];
+  past: [string, string, string];
+  perfect: [string, string, string];
+  future: [string, string];
+  infinitive: string;
+  object: string;
+};
+
+const russianVerbForms: Record<string, RussianVerbForm> = {
+  work: { present: ["работает", "работают"], past: ["работал", "работала", "работали"], perfect: ["поработал", "поработала", "поработали"], future: ["поработает", "поработают"], infinitive: "работать", object: "над небольшим проектом" },
+  study: { present: ["изучает", "изучают"], past: ["изучал", "изучала", "изучали"], perfect: ["изучил", "изучила", "изучили"], future: ["изучит", "изучат"], infinitive: "изучать", object: "новую тему" },
+  make: { present: ["составляет", "составляют"], past: ["составлял", "составляла", "составляли"], perfect: ["составил", "составила", "составили"], future: ["составит", "составят"], infinitive: "составлять", object: "простой план" },
+  write: { present: ["пишет", "пишут"], past: ["писал", "писала", "писали"], perfect: ["написал", "написала", "написали"], future: ["напишет", "напишут"], infinitive: "писать", object: "короткое сообщение" },
+  visit: { present: ["посещает", "посещают"], past: ["посещал", "посещала", "посещали"], perfect: ["посетил", "посетила", "посетили"], future: ["посетит", "посетят"], infinitive: "посещать", object: "тихий музей" },
+  cook: { present: ["готовит", "готовят"], past: ["готовил", "готовила", "готовили"], perfect: ["приготовил", "приготовила", "приготовили"], future: ["приготовит", "приготовят"], infinitive: "готовить", object: "полезный ужин" },
+  build: { present: ["строит", "строят"], past: ["строил", "строила", "строили"], perfect: ["построил", "построила", "построили"], future: ["построит", "построят"], infinitive: "строить", object: "небольшую модель" },
+  teach: { present: ["проводит", "проводят"], past: ["проводил", "проводила", "проводили"], perfect: ["провёл", "провела", "провели"], future: ["проведёт", "проведут"], infinitive: "проводить", object: "полезный урок" },
+  choose: { present: ["выбирает", "выбирают"], past: ["выбирал", "выбирала", "выбирали"], perfect: ["выбрал", "выбрала", "выбрали"], future: ["выберет", "выберут"], infinitive: "выбирать", object: "лучший вариант" },
+  prepare: { present: ["готовит", "готовят"], past: ["готовил", "готовила", "готовили"], perfect: ["подготовил", "подготовила", "подготовили"], future: ["подготовит", "подготовят"], infinitive: "готовить", object: "презентацию для занятия" },
+};
+
+const russianSubjects: Record<string, { text: string; gender: "m" | "f" | "plural" }> = {
+  Mia: { text: "Мия", gender: "f" }, Daniel: { text: "Дэниел", gender: "m" }, Anna: { text: "Анна", gender: "f" }, Leo: { text: "Лео", gender: "m" }, Sofia: { text: "София", gender: "f" }, Max: { text: "Макс", gender: "m" }, Emma: { text: "Эмма", gender: "f" }, Noah: { text: "Ноа", gender: "m" }, Liam: { text: "Лиам", gender: "m" }, Olivia: { text: "Оливия", gender: "f" },
+  "Tom and Ana": { text: "Том и Ана", gender: "plural" }, "The students": { text: "Студенты", gender: "plural" }, "My friends": { text: "Мои друзья", gender: "plural" }, "Our teachers": { text: "Наши преподаватели", gender: "plural" }, "The children": { text: "Дети", gender: "plural" },
+};
+
 export const englishTenseTopicCatalog: TopicMeta[] = [
   ["present-simple", "Present Simple", "Настоящее простое время: привычки, факты и регулярные действия.", "do/does + base verb", "время настоящее"],
   ["present-continuous", "Present Continuous", "Настоящее длительное время: действие происходит сейчас или временно.", "am/is/are + verb-ing", "действие в процессе"],
@@ -287,7 +314,7 @@ const generateLegacyEnglishMixedTenseQuestions = (): Question[] => Array.from({ 
   } satisfies Question;
 });
 
-const taskKinds = ["choice", "form-fill", "ru-to-en", "en-to-ru", "sequence"] as const;
+const taskKinds = ["choice", "form-fill", "ru-to-en", "en-to-ru", "sequence", "marker-choice", "already-yet"] as const;
 type TenseTaskKind = (typeof taskKinds)[number];
 
 const russianPluralForms: Record<string, string> = {
@@ -317,8 +344,8 @@ const russianPluralForms: Record<string, string> = {
   подготовил: "подготовили",
 };
 
-const russianSentence = (spec: EnglishTenseSpec, subject: Subject, verb: Verb) => {
-  const person = subject.ruText ?? subject.text;
+const legacyRussianSentence = (spec: EnglishTenseSpec, subject: Subject, verb: Verb) => {
+  const person = subject.text;
   const present = subject.singular ? verb.ruPresent : (russianPluralForms[verb.ruPresent] ?? verb.ruPresent);
   const past = subject.singular ? verb.ruPast : (russianPluralForms[verb.ruPast] ?? verb.ruPast);
   const perfect = subject.singular ? verb.ruPerfect : (russianPluralForms[verb.ruPerfect] ?? verb.ruPerfect);
@@ -340,8 +367,36 @@ const russianSentence = (spec: EnglishTenseSpec, subject: Subject, verb: Verb) =
   }
 };
 
-const englishSentence = (spec: EnglishTenseSpec, subject: Subject, verb: Verb, marker: string) =>
-  `${subject.text} ${spec.form(verb, subject)} ${verb.object} ${marker}.`;
+const russianSentence = (spec: EnglishTenseSpec, subject: Subject, verb: Verb) => {
+  const russianSubject = russianSubjects[subject.text];
+  const russianVerb = russianVerbForms[verb.base];
+  if (!russianSubject || !russianVerb) return legacyRussianSentence(spec, subject, verb);
+  const plural = russianSubject.gender === "plural";
+  const form = (forms: [string, string, string]) => plural ? forms[2] : russianSubject.gender === "f" ? forms[1] : forms[0];
+  const present = plural ? russianVerb.present[1] : russianVerb.present[0];
+  const future = plural ? russianVerb.future[1] : russianVerb.future[0];
+  const text = subject.text;
+  const { object } = russianVerb;
+
+  switch (spec.key) {
+    case "present-simple": return `${text} обычно ${present} ${object}.`;
+    case "present-continuous": return `${text} сейчас ${present} ${object}.`;
+    case "present-perfect": return `${text} ${form(russianVerb.perfect)} ${object}.`;
+    case "present-perfect-continuous": return `${text} уже некоторое время ${present} ${object}.`;
+    case "past-simple": return `${text} вчера ${form(russianVerb.past)} ${object}.`;
+    case "past-continuous": return `${text} в тот момент ${form(russianVerb.past)} ${object}.`;
+    case "past-perfect": return `${text} ${form(russianVerb.perfect)} ${object} до другого события.`;
+    case "past-perfect-continuous": return `${text} до этого некоторое время ${form(russianVerb.past)} ${object}.`;
+    case "future-simple": return `${text} завтра будет ${russianVerb.infinitive} ${object}.`;
+    case "future-continuous": return `${text} завтра в это время будет ${russianVerb.infinitive} ${object}.`;
+    case "future-perfect": return `К этому моменту ${text} уже ${future} ${object}.`;
+    case "future-perfect-continuous": return `К этому моменту ${text} будет уже некоторое время ${russianVerb.infinitive} ${object}.`;
+    default: return `${text} ${present} ${object}.`;
+  }
+};
+
+const englishSentence = (spec: EnglishTenseSpec, subject: Subject, verb: Verb, marker = "") =>
+  `${subject.text} ${spec.form(verb, subject)} ${verb.object}${marker ? ` ${marker}` : ""}.`;
 
 const rotateWords = <T,>(items: T[], shift: number) => items.map((_, index) => items[(index + shift) % items.length]);
 
@@ -358,7 +413,13 @@ const uniqueSequenceTokens = (sentence: string) => {
     tokens.push(token);
     seen.add(token.toLowerCase());
   }
-  return tokens;
+  const occurrences = new Map<string, number>();
+  return tokens.map((token) => {
+    const key = token.toLowerCase();
+    const occurrence = occurrences.get(key) ?? 0;
+    occurrences.set(key, occurrence + 1);
+    return occurrence === 0 ? token : `${token}${"\u2060".repeat(occurrence)}`;
+  });
 };
 
 const contractionVariants = (answer: string) => {
@@ -373,6 +434,23 @@ const contractionVariants = (answer: string) => {
   return Array.from(new Set(variants));
 };
 
+const translationMarker = (spec: EnglishTenseSpec) => {
+  switch (spec.key) {
+    case "present-simple": return "usually";
+    case "present-continuous": return "now";
+    case "present-perfect-continuous": return "for some time";
+    case "past-simple": return "yesterday";
+    case "past-continuous": return "at that moment";
+    case "past-perfect": return "before another event";
+    case "past-perfect-continuous": return "for some time before that";
+    case "future-simple": return "tomorrow";
+    case "future-continuous": return "at this time tomorrow";
+    case "future-perfect": return "by this time";
+    case "future-perfect-continuous": return "for some time by this time";
+    default: return "";
+  }
+};
+
 const buildTenseQuestion = (
   spec: EnglishTenseSpec,
   topic: TopicMeta,
@@ -384,13 +462,14 @@ const buildTenseQuestion = (
 ): Question => {
   const marker = spec.markers[markerIndex % spec.markers.length];
   const correctForm = spec.form(verb, subject);
-  const fullEnglish = englishSentence(spec, subject, verb, marker);
+  const translationEnglish = englishSentence(spec, subject, verb, translationMarker(spec));
   const russian = russianSentence(spec, subject, verb);
   const explanationLead = spec.explanation.split(/(?<=[.!?])\s+/u)[0].replace(/[.!?]$/u, "");
   const safeMarker = marker.replace(/\./gu, "");
   const explanationContext = topic.key === englishTenseMixedTopic.key ? "В смешанном экзаменационном варианте" : "В этом примере";
-  const explanation = `${explanationLead}. ${explanationContext} маркер «${safeMarker}» и смысл фразы «${russian.slice(0, -1)}» требуют формы «${correctForm}» (задание ${index + 1}).`;
-  const kind: TenseTaskKind = taskKinds[index % taskKinds.length];
+  const explanation = `${explanationLead}. ${explanationContext} маркер «${safeMarker}» и смысл фразы «${russian.slice(0, -1)}» требуют формы «${correctForm}».`;
+  const taskOffset = [...spec.key].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const kind: TenseTaskKind = taskKinds[(index + taskOffset) % taskKinds.length];
   const isMixed = topic.key === englishTenseMixedTopic.key;
   const mixedLead = isMixed ? "In a mixed-tense context, " : "";
   const instruction = (text: string) => `${mixedLead}${isMixed ? text.toLowerCase() : text}`;
@@ -401,7 +480,8 @@ const buildTenseQuestion = (
     explanation,
     source,
     tags: ["english", "grammar", "tenses", spec.key, "a2-b1"],
-    meta: { concept: `${id}-concept`, englishCategory: "grammar", tenseKey: spec.key },
+    // Keep the game-facing label useful to a learner; internal question IDs stay internal.
+    meta: { concept: `${subject.text}: ${spec.title} — ${verb.base}`, englishCategory: "grammar", tenseKey: spec.key },
   };
 
   if (kind === "choice") {
@@ -414,16 +494,34 @@ const buildTenseQuestion = (
   }
 
   if (kind === "ru-to-en") {
-    return { ...common, type: "fill", question: `${instruction("Translate into English")}: «${russian}»?`, options: [], correct: { prompt: "", answer: fullEnglish, acceptable: contractionVariants(fullEnglish) } } satisfies Question;
+    return { ...common, type: "fill", question: `${instruction("Translate into English")}: «${russian}»?`, options: [], correct: { prompt: "", answer: translationEnglish, acceptable: contractionVariants(translationEnglish) } } satisfies Question;
   }
 
   if (kind === "en-to-ru") {
-    return { ...common, type: "fill", question: `${instruction("Translate into Russian")}: “${fullEnglish}”?`, options: [], correct: { prompt: "", answer: russian, acceptable: [russian] } } satisfies Question;
+    return { ...common, type: "fill", question: `${instruction("Translate into Russian")}: “${translationEnglish}”?`, options: [], correct: { prompt: "", answer: russian, acceptable: [russian] } } satisfies Question;
   }
 
-  const targetWords = uniqueSequenceTokens(index % 2 === 0 ? fullEnglish : russian);
+  if (kind === "already-yet" && spec.key === "present-perfect") {
+    const negativeSentence = `${subject.text} ${have(subject)} not ${verb.participle} ${verb.object} ___`;
+    const options = optionOrder("yet", ["already", "ago", "tomorrow"], index + 1);
+    return {
+      ...common,
+      type: "single",
+      question: `${instruction("Choose the word that completes the negative sentence")}: ${negativeSentence}?`,
+      options,
+      correct: options.find((option) => option.isCorrect)?.id ?? "option-1",
+      explanation: `В отрицательной фразе «${subject.text} ${have(subject)} not ${verb.participle} ${verb.object}» слово yet ставится в конце и означает «ещё». Оно показывает, что действие «${verb.object}» пока не завершено.`,
+    } satisfies Question;
+  }
+
+  if (kind === "marker-choice" || kind === "already-yet") {
+    const options = optionOrder(marker, ["yesterday", "at the moment", "by Friday", "already"].filter((item) => item !== marker), index + 1);
+    return { ...common, type: "single", question: `${instruction("Choose the suitable time expression")}: ${subject.text} ${correctForm} ${verb.object} ___?`, options, correct: options.find((option) => option.isCorrect)?.id ?? "option-1" } satisfies Question;
+  }
+
+  const targetWords = uniqueSequenceTokens(index % 2 === 0 ? translationEnglish : russian);
   const shuffledWords = rotateWords(targetWords, (index * 3 + 1) % targetWords.length);
-  const sourceText = index % 2 === 0 ? `the Russian sentence «${russian}»` : `the English sentence “${fullEnglish}”`;
+  const sourceText = index % 2 === 0 ? `the Russian sentence «${russian}»` : `the English sentence “${translationEnglish}”`;
   return {
     ...common,
     type: "sequence",

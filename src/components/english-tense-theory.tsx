@@ -22,10 +22,24 @@ export const EnglishTenseTheory = ({
       : theory.formula.includes("base verb")
         ? "Base verb — начальная форма глагола без to и без окончания: work, study, go."
         : "В формуле указаны вспомогательные глаголы и форма смыслового глагола, которые нужно поставить в этом порядке.";
+  const constructionHint = theory.formula.includes("past participle")
+    ? "Сначала поставьте вспомогательную часть формулы, затем третью форму глагола. У неправильных глаголов её нужно запомнить: write → wrote → written."
+    : theory.formula.includes("verb-ing")
+      ? "Сначала выберите форму to be или will/have been, затем добавьте смысловой глагол с -ing. Не ставьте -ing после обычного Present Simple или Past Simple."
+      : theory.formula.includes("will")
+        ? "После will не меняйте смысловой глагол: will work, а не will works или will worked. В отрицании используйте will not или won't."
+        : "Сначала определите подлежащее и время, затем выберите нужную форму смыслового глагола. В вопросе и отрицании вспомогательный глагол обычно выходит перед подлежащим.";
+  const choiceHint = theory.key.includes("perfect")
+    ? "Ищите связь с другим моментом: результат к настоящему, более раннее прошлое или завершение к будущему. Если важна продолжительность, в форме появится been + verb-ing."
+    : theory.key.includes("continuous")
+      ? "Выбирайте это время, когда действие показано как процесс в конкретный момент. Если важен только факт, сравните вариант с Simple."
+      : "Выбирайте Simple для факта, привычки, расписания или завершённого действия. Сначала найдите указатель времени, затем проверьте форму глагола.";
   const pages = [
     { title: "Когда используется", content: <p className="text-sm leading-7 text-slate-300">{theory.purpose}</p> },
     { title: "Формула и маркеры", content: <div className="space-y-4"><div className="rounded-2xl border border-fuchsia-300/25 bg-fuchsia-400/10 px-4 py-3 font-mono text-sm text-fuchsia-100">{theory.formula}</div><p className="text-sm leading-7 text-slate-300">{formulaHint}</p><p className="text-sm leading-7 text-slate-300">Частые подсказки: <span className="text-white">{theory.signalWords}</span>.</p></div> },
+    { title: "Как собрать фразу", content: <div className="space-y-4 text-sm leading-7 text-slate-300"><p>{constructionHint}</p><div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-slate-200">Сначала определите подлежащее, затем поставьте вспомогательные глаголы из формулы и только после них - смысловой глагол.</div></div> },
     { title: "Примеры", content: <div className="space-y-3">{theory.examples.map((example) => <div key={example.english} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3"><div className="text-sm font-medium text-white">{example.english}</div><div className="mt-1 text-sm text-slate-400">{example.russian}</div></div>)}</div> },
+    { title: "Как выбрать время", content: <p className="text-sm leading-7 text-slate-300">{choiceHint}</p> },
     { title: "На что обратить внимание", content: <ul className="space-y-3 text-sm leading-6 text-slate-300">{theory.mistakes.map((mistake) => <li key={mistake} className="flex gap-2"><CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-fuchsia-300" />{mistake}</li>)}</ul> },
   ];
   const current = pages[page];

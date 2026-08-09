@@ -3,6 +3,19 @@ import { twMerge } from "tailwind-merge";
 
 export const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs));
 
+export const pluralizeRu = (count: number, one: string, few: string, many: string) => {
+  const absolute = Math.abs(count);
+  const mod100 = absolute % 100;
+  const mod10 = absolute % 10;
+  if (mod100 >= 11 && mod100 <= 14) return many;
+  if (mod10 === 1) return one;
+  if (mod10 >= 2 && mod10 <= 4) return few;
+  return many;
+};
+
+export const countLabel = (count: number, one: string, few: string, many: string) =>
+  `${count} ${pluralizeRu(count, one, few, many)}`;
+
 export const shuffleArray = <T,>(items: T[], seed = Date.now().toString()) => {
   let h = 2166136261;
   for (let i = 0; i < seed.length; i += 1) {
@@ -31,6 +44,13 @@ export const formatDuration = (milliseconds: number) => {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 };
 
+export const formatXp = (xp: number) => {
+  const value = Math.max(0, xp);
+  if (value < 1_000) return String(value);
+  const compact = Math.floor((value / 1_000) * 10) / 10;
+  return `${Number.isInteger(compact) ? compact.toFixed(0) : compact.toFixed(1)}k`;
+};
+
 export const dateKey = (value = new Date()) =>
   new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Novosibirsk" }).format(value);
 
@@ -40,4 +60,3 @@ export const levelLabel = (level: number) => {
   if (level >= 5) return "Опытный";
   return "Старт";
 };
-

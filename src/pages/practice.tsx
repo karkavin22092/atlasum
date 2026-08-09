@@ -3,9 +3,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { BackButton, Badge, Button, GlassCard, Panel, StatCard, TitleBlock } from "@/components/ui";
 import { QuestionRenderer, type AnswerValue } from "@/components/question-renderer";
+import { EnglishWordHints } from "@/components/english-word-hints";
 import { ResultPanel } from "@/components/result-panel";
 import { AttemptExitGuard, AttemptExitNotice, confirmDiscardAttempt } from "@/components/attempt-exit-guard";
-import { formatDuration, shuffleArray } from "@/lib/utils";
+import { countLabel, formatDuration, shuffleArray } from "@/lib/utils";
 import { hasAnswer } from "@/lib/answers";
 import { ArrowLeft, ArrowRight, ChevronDown, Clock3, FileCheck2, ListRestart, RefreshCcw, Shuffle, Sparkles } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -125,6 +126,7 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
       count: questions.length,
       durationMs: timedOut ? EXAM_DURATION_MS : Date.now() - startedAt,
       topic: topicsForTest.length === 1 ? topicsForTest[0] : topicsForTest.length ? topicsForTest.join(", ") : null,
+      questionSnapshot: questions,
       answers: questions.filter((question) => timedOut || hasAnswer(answers[question.id])).map((question) => ({
         questionId: question.id,
         answer: answers[question.id] ?? "__timeout__",
@@ -368,7 +370,7 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
               <details className="group/topics rounded-2xl border border-white/10 bg-white/[0.03]">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-white [&::-webkit-details-marker]:hidden">
                   <span>Темы</span>
-                  <span className="flex items-center gap-2 text-xs font-normal text-slate-400"><span>{selectedTopics.length ? `Выбрано: ${selectedTopics.length}` : "Все темы"}</span><ChevronDown className="h-4 w-4 transition-transform group-open/topics:rotate-180" /></span>
+                  <span className="flex items-center gap-2 text-xs font-normal text-slate-400"><span>{selectedTopics.length ? `Выбрано: ${countLabel(selectedTopics.length, "тема", "темы", "тем")}` : "Все темы"}</span><ChevronDown className="h-4 w-4 transition-transform group-open/topics:rotate-180" /></span>
                 </summary>
                 <div className="border-t border-white/10 px-4 py-4">
                   <TopicPicker
@@ -392,7 +394,7 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
               <details className="group/weak rounded-2xl border border-white/10 bg-white/[0.03]">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-white [&::-webkit-details-marker]:hidden">
                   <span>Слабые темы</span>
-                  <span className="flex items-center gap-2 text-xs font-normal text-slate-400"><span>{selectedWeakTopics.length ? `Выбрано: ${selectedWeakTopics.length}` : `${weakTopics.length} тем`}</span><ChevronDown className="h-4 w-4 transition-transform group-open/weak:rotate-180" /></span>
+                  <span className="flex items-center gap-2 text-xs font-normal text-slate-400"><span>{selectedWeakTopics.length ? `Выбрано: ${countLabel(selectedWeakTopics.length, "тема", "темы", "тем")}` : countLabel(weakTopics.length, "тема", "темы", "тем")}</span><ChevronDown className="h-4 w-4 transition-transform group-open/weak:rotate-180" /></span>
                 </summary>
                 <div className="border-t border-white/10 px-4 py-4">
                   {weakTopics.length ? (
@@ -479,7 +481,7 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
 
               <GlassCard className="space-y-3">
                 <div className="text-xs uppercase tracking-[0.24em] text-slate-400">{questionTypeLabels[currentQuestion.type]}</div>
-                <div className="text-xl font-semibold leading-8 text-white">{currentQuestion.question}</div>
+                <div className="text-xl font-semibold leading-8 text-white">{selectedSubject === "english" ? <EnglishWordHints text={currentQuestion.question} /> : currentQuestion.question}</div>
               </GlassCard>
 
               {currentQuestion.media ? (

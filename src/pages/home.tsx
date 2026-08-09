@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Badge, Button, GlassCard, Panel, ProgressBar, StatCard, TitleBlock } from "@/components/ui";
-import { BookOpen, Brain, BriefcaseBusiness, CircleDollarSign, Gamepad2, Languages, Laptop2, LineChart, Medal, ShieldCheck, Sparkles, Swords, Target, Trophy, UserRound } from "lucide-react";
+import { Button, GlassCard, Panel, StatCard, TitleBlock } from "@/components/ui";
+import { BookOpen, Brain, BriefcaseBusiness, CircleDollarSign, Gamepad2, Languages, Laptop2, LineChart, Map as MapIcon, Medal, ShieldCheck, Sparkles, Swords, Target, Trophy, UserRound } from "lucide-react";
 import type { AppPageProps } from "./types";
 import type { SubjectId } from "@shared/types";
-import { levelLabel } from "@/lib/utils";
+import { countLabel, formatXp, levelLabel } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { isAdminUser } from "@/lib/permissions";
 import { SiteReviewsSection } from "@/components/site-reviews";
@@ -45,7 +45,6 @@ export const HomePage = ({ meta }: AppPageProps) => {
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const [showSubjectDock, setShowSubjectDock] = useState(false);
   const filteredTopics = meta?.topics.filter((topic) => topic.subject === selectedSubject) ?? [];
-  const subjectProgress = meta?.topicProgress.filter((progress) => filteredTopics.some((topic) => topic.title === progress.title)) ?? [];
 
   useEffect(() => {
     const updateSubjectDock = () => setShowSubjectDock(window.scrollY > 520);
@@ -115,7 +114,7 @@ export const HomePage = ({ meta }: AppPageProps) => {
               <span>{subjectPresentation.english.shortTitle}</span>
             </button>
           </div>
-          <div className="v22-question-count"><span>{meta?.questionBank.total ?? 4560}</span> вопросов в базе</div>
+          <div className="v22-question-count"><span>{countLabel(meta?.questionBank.total ?? 4560, "вопрос", "вопроса", "вопросов")}</span> в базе</div>
         </div>
 
         <div className="v22-hero-layout grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
@@ -142,6 +141,12 @@ export const HomePage = ({ meta }: AppPageProps) => {
                   Мини-игры
                 </Button>
               </Link>
+              <Link className="v22-hero-action-learning" to={`/nashelingo?subject=${selectedSubject}`}>
+                <Button variant="secondary">
+                  <MapIcon className="h-4 w-4" />
+                  Нашелинго
+                </Button>
+              </Link>
             </div>
           </div>
 
@@ -153,7 +158,7 @@ export const HomePage = ({ meta }: AppPageProps) => {
             </div>
             <div className="v22-hero-stat space-y-2">
               <div className="text-xs uppercase tracking-[0.24em] text-slate-400">XP</div>
-              <div className="text-4xl font-semibold text-white">{profile?.xp ?? 0}</div>
+              <div className="text-4xl font-semibold text-white">{formatXp(profile?.xp ?? 0)}</div>
               <div className="text-sm text-slate-400">До следующего уровня: {stats?.nextLevelXp ?? 250}</div>
             </div>
             <div className="v22-hero-stat space-y-2">
@@ -194,7 +199,7 @@ export const HomePage = ({ meta }: AppPageProps) => {
             <Link to={`/practice?mode=topic&subject=${selectedSubject}${selectedTopicsQuery}`}>
               <Button>
                 <BookOpen className="h-4 w-4" />
-                {selectedTopics.length ? `Открыть темы в практике (${selectedTopics.length})` : "Открыть темы в практике"}
+                {selectedTopics.length ? `Открыть темы в практике (${countLabel(selectedTopics.length, "тема", "темы", "тем")})` : "Открыть темы в практике"}
               </Button>
             </Link>
             {admin ? (
@@ -228,25 +233,6 @@ export const HomePage = ({ meta }: AppPageProps) => {
           </div>
         </Panel>
 
-        <Panel>
-          <TitleBlock eyebrow="Путь" title="Прогресс по темам" />
-          <div className="grid gap-3 sm:grid-cols-2">
-            {subjectProgress.slice(0, 4).map((topic) => (
-              <GlassCard key={topic.key} className="p-3 sm:p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold text-white">{topic.title}</div>
-                    <div className="mt-1 text-xs text-slate-400">{topic.answered} ответов</div>
-                  </div>
-                  <Badge tone={topic.mastery >= 70 ? "emerald" : topic.mastery >= 40 ? "amber" : "rose"}>{topic.mastery}%</Badge>
-                </div>
-                <div className="mt-2">
-                  <ProgressBar value={topic.mastery} />
-                </div>
-              </GlassCard>
-            ))}
-          </div>
-        </Panel>
       </div>
 
       <div className="grid gap-6">
@@ -294,7 +280,7 @@ export const HomePage = ({ meta }: AppPageProps) => {
                       <span className="text-slate-500">#{entry.rank}</span>
                       <span className="truncate">{entry.name}</span>
                     </div>
-                    <div className="text-slate-400">{entry.xp} XP</div>
+                    <div className="text-slate-400">{formatXp(entry.xp)} XP</div>
                   </div>
                 )) : (
                   <div className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-center text-sm text-slate-400">

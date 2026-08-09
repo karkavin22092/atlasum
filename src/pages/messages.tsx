@@ -19,6 +19,7 @@ import {
 } from "@/lib/chat";
 import { useAuth } from "@/lib/auth";
 import { getPresence } from "@/lib/presence";
+import { formatXp } from "@/lib/utils";
 import { REALTIME_POLL_MS } from "@/lib/realtime";
 import type { AppPageProps } from "./types";
 
@@ -296,7 +297,7 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
                   </div>
                   <div className="min-w-0">
                     <div className="truncate font-semibold text-white">{recipient.name}</div>
-                    <div className="truncate text-xs text-slate-400">Уровень {recipient.level} · {recipient.xp} XP</div>
+                    <div className="truncate text-xs text-slate-400">Уровень {recipient.level} · {formatXp(recipient.xp)} XP</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

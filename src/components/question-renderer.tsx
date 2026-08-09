@@ -13,18 +13,24 @@ type Props = {
   onChange: (value: AnswerValue) => void;
   locked?: boolean;
   hiddenOptionIds?: string[];
+  feedback?: "correct" | "wrong" | null;
 };
 
-const optionClasses = (selected: boolean, correct?: boolean) =>
+const optionClasses = (selected: boolean, correct: boolean, feedback?: "correct" | "wrong" | null) =>
   cn(
     "w-full rounded-2xl border px-4 py-3 text-left transition",
-    selected
+    feedback === "correct" && correct
+      ? "nashelingo-answer-correct"
+      : feedback === "wrong" && selected && !correct
+        ? "nashelingo-answer-wrong"
+        : feedback === "wrong" && correct
+          ? "nashelingo-answer-correct"
+          : selected
       ? "border-cyan-300/40 bg-cyan-400/15 text-white shadow-glow"
       : "border-white/10 bg-white/5 text-slate-200 hover:border-white/20 hover:bg-white/10",
-    correct ? "ring-2 ring-emerald-400/30" : "",
   );
 
-export const QuestionRenderer = ({ question, value, onChange, locked, hiddenOptionIds = [] }: Props) => {
+export const QuestionRenderer = ({ question, value, onChange, locked, hiddenOptionIds = [], feedback = null }: Props) => {
   const meta = (question.meta ?? {}) as Record<string, unknown>;
   const [fillText, setFillText] = useState(typeof value === "string" ? value : "");
   const [draggedSequenceItem, setDraggedSequenceItem] = useState<string | null>(null);
@@ -287,11 +293,12 @@ export const QuestionRenderer = ({ question, value, onChange, locked, hiddenOpti
       <div className="grid gap-3 md:grid-cols-2">
         {question.options.map((option) => {
           const selected = value === (option.id === "true");
+          const correct = question.correct === (option.id === "true");
           return (
             <button
               type="button"
               key={option.id}
-              className={optionClasses(selected)}
+              className={optionClasses(selected, correct, feedback)}
               onClick={() => onChange(option.id === "true")}
               disabled={locked}
             >
@@ -309,6 +316,9 @@ export const QuestionRenderer = ({ question, value, onChange, locked, hiddenOpti
     <div className="grid gap-3 md:grid-cols-2">
       {question.options.filter((option) => !hiddenOptionIds.includes(option.id)).map((option) => {
         const selected = typeof value === "string" ? value === option.id : selectedIds.includes(option.id);
+        const correct = Array.isArray(question.correct)
+          ? question.correct.map(String).includes(option.id)
+          : String(question.correct) === option.id;
         const handleClick = () => {
           if (locked) return;
           if (question.type === "multiple") {
@@ -326,7 +336,7 @@ export const QuestionRenderer = ({ question, value, onChange, locked, hiddenOpti
           <button
             key={option.id}
             type="button"
-            className={optionClasses(selected)}
+            className={optionClasses(selected, correct, feedback)}
             onClick={handleClick}
             disabled={locked}
           >

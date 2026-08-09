@@ -114,6 +114,20 @@ export type TopicMeta = {
   color: string;
   subject?: SubjectId;
   examOnly?: boolean;
+  theory?: NashelingoTheoryPage[];
+};
+
+export type NashelingoTheoryPage = {
+  title: string;
+  eyebrow: string;
+  paragraphs: string[];
+  note?: string;
+};
+
+export type NashelingoTheoryProgress = {
+  subject: SubjectId;
+  topic: string;
+  completedAt: string;
 };
 
 export type DashboardMeta = {
@@ -128,6 +142,7 @@ export type AttemptSubmission = {
   count: number;
   durationMs: number;
   topic?: string | null;
+  questionSnapshot?: Question[];
   answers: Array<{
     questionId: string;
     answer: unknown;

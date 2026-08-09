@@ -4,6 +4,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { BackButton, Badge, Button, GlassCard, Panel, ProgressBar, TitleBlock } from "@/components/ui";
 import { QuestionRenderer, type AnswerValue } from "@/components/question-renderer";
+import { EnglishWordHints } from "@/components/english-word-hints";
 import { ResultPanel } from "@/components/result-panel";
 import { AttemptExitGuard, AttemptExitNotice, confirmDiscardAttempt } from "@/components/attempt-exit-guard";
 import { shuffleArray, formatDuration } from "@/lib/utils";
@@ -210,6 +211,7 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
       count: questions.length,
       durationMs: Date.now() - startedAt,
       topic: selectedTopics.length === 1 ? selectedTopics[0] : selectedTopics.length ? selectedTopics.join(", ") : null,
+      questionSnapshot: questions,
       answers: questions.filter((question) => hasAnswer(answerSnapshot[question.id])).map((question) => ({
         questionId: question.id,
         answer: answerSnapshot[question.id],
@@ -349,7 +351,7 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
               {difficultyLabels[current.difficulty]}
             </Badge>
           </div>
-          <div className="mt-4 text-2xl font-semibold leading-9 text-white">{current.question}</div>
+          <div className="mt-4 text-2xl font-semibold leading-9 text-white">{subject === "english" ? <EnglishWordHints text={current.question} /> : current.question}</div>
         </GlassCard>
         <QuestionRenderer
           question={current}

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import type { AttemptResult, QuestionType, SubmissionResponse } from "@shared/types";
 import { BackButton, Badge, Button, GlassCard, Panel, ProgressBar, TitleBlock } from "./ui";
-import { formatDuration } from "@/lib/utils";
+import { countLabel, formatDuration, formatXp } from "@/lib/utils";
 import { difficultyLabels, questionTypeLabels } from "@/lib/question-labels";
 import {
   ArrowLeft,
@@ -26,6 +26,7 @@ type Props = {
   retryLabel?: string;
   newTestLabel?: string;
   initialView?: "summary" | "report";
+  hideReviewMistakes?: boolean;
 };
 
 type AnswerTone = "neutral" | "correct" | "wrong";
@@ -41,6 +42,12 @@ const legacyOptionLabel = (value: string) => {
   const match = value.match(/^opt-(\d+)$/i);
   return match ? `Вариант ответа ${match[1]}` : value;
 };
+
+const cleanReportExplanation = (value: string) =>
+  value
+    .replace(/[\s,;]*\(?(?:задание|пример)\s+\d+\s*,\s*q-[\w-]+\)?/giu, "")
+    .replace(/\s+([.,!?])/gu, "$1")
+    .trim();
 
 const asDisplayItems = (value: unknown) => {
   if (Array.isArray(value)) return value.map((item) => legacyOptionLabel(String(item)));
@@ -138,7 +145,7 @@ const ReportCard = ({ item, index, total }: { item: AttemptResult; index: number
 
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
         <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">Пояснение</div>
-        <p className="mt-2 text-sm leading-6 text-slate-300">{item.explanation}</p>
+        <p className="mt-2 text-sm leading-6 text-slate-300">{cleanReportExplanation(item.explanation)}</p>
       </div>
     </div>
   </motion.article>
@@ -156,6 +163,7 @@ export const ResultPanel = ({
   retryLabel = "Пройти снова",
   newTestLabel = "Новый тест",
   initialView = "summary",
+  hideReviewMistakes = false,
 }: Props) => {
   const [view, setView] = useState<"summary" | "report">(initialView);
 
@@ -189,7 +197,7 @@ export const ResultPanel = ({
             <ArrowLeft className="h-4 w-4" />
             К результату
           </Button>
-          {result.wrongCount > 0 ? (
+          {result.wrongCount > 0 && !hideReviewMistakes ? (
             <Button variant="secondary" onClick={onReviewMistakes}>
               <ListRestart className="h-4 w-4" />
               Повторить ошибки
@@ -227,7 +235,7 @@ export const ResultPanel = ({
           </GlassCard>
           <GlassCard>
             <div className="text-xs uppercase tracking-[0.24em] text-slate-400">Награда</div>
-            <div className="mt-2 text-3xl font-semibold text-white">+{result.xpGained} XP</div>
+            <div className="mt-2 text-3xl font-semibold text-white">+{formatXp(result.xpGained)} XP</div>
           </GlassCard>
         </div>
 
@@ -239,9 +247,9 @@ export const ResultPanel = ({
           >
             <FileCheck2 className="h-7 w-7 text-cyan-300" />
             <div className="mt-4 text-lg font-semibold text-white">Посмотреть полный отчёт</div>
-            <div className="mt-1 text-sm leading-6 text-slate-400">Все {result.results.length} вопросов по порядку с ответами и пояснениями.</div>
+            <div className="mt-1 text-sm leading-6 text-slate-400">Все {countLabel(result.results.length, "вопрос", "вопроса", "вопросов")} по порядку с ответами и пояснениями.</div>
           </button>
-          <button
+          {!hideReviewMistakes ? <button
             type="button"
             onClick={onReviewMistakes}
             disabled={result.wrongCount === 0}
@@ -250,9 +258,9 @@ export const ResultPanel = ({
             <ListRestart className="h-7 w-7 text-rose-300" />
             <div className="mt-4 text-lg font-semibold text-white">Повторить ошибки</div>
             <div className="mt-1 text-sm leading-6 text-slate-400">
-              {result.wrongCount > 0 ? `${result.wrongCount} вопросов для повторной тренировки.` : "Ошибок нет, повторение не требуется."}
+              {result.wrongCount > 0 ? `${countLabel(result.wrongCount, "вопрос", "вопроса", "вопросов")} для повторной тренировки.` : "Ошибок нет, повторение не требуется."}
             </div>
-          </button>
+          </button> : null}
         </div>
 
         <div className="mt-6 flex flex-wrap gap-3">

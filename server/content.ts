@@ -1,7 +1,8 @@
-import type { DashboardMeta, GameId, QuizMode, TopicMeta } from "@shared/types";
+import type { DashboardMeta, GameId, NashelingoTheoryPage, QuizMode, TopicMeta } from "@shared/types";
 import { managementTopicCatalog } from "./management-content";
 import { economicsTopicCatalog } from "./economics-content";
 import { englishTopicCatalog } from "./english-content";
+import { getEnglishTenseTheory } from "../src/lib/english-tense-theory";
 
 export type TopicConcept = {
   term: string;
@@ -1424,8 +1425,98 @@ export const questionCountForTopic = (topic: Pick<TopicBlueprint, "key" | "subje
 
 export const QUESTION_BANK_TOTAL = topicCatalog.reduce((total, topic) => total + questionCountForTopic(topic), 0);
 
+const englishTopicFocus: Record<string, [string, string, string]> = {
+  "english-academic-vocabulary": ["Научная лексика нужна, чтобы точно описывать исследование: evidence поддерживает утверждение, conclusion завершает рассуждение.", "Сначала определяйте роль слова в аргументе: факт, метод, ограничение или вывод.", "Проверяйте устойчивые пары: provide evidence, draw a conclusion, conduct research."],
+  "english-business-vocabulary": ["Деловая лексика описывает решения, бюджеты, сроки, договоры и рынок без расплывчатых формулировок.", "Отделяйте близкие слова: deadline — крайний срок, budget — план расходов, forecast — прогноз.", "Запоминайте связки: meet a deadline, enter a market, sign a contract."],
+  "english-collocations": ["Коллокации и фразовые глаголы нужно узнавать как цельные смысловые блоки, а не переводить слово за словом.", "Look into означает расследовать, turn down — отклонить, phase out — постепенно вывести из использования.", "Подсказку даёт объект действия: draw up a report, carry out research."],
+  "english-tenses": ["Время выбирают по смыслу: привычка, процесс, результат или действие, которое случилось раньше другого прошлого события.", "Маркеры помогают, но не заменяют анализ временной линии предложения.", "В косвенной речи проверьте, не сместилась ли точка отсчёта в прошлое."],
+  "english-voice-modals": ["Пассив показывает, что действие направлено на объект, а модальные глаголы выражают обязанность, вероятность или совет.", "Пассив строится через be + past participle, а после modal обычно идёт начальная форма глагола.", "Сначала спросите, кто важнее в фразе: исполнитель или объект действия."],
+  "english-nonfinite": ["Инфинитив, герундий и причастие меняют роль действия в предложении: цель, процесс или сокращённое придаточное.", "После avoid нужен герундий, после decide — to-инфинитив; управление задаёт предыдущее слово.", "Форма -ing не всегда обозначает время: это может быть герундий или причастие."],
+  "english-articles-pronouns": ["Артикль показывает, новый ли предмет, конкретный ли он и можно ли его посчитать.", "A/an вводит предмет, the возвращает к известному; местоимение должно однозначно отсылать к нужному слову.", "Проверьте число, принадлежность и контекст, прежде чем выбирать форму."],
+  "english-comparison": ["Comparative сравнивает два объекта, а superlative выделяет один среди группы.", "More efficient и better не смешиваются: форма зависит от прилагательного и уже выбранной степени.", "Ищите than, as ... as и указание на группу объектов."],
+  "english-conditionals": ["Условные предложения различают реальную возможность, воображаемую ситуацию и прошлое, которое уже нельзя изменить.", "После if в First Conditional обычно Present Simple; Third Conditional строится через Past Perfect и would have.", "Сначала определите реальность ситуации, потом выбирайте модель."],
+  "english-clauses": ["Союз показывает роль придаточной части: причину, время, условие, содержание мысли или определение предмета.", "В косвенном вопросе порядок слов прямой: why the figures changed, а не why did the figures change.", "Who относится к людям, which — к вещам, whose выражает принадлежность."],
+  "english-reported-speech": ["Косвенная речь передаёт смысл слов через новую точку отсчёта, поэтому меняются время, местоимения и указатели времени.", "Сообщение, вопрос и приказ пересказываются разными моделями: say that, ask if, tell somebody to do.", "Сначала определите тип исходной фразы, затем перестраивайте её форму."],
+  "english-text-skills": ["Связный текст держится на порядке идей, словах-связках и отсылках к уже названным понятиям.", "However вводит контраст, therefore — следствие, а слова this и these требуют понятной опоры выше в тексте.", "Собирая порядок фраз, ищите тезис, объяснение, пример и вывод."],
+};
+
+const theoryForTopic = (topic: TopicBlueprint): NashelingoTheoryPage[] => {
+  const tenseTheory = topic.subject === "english" ? getEnglishTenseTheory(topic.title) : null;
+  if (tenseTheory) {
+    return [
+      { eyebrow: "Смысл времени", title: tenseTheory.title, paragraphs: [tenseTheory.purpose, `Эта тема строится вокруг формы: ${tenseTheory.formula}.`] },
+      { eyebrow: "Формула", title: tenseTheory.formula, paragraphs: ["Сначала поставьте вспомогательный глагол, затем нужную форму смыслового глагола.", "Past participle — это третья форма глагола: у правильных она часто совпадает с формой на -ed, а у неправильных её нужно запомнить, например write — wrote — written."] },
+      { eyebrow: "Подсказки", title: "Маркеры времени", paragraphs: [`Часто встречаются: ${tenseTheory.signalWords}.`, "Маркер помогает, но сначала проверьте общий смысл: действие может быть фактом, процессом, результатом или длительностью."] },
+      { eyebrow: "В живой фразе", title: "Два примера", paragraphs: tenseTheory.examples.map((example) => `${example.english} — ${example.russian}`) },
+      { eyebrow: "Проверьте себя", title: "Типичные ловушки", paragraphs: tenseTheory.mistakes, note: "После этой страницы откроется первый уровень. В заданиях сравнивайте смысл и форму одновременно." },
+    ];
+  }
+
+  const concepts = topic.concepts ?? [];
+  const [first, second, third] = concepts;
+  const process = (topic.process ?? []).filter(Boolean);
+  const englishFocus = englishTopicFocus[topic.key];
+  if (englishFocus) {
+    return [
+      { eyebrow: "Карта темы", title: topic.title, paragraphs: [topic.description, englishFocus[0]] },
+      { eyebrow: "Главная опора", title: "На что смотреть", paragraphs: [englishFocus[1], "Сначала прочитайте предложение целиком, затем выбирайте форму или слово по его роли в контексте."] },
+      { eyebrow: "Рабочий приём", title: "Как рассуждать", paragraphs: [englishFocus[2], "Не подменяйте правило знакомым переводом: проверьте и смысл, и грамматическое окружение."] },
+      { eyebrow: "Практика", title: "Проверка выбора", paragraphs: ["Объясните свой ответ короткой причиной. Если объяснения нет, вернитесь к ключевому признаку темы.", englishFocus[0]] },
+      { eyebrow: "Перед уровнем", title: "Готовность", paragraphs: ["Теперь вы знаете, какой признак искать в заданиях этой темы.", "Теория открывает первый уровень и останется доступной для повторения."], note: englishFocus[2] },
+    ];
+  }
+  if (!first) {
+    return [
+      { eyebrow: "Карта темы", title: topic.title, paragraphs: [topic.description, "Сначала определяйте, что именно проверяет формулировка: значение слова, форму конструкции или связь частей предложения."] },
+      { eyebrow: "Точка опоры", title: "Смысл в контексте", paragraphs: [`В теме «${topic.title}» ответ выбирают по роли слова или конструкции в предложении, а не по внешнему сходству вариантов.`, "Читайте фразу целиком: соседние слова часто задают нужное значение или грамматическую форму."] },
+      { eyebrow: "Рабочий приём", title: "От признака к ответу", paragraphs: ["Сначала назовите правило или значение своими словами, затем исключите варианты, которые ему противоречат.", "Если остаются два похожих варианта, проверьте устойчивое сочетание, предлог или форму следующего слова."] },
+      { eyebrow: "Практика", title: "Мини-разбор", paragraphs: [`Вернитесь к описанию: ${topic.description}`, "В заданиях этой темы полезно объяснить свой выбор короткой фразой: «эта форма нужна, потому что ...»."] },
+      { eyebrow: "Перед уровнем", title: "Готовность", paragraphs: ["Не торопитесь выбирать первый знакомый вариант. Сначала найдите смысловой сигнал в предложении.", "Теория открывает первый уровень и останется доступной для повторения."], note: "На уровне будут задания разного типа: выбор, ввод ответа и порядок слов." },
+    ];
+  }
+  const processText = process.length ? process.map((step, index) => `${index + 1}. ${step}`).join(" → ") : "Определите ключевые условия задачи, затем сопоставьте их с понятиями темы.";
+
+  return [
+    {
+      eyebrow: "Ориентир",
+      title: topic.title,
+      paragraphs: [topic.description, `Начните с понятия «${first.term}»: ${first.definition}`],
+      note: first.hint,
+    },
+    {
+      eyebrow: "Ключевое понятие",
+      title: first.term,
+      paragraphs: [first.definition, `Признак, который помогает узнать его в задании: ${first.keyword}.`],
+      note: `Не путайте с близкими, но другими понятиями: ${first.distractors.slice(0, 2).join(" и ")}.`,
+    },
+    {
+      eyebrow: "Связь идей",
+      title: second?.term ?? "Логика темы",
+      paragraphs: second
+        ? [second.definition, third ? `Сравните с «${third.term}»: ${third.definition}` : second.scenario]
+        : ["Смотрите на признаки, а не на отдельные знакомые слова.", "В этой теме важны определение, условия применения и связь с результатом."],
+      note: second?.hint,
+    },
+    {
+      eyebrow: "Как рассуждать",
+      title: "Последовательность",
+      paragraphs: [processText, `В заданиях сначала определите этап или условие, затем выберите термин, который объясняет именно эту часть темы.`],
+      note: process.length ? `Запомните не отдельные слова, а порядок: ${process.join(" — ")}.` : undefined,
+    },
+    {
+      eyebrow: "Перед уровнем",
+      title: "Примените на примере",
+      paragraphs: [third?.scenario ?? second?.scenario ?? first.scenario, `Проверьте себя: назовите ключевой признак и объясните, почему здесь подходит «${third?.term ?? second?.term ?? first.term}».`],
+      note: "Теория открывает первый уровень. К ней можно вернуться в любой момент.",
+    },
+  ];
+};
+
 export const dashboardMeta: DashboardMeta = {
-  topics: topicCatalog.map(({ concepts, process, imageSet, ...topic }) => topic),
+  topics: topicCatalog.map((topic) => {
+    const { concepts, process, imageSet, ...publicTopic } = topic;
+    return { ...publicTopic, theory: theoryForTopic(topic) };
+  }),
   modes: [
     { key: "practice", title: "Свободная практика", description: "Любые вопросы с гибкой настройкой." },
     { key: "exam", title: "Экзамен", description: "30 уникальных вопросов по выбранной дисциплине." },
