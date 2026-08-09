@@ -5,12 +5,14 @@ import { hasAnswer } from "./answers";
 import { isDeletedAccountName } from "./deleted-accounts";
 import { hasLegacyQuestionMetadata, sanitizeQuestionText } from "@shared/question-text";
 import { createQuestionUniquenessState, tryAddUniqueQuestion, uniqueQuestions } from "@shared/question-uniqueness";
+import { emptyNashelingoProgress, mergeNashelingoProgress, syncNashelingoProgress } from "./nashelingo-progress";
 import type {
   AttemptResult,
   AttemptSubmission,
   Difficulty,
   FillQuestion,
   GeneratedTest,
+  NashelingoLevelProgress,
   NashelingoTheoryProgress,
   MatchingItem,
   Profile,
@@ -403,6 +405,75 @@ const uniqueQuestionPool = (questions: Question[]) => {
   });
 };
 
+const nashelingoDifficultyOrder: Difficulty[][] = [
+  ["easy", "medium", "hard"],
+  ["easy", "medium", "hard"],
+  ["medium", "easy", "hard"],
+  ["medium", "hard", "easy"],
+  ["hard", "medium", "easy"],
+];
+
+const stableRank = (value: string) => [...value].reduce((hash, char) => ((hash * 31) + char.charCodeAt(0)) >>> 0, 7);
+
+const selectNashelingoLevel = (pool: Question[], count: number, requestedLevel: number) => {
+  const usedQuestionIds = new Set<string>();
+  let requested: Question[] = [];
+  const maxLevel = Math.max(0, Math.min(4, requestedLevel));
+
+  for (let level = 0; level <= maxLevel; level += 1) {
+    const difficultyOrder = nashelingoDifficultyOrder[level];
+    const candidates = pool
+      .filter((question) => !usedQuestionIds.has(question.id))
+      .sort((left, right) => {
+        const difficulty = difficultyOrder.indexOf(left.difficulty) - difficultyOrder.indexOf(right.difficulty);
+        return difficulty || stableRank(`${level}:${left.id}`) - stableRank(`${level}:${right.id}`);
+      });
+    const semanticState = createQuestionUniquenessState();
+    const selected: Question[] = [];
+    for (const question of candidates) {
+      if (selected.length >= count) break;
+      if (tryAddUniqueQuestion(semanticState, question)) selected.push(question);
+    }
+    for (const question of candidates) {
+      if (selected.length >= count) break;
+      if (!selected.some((item) => item.id === question.id)) selected.push(question);
+    }
+    selected.forEach((question) => usedQuestionIds.add(question.id));
+    if (level === maxLevel) requested = selected;
+  }
+
+  return requested;
+};
+
+const localNashelingoProgress = (profile: StoredProfile) => {
+  const theoryProgress = Object.values(profile.theoryProgress ?? {});
+  const levels = new Map<string, NashelingoLevelProgress>();
+  profile.attempts.forEach((attempt) => {
+    const match = attempt.mode === "topic" ? attempt.topic?.match(/^(.*)::nashelingo:([0-4])$/u) : null;
+    if (!match || attempt.count !== 6) return;
+    const topicMeta = dashboardMeta.topics.find((item) => item.title === match[1]);
+    const correctCount = attempt.items.filter((item) => item.isCorrect).length;
+    if (!topicMeta?.subject || correctCount < 4) return;
+    const item: NashelingoLevelProgress = {
+      subject: topicMeta.subject,
+      topic: match[1],
+      level: Number(match[2]),
+      correctCount,
+      completedAt: attempt.createdAt,
+    };
+    const key = `${item.subject}:${item.topic}:${item.level}`;
+    const current = levels.get(key);
+    if (!current || item.correctCount > current.correctCount || (item.correctCount === current.correctCount && item.completedAt > current.completedAt)) levels.set(key, item);
+  });
+  return { theoryProgress, levelProgress: [...levels.values()] };
+};
+
+const syncedNashelingoProgress = async (profile: StoredProfile) => {
+  const local = localNashelingoProgress(profile);
+  const remote = await syncNashelingoProgress(local);
+  return mergeNashelingoProgress(local, remote ?? emptyNashelingoProgress());
+};
+
 const titleForMode = (mode: string, topic?: string | null) => {
   if (mode === "exam") return "Экзамен";
   if (topic) return topic;
@@ -517,6 +588,7 @@ export const localApi = {
   async meta(profileName: string) {
     const database = readDatabase();
     const profile = ensureProfile(database, profileName);
+    const nashelingoProgress = await syncedNashelingoProgress(profile);
     const questions = allQuestions(database);
     const topicProgress = dashboardMeta.topics.map((topic) => {
       const topicQuestions = questions.filter((question) => question.topic === topic.title);
@@ -545,7 +617,8 @@ export const localApi = {
       leaderboard,
       activity: Object.entries(profile.activity).sort(([left], [right]) => left.localeCompare(right)).map(([date, value]) => ({ date, ...value })),
       topicProgress,
-      theoryProgress: Object.values(profile.theoryProgress ?? {}),
+      theoryProgress: nashelingoProgress.theoryProgress,
+      nashelingoLevelProgress: nashelingoProgress.levelProgress,
       attempts: profile.attempts.slice().reverse().slice(0, 500),
       achievements: buildAchievements(profile),
       questionBank: {
@@ -567,7 +640,8 @@ export const localApi = {
     };
     profile.theoryProgress[key] = current;
     writeDatabase(database);
-    return current;
+    const progress = await syncedNashelingoProgress(profile);
+    return progress.theoryProgress.find((item) => item.subject === payload.subject && item.topic === payload.topic) ?? current;
   },
 
   async generateTest(payload: { profileName: string; mode: string; count: number; topic?: string | null; topics?: string[]; subject?: SubjectId; questionType?: QuestionType; lessonIndex?: number }): Promise<GeneratedTest> {
@@ -632,27 +706,7 @@ export const localApi = {
       }
       if (payload.subject !== "english") selected = shuffle(chosen);
     } else if (payload.lessonIndex !== undefined && payload.mode === "topic") {
-      const level = Math.max(0, Math.min(4, payload.lessonIndex));
-      const preferred: Record<number, Difficulty[]> = {
-        0: ["easy", "medium", "hard"],
-        1: ["easy", "medium", "hard"],
-        2: ["medium", "easy", "hard"],
-        3: ["medium", "hard", "easy"],
-        4: ["hard", "medium", "easy"],
-      };
-      const ordered = [...pool].sort((left, right) => {
-        const leftRank = preferred[level].indexOf(left.difficulty);
-        const rightRank = preferred[level].indexOf(right.difficulty);
-        return leftRank - rightRank || left.id.localeCompare(right.id);
-      });
-      const offset = level * payload.count;
-      const levelPool = [...ordered.slice(offset, offset + payload.count * 3), ...ordered];
-      const uniqueness = createQuestionUniquenessState();
-      selected = [];
-      for (const question of levelPool) {
-        if (selected.length >= payload.count) break;
-        if (tryAddUniqueQuestion(uniqueness, question)) selected.push(question);
-      }
+      selected = selectNashelingoLevel(pool, Math.min(payload.count, pool.length), payload.lessonIndex);
     } else {
       selected = weightedSample(pool, profile, Math.min(Math.max(1, payload.count), 100));
     }
@@ -725,6 +779,7 @@ export const localApi = {
     profile.attempts.push({ id: attemptId, mode: String(payload.mode), count: maxScore, score, maxScore, percent, grade, durationMs: payload.durationMs, topic: payload.topic ?? null, createdAt: now.toISOString(), items: results });
     const wrongTopics = results.filter((result) => !result.isCorrect).map((result) => result.topic);
     writeDatabase(database);
+    if (payload.mode === "topic" && payload.topic?.includes("::nashelingo:")) await syncedNashelingoProgress(profile);
     return {
       attemptId, score, maxScore, percent, grade, xpGained, level: profile.level, streak: profile.streak, bestStreak: profile.bestStreak,
       correctCount: results.filter((result) => result.isCorrect).length,

@@ -7,7 +7,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Bell, Globe2, Lightbulb, LogIn, Mail, MessageCircle, MoonStar, Send, SunMedium, Sparkles, Trophy } from "lucide-react";
 import { HomePage } from "./pages/home";
 import { QUESTION_BANK_TOTAL, dashboardMeta, questionCountForTopic } from "@server/content";
-import type { DashboardMeta, NashelingoTheoryProgress, Profile, ProfileStats } from "@shared/types";
+import type { DashboardMeta, NashelingoLevelProgress, NashelingoTheoryProgress, Profile, ProfileStats } from "@shared/types";
 import { useAuth } from "./lib/auth";
 import { getUnreadMessageSummary } from "./lib/chat";
 import { APP_VERSION } from "./lib/version";
@@ -60,6 +60,7 @@ type AppMeta = DashboardMeta & {
   activity: Array<{ date: string; attempts: number; correct: number; xp: number }>;
   topicProgress: Array<{ key: string; title: string; description: string; source: string; color: string; subject?: "it-design" | "management" | "economics" | "english"; mastery: number; answered: number }>;
   theoryProgress: NashelingoTheoryProgress[];
+  nashelingoLevelProgress: NashelingoLevelProgress[];
   attempts: Array<{
     id: string;
     mode: string;
@@ -115,6 +116,7 @@ const fallbackMeta: AppMeta = {
     answered: 0,
   })),
   theoryProgress: [],
+  nashelingoLevelProgress: [],
   attempts: [],
   achievements: [],
   questionBank: {

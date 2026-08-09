@@ -1296,8 +1296,9 @@
 .design-v22 .v22-topic-sections { display: grid; gap: 18px; margin-top: 18px; }
 .design-v22 .v22-topic-section { padding: clamp(16px, 3vw, 24px); border: 1px solid var(--v22-line); border-radius: var(--v22-radius-xl); background: var(--v22-surface-raised); }
 .design-v22 .v22-topic-section-heading { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
-.design-v22 .v22-topic-section-heading > span { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 14px; background: var(--v22-accent-soft); color: var(--v22-accent-strong); font-weight: 800; letter-spacing: .08em; }
+.design-v22 .v22-topic-section-heading > span:not(.v22-badge) { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 14px; background: var(--v22-accent-soft); color: var(--v22-accent-strong); font-weight: 800; letter-spacing: .08em; }
 .design-v22 .v22-topic-section-heading h2 { margin-top: 3px; color: var(--v22-text); font-size: 1.2rem; font-weight: 750; }
+.design-v22 .v22-topic-section-progress { display: inline-grid; width: 48px; height: 48px; min-width: 48px; padding: 0; place-items: center; line-height: 1; text-align: center; white-space: nowrap; }
 .design-v22 .v22-topic-levels { display: grid; gap: 10px; }
 .design-v22 .v22-topic-level { display: flex; align-items: center; gap: 12px; min-height: 78px; padding: 13px 14px; border: 1px solid var(--v22-line); border-radius: var(--v22-radius-md); background: var(--v22-surface-soft); color: var(--v22-text); transition: transform 180ms ease, border-color 180ms ease, background 180ms ease; }
 .design-v22 .v22-topic-level.is-unlocked:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--v22-accent) 55%, var(--v22-line)); background: color-mix(in srgb, var(--v22-accent-soft) 48%, var(--v22-surface-soft)); }

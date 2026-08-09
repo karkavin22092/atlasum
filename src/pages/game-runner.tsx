@@ -354,6 +354,7 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
           <div className="mt-4 text-2xl font-semibold leading-9 text-white">{subject === "english" ? <EnglishWordHints text={current.question} /> : current.question}</div>
         </GlassCard>
         <QuestionRenderer
+          key={current.id}
           question={current}
           value={answers[current.id]}
           onChange={(value) => updateAnswer(current.id, value)}

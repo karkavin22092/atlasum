@@ -21,6 +21,7 @@ import type {
   AttemptResult,
   AttemptSubmission,
   GeneratedTest,
+  NashelingoLevelProgress,
   Profile,
   ProfileStats,
   Question,
@@ -375,6 +376,55 @@ const appendSemanticQuestions = <T extends { id: string; question: string; topic
   }
 };
 
+const nashelingoDifficultyOrder = [
+  ["easy", "medium", "hard"],
+  ["easy", "medium", "hard"],
+  ["medium", "easy", "hard"],
+  ["medium", "hard", "easy"],
+  ["hard", "medium", "easy"],
+];
+
+const selectNashelingoLevel = <T extends {
+  id: string;
+  question: string;
+  difficulty: string;
+  topic?: string;
+  type?: string;
+  meta?: unknown;
+  reviews: Array<{ mastery: number; nextReviewAt: Date | null; timesAnswered: number }>;
+}>(
+  pool: T[],
+  count: number,
+  requestedLevel: number,
+  seed: string,
+) => {
+  const usedQuestionIds = new Set<string>();
+  let requested: typeof pool = [];
+  const maxLevel = Math.max(0, Math.min(4, requestedLevel));
+
+  for (let level = 0; level <= maxLevel; level += 1) {
+    const difficultyOrder = nashelingoDifficultyOrder[level];
+    const candidates = pool
+      .filter((question) => !usedQuestionIds.has(question.id))
+      .sort((left, right) => {
+        const difficulty = difficultyOrder.indexOf(left.difficulty) - difficultyOrder.indexOf(right.difficulty);
+        return difficulty || weightQuestion(right as never, `${seed}:nashelingo:${level}`) - weightQuestion(left as never, `${seed}:nashelingo:${level}`);
+      });
+    const selected: typeof pool = [];
+    appendSemanticQuestions(selected, candidates, count, createQuestionUniquenessState());
+    if (selected.length < count) {
+      for (const question of candidates) {
+        if (selected.length >= count) break;
+        if (!selected.some((item) => item.id === question.id)) selected.push(question);
+      }
+    }
+    selected.forEach((question) => usedQuestionIds.add(question.id));
+    if (level === maxLevel) requested = selected;
+  }
+
+  return requested;
+};
+
 const syncedGeneratedTopics = new Set<string>();
 
 const syncGeneratedQuestions = async (generatedQuestions: Question[]) => {
@@ -580,20 +630,7 @@ const selectQuestions = async ({
   const sorted = sizedPool.sort((a, b) => weightQuestion(b as never, selectionSeed) - weightQuestion(a as never, selectionSeed));
   const maxCount = Math.min(count, sorted.length);
   if (lessonIndex !== undefined && mode === "topic") {
-    const level = Math.max(0, Math.min(4, lessonIndex));
-    const preferred = ["easy", "medium", "hard"] as const;
-    const ordered = [...sorted].sort((left, right) => {
-      const leftRank = Math.abs(preferred.indexOf(left.difficulty as typeof preferred[number]) - Math.min(level, 2));
-      const rightRank = Math.abs(preferred.indexOf(right.difficulty as typeof preferred[number]) - Math.min(level, 2));
-      return leftRank - rightRank || weightQuestion(right as never, `${selectionSeed}:level` ) - weightQuestion(left as never, `${selectionSeed}:level`);
-    });
-    const offset = level * count;
-    const window = ordered.slice(offset, offset + maxCount);
-    const selectedLevel: typeof ordered = [];
-    const levelUniqueness = createQuestionUniquenessState();
-    appendSemanticQuestions(selectedLevel, window, maxCount, levelUniqueness);
-    if (selectedLevel.length < maxCount) appendSemanticQuestions(selectedLevel, ordered, maxCount, levelUniqueness);
-    return selectedLevel.slice(0, maxCount);
+    return selectNashelingoLevel(sorted, maxCount, lessonIndex, selectionSeed);
   }
   const selected: typeof sorted = [];
   appendSemanticQuestions(selected, sorted, maxCount, createQuestionUniquenessState());
@@ -763,6 +800,27 @@ app.get("/api/meta", async (req, res) => {
     }),
   ]);
 
+  const nashelingoLevelProgress = new Map<string, NashelingoLevelProgress>();
+  attempts.forEach((attempt) => {
+    const match = attempt.mode === "topic" ? attempt.topic?.match(/^(.*)::nashelingo:([0-4])$/u) : null;
+    if (!match || attempt.count !== 6) return;
+    const topic = topicCatalog.find((item) => item.title === match[1]);
+    const correctCount = attempt.items.filter((item) => item.isCorrect).length;
+    if (!topic?.subject || correctCount < 4) return;
+    const entry: NashelingoLevelProgress = {
+      subject: topic.subject,
+      topic: match[1],
+      level: Number(match[2]),
+      correctCount,
+      completedAt: attempt.createdAt.toISOString(),
+    };
+    const key = `${entry.subject}:${entry.topic}:${entry.level}`;
+    const current = nashelingoLevelProgress.get(key);
+    if (!current || entry.correctCount > current.correctCount || (entry.correctCount === current.correctCount && entry.completedAt > current.completedAt)) {
+      nashelingoLevelProgress.set(key, entry);
+    }
+  });
+
   res.json({
     ...dashboardMeta,
     profile: toProfile(profile),
@@ -775,6 +833,7 @@ app.get("/api/meta", async (req, res) => {
       topic: entry.topic,
       completedAt: entry.completedAt.toISOString(),
     })),
+    nashelingoLevelProgress: [...nashelingoLevelProgress.values()],
     attempts,
     achievements,
     questionBank: buildQuestionBankSummary(),

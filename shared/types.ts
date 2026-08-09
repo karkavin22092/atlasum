@@ -130,6 +130,14 @@ export type NashelingoTheoryProgress = {
   completedAt: string;
 };
 
+export type NashelingoLevelProgress = {
+  subject: SubjectId;
+  topic: string;
+  level: number;
+  correctCount: number;
+  completedAt: string;
+};
+
 export type DashboardMeta = {
   topics: TopicMeta[];
   modes: Array<{ key: QuizMode; title: string; description: string }>;

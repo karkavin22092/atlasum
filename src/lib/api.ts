@@ -2,6 +2,7 @@ import type {
   AttemptSubmission,
   DashboardMeta,
   GeneratedTest,
+  NashelingoLevelProgress,
   NashelingoTheoryProgress,
   Profile,
   ProfileStats,
@@ -69,6 +70,7 @@ export const api = {
     activity: Array<{ date: string; attempts: number; correct: number; xp: number }>;
     topicProgress: Array<{ key: string; title: string; description: string; source: string; color: string; subject?: SubjectId; mastery: number; answered: number }>;
     theoryProgress: NashelingoTheoryProgress[];
+    nashelingoLevelProgress: NashelingoLevelProgress[];
     attempts: Array<{ id: string; mode: string; count: number; score: number; maxScore: number; percent: number; grade: string; durationMs: number; topic: string | null; createdAt: string; items: Array<{ questionId: string; topic: string; difficulty: string; isCorrect: boolean; userAnswer: unknown; correctAnswer: unknown; explanation: string }>; }>;
     achievements: Array<{ key: string; title: string; description: string; icon: string; unlockedAt: string }>;
     questionBank: { total: number; topics: Array<{ key: string; title: string; questions: number }> };

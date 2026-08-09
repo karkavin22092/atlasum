@@ -200,7 +200,7 @@ export const NashelingoLessonPage = ({ meta, profileName }: AppPageProps) => {
         <h1>{selectedSubject === "english" ? <EnglishWordHints text={current.question} /> : current.question}</h1>
         {current.media ? <div className="v22-lesson-media"><img src={current.media.src} alt={current.media.alt} /></div> : null}
         <div className="v22-lesson-answers">
-          <QuestionRenderer question={current} value={currentAnswer} onChange={(value) => updateAnswer(current.id, value)} locked={currentChecked} feedback={currentChecked ? (currentCorrect ? "correct" : "wrong") : null} />
+          <QuestionRenderer key={current.id} question={current} value={currentAnswer} onChange={(value) => updateAnswer(current.id, value)} locked={currentChecked} feedback={currentChecked ? (currentCorrect ? "correct" : "wrong") : null} />
         </div>
       </main>
 

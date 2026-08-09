@@ -491,6 +491,7 @@ export const PracticePage = ({ meta, profileName }: AppPageProps) => {
               ) : null}
 
               <QuestionRenderer
+                key={currentQuestion.id}
                 question={currentQuestion}
                 value={answers[currentQuestion.id]}
                 onChange={(value) => updateAnswer(currentQuestion.id, value)}

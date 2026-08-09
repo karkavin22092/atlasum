@@ -31,7 +31,10 @@ export const NashelingoPage = ({ meta }: AppPageProps) => {
   const activeSubject = subjectPresentation[selectedSubject];
   const topics = meta?.topics.filter((topic) => topic.subject === selectedSubject && !topic.examOnly) ?? [];
   const progressByTopic = new Map((meta?.topicProgress ?? []).map((progress) => [progress.title, progress]));
-  const completedLevelCount = (title: string) => Array.from({ length: 5 }, (_, level) => (meta?.attempts ?? []).some((attempt) => attempt.mode === "topic" && attempt.topic === `${title}::nashelingo:${level}` && attempt.count === 6 && attempt.items.filter((item) => item.isCorrect).length >= 4)).filter(Boolean).length;
+  const completedLevelCount = (title: string) => Array.from({ length: 5 }, (_, level) =>
+    (meta?.nashelingoLevelProgress ?? []).some((item) => item.subject === selectedSubject && item.topic === title && item.level === level && item.correctCount >= 4)
+    || (meta?.attempts ?? []).some((attempt) => attempt.mode === "topic" && attempt.topic === `${title}::nashelingo:${level}` && attempt.count === 6 && attempt.items.filter((item) => item.isCorrect).length >= 4),
+  ).filter(Boolean).length;
   const passedTopicLevels = topics.reduce((total, topic) => total + completedLevelCount(topic.title), 0);
   const disciplinePercent = topics.length ? Math.round((passedTopicLevels / (topics.length * 5)) * 100) : 0;
 

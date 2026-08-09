@@ -28,12 +28,16 @@ export const NashelingoTopicPage = ({ meta, profileName }: AppPageProps) => {
   const theoryCompleted = meta?.theoryProgress?.some((item) => item.subject === subject && item.topic === topic) ?? false;
   const [theoryOpen, setTheoryOpen] = useState(false);
   const [theoryPage, setTheoryPage] = useState(0);
-  const completedByLevel = Array.from({ length: 5 }, (_, level) => (meta?.attempts ?? []).some((attempt) =>
-    attempt.mode === "topic"
-    && attempt.topic === `${topic}::nashelingo:${level}`
-    && attempt.count === 6
-    && attempt.items.filter((item) => item.isCorrect).length >= 4,
-  ));
+  const completedByLevel = Array.from({ length: 5 }, (_, level) =>
+    (meta?.nashelingoLevelProgress ?? []).some((item) =>
+      item.subject === subject && item.topic === topic && item.level === level && item.correctCount >= 4,
+    ) || (meta?.attempts ?? []).some((attempt) =>
+      attempt.mode === "topic"
+      && attempt.topic === `${topic}::nashelingo:${level}`
+      && attempt.count === 6
+      && attempt.items.filter((item) => item.isCorrect).length >= 4,
+    ),
+  );
   const completedLevels = completedByLevel.filter(Boolean).length;
   const percent = Math.round((completedLevels / 5) * 100);
 
@@ -84,7 +88,7 @@ export const NashelingoTopicPage = ({ meta, profileName }: AppPageProps) => {
       <div className="v22-topic-sections">
         {sectionNames.map((section, sectionIndex) => (
           <section className="v22-topic-section" key={section}>
-            <div className="v22-topic-section-heading"><span>{String(sectionIndex + 1).padStart(2, "0")}</span><div><div className="v22-learning-step-label">Раздел {sectionIndex + 1}</div><h2>{section}</h2></div><Badge className="ml-auto shrink-0" tone="cyan">{Math.round((Math.min(2, Math.max(0, completedLevels - sectionIndex * 2)) / 2) * 100)}%</Badge></div>
+            <div className="v22-topic-section-heading"><span>{String(sectionIndex + 1).padStart(2, "0")}</span><div><div className="v22-learning-step-label">Раздел {sectionIndex + 1}</div><h2>{section}</h2></div><Badge className="v22-topic-section-progress ml-auto shrink-0" tone="cyan">{Math.round((Math.min(2, Math.max(0, completedLevels - sectionIndex * 2)) / 2) * 100)}%</Badge></div>
             <div className="v22-topic-levels">
               {[0, 1].map((slot) => {
                 const level = sectionIndex * 2 + slot;
