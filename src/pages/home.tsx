@@ -4,7 +4,7 @@ import { Button, GlassCard, Panel, StatCard, TitleBlock } from "@/components/ui"
 import { BookOpen, Brain, BriefcaseBusiness, CircleDollarSign, Gamepad2, Languages, Laptop2, LineChart, Map as MapIcon, ShieldCheck, Sparkles, Swords, Target } from "lucide-react";
 import type { AppPageProps } from "./types";
 import type { SubjectId } from "@shared/types";
-import { countLabel, formatXp, levelLabel } from "@/lib/utils";
+import { MAX_LEVEL, countLabel, formatXp, levelLabel } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { isAdminUser } from "@/lib/permissions";
 import { SiteReviewsSection } from "@/components/site-reviews";
@@ -144,7 +144,7 @@ export const HomePage = ({ meta }: AppPageProps) => {
               <Link className="v22-hero-action-learning" to={`/nashelingo?subject=${selectedSubject}`}>
                 <Button variant="secondary">
                   <MapIcon className="h-4 w-4" />
-                  Нашелинго
+                  <span className="v22-hero-action-learning-label">Нашелинго</span>
                 </Button>
               </Link>
             </div>
@@ -159,7 +159,7 @@ export const HomePage = ({ meta }: AppPageProps) => {
             <div className="v22-hero-stat space-y-2">
               <div className="text-xs uppercase tracking-[0.24em] text-slate-400">XP</div>
               <div className="text-4xl font-semibold text-white">{formatXp(profile?.xp ?? 0)}</div>
-              <div className="text-sm text-slate-400">До следующего уровня: {stats?.nextLevelXp ?? 250}</div>
+              <div className="text-sm text-slate-400">{(profile?.level ?? 1) >= MAX_LEVEL ? "Максимальный уровень" : `До следующего уровня: ${stats?.nextLevelXp ?? 250}`}</div>
             </div>
             <div className="v22-hero-stat space-y-2">
               <div className="text-xs uppercase tracking-[0.24em] text-slate-400">Серия</div>

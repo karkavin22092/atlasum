@@ -18,6 +18,25 @@ type LeaderboardEntry = {
 const store = () => getStore({ name: "design-tests-leaderboard", consistency: "strong" });
 const usersStore = () => getStore({ name: "design-tests-auth-users", consistency: "strong" });
 const DELETED_USER_IDS = new Set(["test"]);
+const MAX_LEVEL = 30;
+
+const xpRequiredForNextLevel = (level: number) => {
+  if (level === 1) return 250;
+  if (level === 2) return 500;
+  return 800 + (Math.max(3, level) - 3) * 300;
+};
+
+const levelFromXp = (xp: number) => {
+  const safeXp = Math.max(0, xp);
+  let level = 1;
+  let requiredXp = 0;
+  while (level < MAX_LEVEL) {
+    requiredXp += xpRequiredForNextLevel(level);
+    if (safeXp < requiredXp) break;
+    level += 1;
+  }
+  return level;
+};
 
 const purgeDeletedAccounts = async () => {
   const leaderboard = store();
@@ -71,7 +90,7 @@ const cleanEntry = (value: Partial<LeaderboardEntry>): LeaderboardEntry | null =
     name,
     avatarUrl: cleanAvatar(value.avatarUrl),
     xp: Math.round(cleanNumber(value.xp)),
-    level: Math.max(1, Math.round(cleanNumber(value.level, 100_000))),
+    level: levelFromXp(cleanNumber(value.xp)),
     streak: Math.round(cleanNumber(value.streak, 100_000)),
     bestStreak: Math.round(cleanNumber(value.bestStreak, 100_000)),
     attempts: Math.round(cleanNumber(value.attempts, 1_000_000)),
@@ -127,7 +146,7 @@ export default async (request: Request) => {
           ...entry,
           avatarUrl: entry.avatarUrl ?? current.avatarUrl ?? null,
           xp: Math.max(current.xp, entry.xp),
-          level: Math.max(current.level, entry.level),
+          level: levelFromXp(Math.max(current.xp, entry.xp)),
           streak: incomingHasNewerProgress ? entry.streak : current.streak,
           bestStreak: Math.max(current.bestStreak, entry.bestStreak),
           attempts: Math.max(current.attempts, entry.attempts),

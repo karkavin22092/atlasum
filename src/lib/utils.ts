@@ -54,9 +54,67 @@ export const formatXp = (xp: number) => {
 export const dateKey = (value = new Date()) =>
   new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Novosibirsk" }).format(value);
 
-export const levelLabel = (level: number) => {
-  if (level >= 15) return "Эксперт";
-  if (level >= 10) return "Продвинутый";
-  if (level >= 5) return "Опытный";
-  return "Старт";
+export const MAX_LEVEL = 30;
+
+const levelTitles = [
+  "Новичок",
+  "Любопытный",
+  "Стажёр",
+  "Практик",
+  "Искатель",
+  "Потничок",
+  "Умница",
+  "Знаток",
+  "Шустрик",
+  "Крутой чел",
+  "Упорный",
+  "Тактик",
+  "Собранный",
+  "Достигатор",
+  "Мозговитый",
+  "Уверенный",
+  "Закалённый",
+  "Кремень",
+  "Мастер",
+  "Навигатор",
+  "Эксперт",
+  "Наставник",
+  "Профи",
+  "Гуру",
+  "Титан знаний",
+  "Легенда практики",
+  "Архитектор знаний",
+  "Хранитель курса",
+  "Абсолют",
+  "Атласум",
+] as const;
+
+/** XP for the transition from this level to the next one. */
+export const xpRequiredForNextLevel = (level: number) => {
+  const currentLevel = Math.max(1, Math.floor(level));
+  if (currentLevel === 1) return 250;
+  if (currentLevel === 2) return 500;
+  return 800 + (currentLevel - 3) * 300;
 };
+
+/** Total XP required to reach the start of a level. */
+export const xpToReachLevel = (level: number) => {
+  const targetLevel = Math.min(MAX_LEVEL, Math.max(1, Math.floor(level)));
+  let requiredXp = 0;
+  for (let currentLevel = 1; currentLevel < targetLevel; currentLevel += 1) {
+    requiredXp += xpRequiredForNextLevel(currentLevel);
+  }
+  return requiredXp;
+};
+
+export const levelFromXp = (xp: number) => {
+  const safeXp = Math.max(0, xp);
+  let level = 1;
+  while (level < MAX_LEVEL && safeXp >= xpToReachLevel(level + 1)) level += 1;
+  return level;
+};
+
+export const levelLabel = (level: number) => levelTitles[Math.min(
+  levelTitles.length - 1,
+  Math.max(0, Math.floor(level) - 1),
+)];

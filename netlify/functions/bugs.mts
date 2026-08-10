@@ -51,12 +51,31 @@ const ADMIN_ID = "lonexnesss";
 const BUG_REWARD_XP = 200;
 const IMPROVEMENT_REWARD_XP = 300;
 const BUG_REPORT_COOLDOWN_MS = 30 * 60 * 1000;
+const MAX_LEVEL = 30;
 const bugsStore = () => getStore({ name: "design-tests-bugs", consistency: "strong" });
 const bugLimitsStore = () => getStore({ name: "design-tests-bug-limits", consistency: "strong" });
 const notificationsStore = () => getStore({ name: "design-tests-notifications", consistency: "strong" });
 const duelsStore = () => getStore({ name: "design-tests-duels", consistency: "strong" });
 const leaderboardStore = () => getStore({ name: "design-tests-leaderboard", consistency: "strong" });
 const sessionsStore = () => getStore({ name: "design-tests-auth-sessions", consistency: "strong" });
+
+const xpRequiredForNextLevel = (level: number) => {
+  if (level === 1) return 250;
+  if (level === 2) return 500;
+  return 800 + (Math.max(3, level) - 3) * 300;
+};
+
+const levelFromXp = (xp: number) => {
+  const safeXp = Math.max(0, xp);
+  let level = 1;
+  let requiredXp = 0;
+  while (level < MAX_LEVEL) {
+    requiredXp += xpRequiredForNextLevel(level);
+    if (safeXp < requiredXp) break;
+    level += 1;
+  }
+  return level;
+};
 
 const cleanUserId = (value: unknown) =>
   String(value ?? "").trim().toLowerCase().replace(/[^a-zа-я0-9-]+/giu, "-").slice(0, 80);
@@ -173,7 +192,7 @@ const awardReportReward = async (report: FeedbackReport) => {
     const updated = {
       ...entry,
       xp,
-      level: Math.floor(xp / 250) + 1,
+      level: levelFromXp(xp),
       rewardedBugIds: [...rewardedBugIds, report.id].slice(-1000),
     };
     const result = await leaderboard.setJSON(report.reporterId, updated, { onlyIfMatch: stored.etag });

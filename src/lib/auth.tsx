@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { isDeletedAccountName } from "./deleted-accounts";
 import { syncLocalReviewAvatar } from "./reviews";
+import { DEFAULT_INTERFACE_COLOR, type InterfaceColor } from "./interface-colors";
 
 export type AuthUser = {
   id: string;
@@ -9,6 +10,7 @@ export type AuthUser = {
   createdAt: string;
   authToken?: string;
   avatarUrl?: string | null;
+  interfaceColor?: InterfaceColor;
 };
 
 type StoredUser = AuthUser & { passwordHash: string };
@@ -19,6 +21,7 @@ type AuthContextValue = {
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   updateAvatar: (avatarUrl: string | null) => Promise<void>;
+  updateInterfaceColor: (interfaceColor: InterfaceColor) => Promise<void>;
 };
 
 const USERS_KEY = "design-tests-users-v1";
@@ -102,6 +105,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             passwordHash: stored.passwordHash,
             createdAt: stored.createdAt,
             avatarUrl: stored.avatarUrl ?? null,
+            interfaceColor: stored.interfaceColor ?? DEFAULT_INTERFACE_COLOR,
           });
           const isActive = stored.id === activeId;
           saveLocalUser(migrated, stored.passwordHash, isActive);
@@ -134,6 +138,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           passwordHash: localUser.passwordHash,
           createdAt: localUser.createdAt,
           avatarUrl: localUser.avatarUrl ?? null,
+          interfaceColor: localUser.interfaceColor ?? DEFAULT_INTERFACE_COLOR,
         });
       }
       saveLocalUser(authenticatedUser, passwordHash);
@@ -197,7 +202,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(updated);
   };
 
-  return <AuthContext.Provider value={{ user, login, register, logout, updateAvatar }}>{children}</AuthContext.Provider>;
+  const updateInterfaceColor = async (interfaceColor: InterfaceColor) => {
+    if (!user) throw new Error("Сначала войдите в аккаунт");
+    let updated: AuthUser = { ...user, interfaceColor };
+    if (import.meta.env.PROD && user.authToken) {
+      const remote = await remoteAuth({ action: "update-interface-color", authToken: user.authToken, interfaceColor });
+      updated = { ...remote, authToken: user.authToken };
+    }
+    const users = readUsers().map((item) => item.id === user.id ? { ...item, interfaceColor } : item);
+    window.localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    setUser(updated);
+  };
+
+  return <AuthContext.Provider value={{ user, login, register, logout, updateAvatar, updateInterfaceColor }}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {

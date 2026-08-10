@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ImagePlus, LoaderCircle, LogOut, Trash2, UserRound } from "lucide-react";
+import { Check, ImagePlus, LoaderCircle, LogOut, Palette, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { imageFileToDataUrl } from "@/lib/images";
+import { DEFAULT_INTERFACE_COLOR, INTERFACE_COLORS, type InterfaceColor } from "@/lib/interface-colors";
 
 const initials = (name: string) => name.trim().slice(0, 2).toUpperCase();
 
 export const AvatarMenu = ({ compact = false }: { compact?: boolean }) => {
-  const { user, updateAvatar, logout } = useAuth();
+  const { user, updateAvatar, updateInterfaceColor, logout } = useAuth();
   const queryClient = useQueryClient();
   const detailsRef = useRef<HTMLDetailsElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -72,6 +73,20 @@ export const AvatarMenu = ({ compact = false }: { compact?: boolean }) => {
     }
   };
 
+  const chooseInterfaceColor = async (interfaceColor: InterfaceColor) => {
+    if (pending || user?.interfaceColor === interfaceColor) return;
+    setError("");
+    setPending(true);
+    try {
+      await updateInterfaceColor(interfaceColor);
+      await queryClient.invalidateQueries({ queryKey: ["meta"] });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Не удалось сохранить цвет");
+    } finally {
+      setPending(false);
+    }
+  };
+
   return (
     <details ref={detailsRef} className="avatar-menu relative">
       <summary
@@ -110,6 +125,31 @@ export const AvatarMenu = ({ compact = false }: { compact?: boolean }) => {
             <Trash2 className="h-4 w-4 text-rose-300" />Удалить аватар
           </button>
         ) : null}
+        <div className="mt-2 border-t border-white/10 px-2 pb-2 pt-3">
+          <div className="mb-2 flex items-center gap-2 text-xs font-medium text-slate-300">
+            <Palette className="h-3.5 w-3.5 text-cyan-300" />
+            Цвет интерфейса
+          </div>
+          <div className="grid grid-cols-6 gap-2">
+            {INTERFACE_COLORS.map((color) => {
+              const active = (user.interfaceColor ?? DEFAULT_INTERFACE_COLOR) === color.key;
+              return (
+                <button
+                  key={color.key}
+                  type="button"
+                  className={`interface-color-swatch interface-color-swatch-${color.key}${active ? " is-active" : ""}`}
+                  onClick={() => void chooseInterfaceColor(color.key)}
+                  disabled={pending}
+                  aria-label={`Выбрать ${color.label} цвет интерфейса`}
+                  aria-pressed={active}
+                  title={color.label}
+                >
+                  {active ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <button type="button" onClick={logout} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-slate-200 transition hover:bg-white/10">
           <LogOut className="h-4 w-4 text-slate-400" />Выйти
         </button>

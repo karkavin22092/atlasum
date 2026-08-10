@@ -2,7 +2,7 @@ import { Award, Crown, Medal, MessageCircle, Trophy, UserRound } from "lucide-re
 import { Link } from "react-router-dom";
 import { BackButton, Badge, Button, GlassCard, Panel, TitleBlock } from "@/components/ui";
 import { getPresence } from "@/lib/presence";
-import { countLabel, formatXp } from "@/lib/utils";
+import { countLabel, formatXp, levelLabel } from "@/lib/utils";
 import type { AppPageProps } from "./types";
 
 const rankIcon = (rank: number) => {
@@ -54,7 +54,10 @@ export const LeaderboardPage = ({ meta, profileName }: AppPageProps) => (
                     {presence.label}
                   </div>
                 </div>
-                <Badge tone="violet">Уровень {entry.level}</Badge>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone="violet">Уровень {entry.level}</Badge>
+                  <span className="text-xs font-medium text-slate-400">{levelLabel(entry.level)}</span>
+                </div>
                 <div className="text-right text-lg font-semibold text-cyan-200">{formatXp(entry.xp)} XP</div>
                 {isCurrent ? null : (
                   <Link to={`/messages/${entry.id}`}>

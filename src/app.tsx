@@ -16,6 +16,7 @@ import { PRESENCE_POLL_MS, REALTIME_POLL_MS } from "./lib/realtime";
 import { isAdminUser } from "./lib/permissions";
 import { AvatarMenu } from "./components/avatar-menu";
 import { DESIGN_V22_ENABLED, DESIGN_V27_ENABLED } from "./lib/design-version";
+import { DEFAULT_INTERFACE_COLOR } from "./lib/interface-colors";
 
 const PracticePage = lazy(() => import("./pages/practice").then(({ PracticePage }) => ({ default: PracticePage })));
 const ReviewPage = lazy(() => import("./pages/review").then(({ ReviewPage }) => ({ default: ReviewPage })));
@@ -206,6 +207,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     <div
       className={`theme-shell min-h-screen text-slate-100${DESIGN_V22_ENABLED ? " design-v22" : ""}${DESIGN_V27_ENABLED ? " design-v27" : ""}`}
       data-subject={activeSubject}
+      data-interface-color={user?.interfaceColor ?? DEFAULT_INTERFACE_COLOR}
     >
       <div className="fixed inset-0 -z-10 soft-grid opacity-35" />
       <div className="theme-atmosphere fixed inset-0 -z-20" />

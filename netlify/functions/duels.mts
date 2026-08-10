@@ -46,11 +46,30 @@ const ADMIN_ID = "lonexnesss";
 const MATCH_DURATION_MS = 10 * 60 * 1000;
 const INVITE_DURATION_MS = 30 * 1000;
 const TOTAL_QUESTIONS = 10;
+const MAX_LEVEL = 30;
 const duelStore = () => getStore({ name: "design-tests-duels", consistency: "strong" });
 const leaderboardStore = () => getStore({ name: "design-tests-leaderboard", consistency: "strong" });
 const sessionsStore = () => getStore({ name: "design-tests-auth-sessions", consistency: "strong" });
 const notificationsStore = () => getStore({ name: "design-tests-notifications", consistency: "strong" });
 const questions = questionData as unknown as DuelQuestion[];
+
+const xpRequiredForNextLevel = (level: number) => {
+  if (level === 1) return 250;
+  if (level === 2) return 500;
+  return 800 + (Math.max(3, level) - 3) * 300;
+};
+
+const levelFromXp = (xp: number) => {
+  const safeXp = Math.max(0, xp);
+  let level = 1;
+  let requiredXp = 0;
+  while (level < MAX_LEVEL) {
+    requiredXp += xpRequiredForNextLevel(level);
+    if (safeXp < requiredXp) break;
+    level += 1;
+  }
+  return level;
+};
 
 const cleanId = (value: unknown) => String(value ?? "").trim().toLowerCase().replace(/[^a-zа-я0-9-]+/giu, "-").slice(0, 80);
 const jsonError = (message: string, status: number) => Response.json({ error: message }, { status });
@@ -167,7 +186,7 @@ const awardXp = async (userId: string, duelId: string, amount: number) => {
     const rewarded = Array.isArray(current.rewardedDuelIds) ? current.rewardedDuelIds : [];
     if (rewarded.includes(duelId)) return;
     const xp = Math.max(0, Number(current.xp) || 0) + amount;
-    const updated = { ...current, xp, level: Math.floor(xp / 250) + 1, rewardedDuelIds: [...rewarded, duelId].slice(-500) };
+    const updated = { ...current, xp, level: levelFromXp(xp), rewardedDuelIds: [...rewarded, duelId].slice(-500) };
     const result = await store.setJSON(userId, updated, { onlyIfMatch: stored.etag });
     if (result.modified) return;
   }

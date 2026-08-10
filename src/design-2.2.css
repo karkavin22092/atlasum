@@ -37,43 +37,26 @@
   font-family: "Segoe UI Variable", "Segoe UI", Inter, ui-sans-serif, system-ui, sans-serif;
 }
 
-.design-v22[data-subject="management"] {
-  --v22-accent: #ed6a5a;
-  --v22-accent-strong: #ff9587;
-  --v22-secondary: #efb744;
-  --v22-on-accent: #210806;
-  --v22-accent-soft: rgba(237, 106, 90, 0.14);
-  --v22-secondary-soft: rgba(239, 183, 68, 0.11);
-  --v22-pattern-line: rgba(237, 106, 90, 0.05);
-  --v22-pattern: repeating-linear-gradient(0deg, transparent 0 39px, var(--v22-pattern-line) 39px 40px);
-  --v22-pattern-size: auto;
+/* The selected palette is the single source of interface accents. */
+.design-v22[data-interface-color="ocean"] { --v22-accent: #4f8cff; --v22-accent-strong: #78a8ff; --v22-secondary: #38c7ad; --v22-on-accent: #07101f; --v22-accent-soft: rgba(79, 140, 255, 0.14); --v22-secondary-soft: rgba(56, 199, 173, 0.11); --v22-pattern-line: rgba(79, 140, 255, 0.045); }
+.design-v22[data-interface-color="pink"] { --v22-accent: #d9578c; --v22-accent-strong: #f28bb2; --v22-secondary: #b87bd9; --v22-on-accent: #240710; --v22-accent-soft: rgba(217, 87, 140, 0.15); --v22-secondary-soft: rgba(184, 123, 217, 0.12); --v22-pattern-line: rgba(217, 87, 140, 0.05); }
+.design-v22[data-interface-color="violet"] { --v22-accent: #8b6bd8; --v22-accent-strong: #b6a0f2; --v22-secondary: #5ba6cf; --v22-on-accent: #110820; --v22-accent-soft: rgba(139, 107, 216, 0.15); --v22-secondary-soft: rgba(91, 166, 207, 0.12); --v22-pattern-line: rgba(139, 107, 216, 0.05); }
+.design-v22[data-interface-color="mint"] { --v22-accent: #299f82; --v22-accent-strong: #65d0af; --v22-secondary: #4c9fc8; --v22-on-accent: #041712; --v22-accent-soft: rgba(41, 159, 130, 0.15); --v22-secondary-soft: rgba(76, 159, 200, 0.12); --v22-pattern-line: rgba(41, 159, 130, 0.05); }
+.design-v22[data-interface-color="amber"] { --v22-accent: #ca8423; --v22-accent-strong: #f0b85b; --v22-secondary: #b95f70; --v22-on-accent: #1f1000; --v22-accent-soft: rgba(202, 132, 35, 0.15); --v22-secondary-soft: rgba(185, 95, 112, 0.12); --v22-pattern-line: rgba(202, 132, 35, 0.05); }
+.design-v22[data-interface-color="coral"] { --v22-accent: #cf6558; --v22-accent-strong: #f49a8d; --v22-secondary: #5aa99f; --v22-on-accent: #250806; --v22-accent-soft: rgba(207, 101, 88, 0.15); --v22-secondary-soft: rgba(90, 169, 159, 0.12); --v22-pattern-line: rgba(207, 101, 88, 0.05); }
+
+.design-v22 .avatar-trigger:not(:has(img)),
+.design-v22 .avatar-popover > div:first-child > div:first-child:not(:has(img)) {
+  border-color: color-mix(in srgb, var(--v22-accent) 62%, var(--v22-line));
+  background: var(--v22-accent);
+  color: var(--v22-on-accent);
 }
 
-.design-v22[data-subject="economics"] {
-  --v22-accent: #42a875;
-  --v22-accent-strong: #73ce99;
-  --v22-secondary: #d2aa3c;
-  --v22-on-accent: #06160c;
-  --v22-accent-soft: rgba(66, 168, 117, 0.14);
-  --v22-secondary-soft: rgba(210, 170, 60, 0.11);
-  --v22-pattern-line: rgba(66, 168, 117, 0.045);
-  --v22-pattern:
-    linear-gradient(var(--v22-pattern-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--v22-pattern-line) 1px, transparent 1px);
-  --v22-pattern-size: 72px 32px;
-}
-
-.design-v22[data-subject="english"] {
-  --v22-accent: #d95c78;
-  --v22-accent-strong: #f18a9f;
-  --v22-secondary: #a883d8;
-  --v22-on-accent: #21070f;
-  --v22-accent-soft: rgba(217, 92, 120, 0.14);
-  --v22-secondary-soft: rgba(168, 131, 216, 0.11);
-  --v22-pattern-line: rgba(217, 92, 120, 0.045);
-  --v22-pattern: repeating-linear-gradient(135deg, transparent 0 22px, var(--v22-pattern-line) 22px 23px);
-  --v22-pattern-size: auto;
-}
+.design-v22 .interface-color-swatch { display: grid; width: 30px; height: 30px; place-items: center; border: 2px solid transparent; border-radius: 50%; color: #fff; transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease; }
+.design-v22 .interface-color-swatch:hover:not(:disabled) { transform: translateY(-1px) scale(1.06); }
+.design-v22 .interface-color-swatch:focus-visible { outline: 2px solid var(--v22-text); outline-offset: 2px; }
+.design-v22 .interface-color-swatch.is-active { border-color: var(--v22-surface-raised); box-shadow: 0 0 0 2px var(--v22-accent); }
+.design-v22 .interface-color-swatch-ocean { background: #4f8cff; }.design-v22 .interface-color-swatch-pink { background: #d9578c; }.design-v22 .interface-color-swatch-violet { background: #8b6bd8; }.design-v22 .interface-color-swatch-mint { background: #299f82; }.design-v22 .interface-color-swatch-amber { background: #ca8423; }.design-v22 .interface-color-swatch-coral { background: #cf6558; }
 
 :root[data-theme="light"] .design-v22 {
   --v22-page: #f3f5f2;
@@ -96,35 +79,13 @@
   --v22-pattern-line: rgba(47, 111, 212, 0.035);
 }
 
-:root[data-theme="light"] .design-v22[data-subject="management"] {
-  --v22-accent: #c64e40;
-  --v22-accent-strong: #a83c30;
-  --v22-secondary: #a8750c;
-  --v22-on-accent: #ffffff;
-  --v22-accent-soft: rgba(198, 78, 64, 0.1);
-  --v22-secondary-soft: rgba(168, 117, 12, 0.09);
-  --v22-pattern-line: rgba(198, 78, 64, 0.035);
-}
-
-:root[data-theme="light"] .design-v22[data-subject="economics"] {
-  --v22-accent: #287c51;
-  --v22-accent-strong: #1f6842;
-  --v22-secondary: #957417;
-  --v22-on-accent: #ffffff;
-  --v22-accent-soft: rgba(40, 124, 81, 0.1);
-  --v22-secondary-soft: rgba(149, 116, 23, 0.09);
-  --v22-pattern-line: rgba(40, 124, 81, 0.035);
-}
-
-:root[data-theme="light"] .design-v22[data-subject="english"] {
-  --v22-accent: #ad3655;
-  --v22-accent-strong: #8f2845;
-  --v22-secondary: #7d5aad;
-  --v22-on-accent: #ffffff;
-  --v22-accent-soft: rgba(173, 54, 85, 0.1);
-  --v22-secondary-soft: rgba(125, 90, 173, 0.09);
-  --v22-pattern-line: rgba(173, 54, 85, 0.035);
-}
+/* Light mode uses deeper accents, so text and controls remain readable. */
+:root[data-theme="light"] .design-v22[data-interface-color="ocean"] { --v22-accent: #2f6fd4; --v22-accent-strong: #245cb4; --v22-secondary: #138873; --v22-on-accent: #ffffff; --v22-accent-soft: rgba(47, 111, 212, 0.1); --v22-secondary-soft: rgba(19, 136, 115, 0.09); --v22-pattern-line: rgba(47, 111, 212, 0.035); }
+:root[data-theme="light"] .design-v22[data-interface-color="pink"] { --v22-accent: #b6366e; --v22-accent-strong: #942655; --v22-secondary: #8155a6; --v22-on-accent: #ffffff; --v22-accent-soft: rgba(182, 54, 110, 0.1); --v22-secondary-soft: rgba(129, 85, 166, 0.09); --v22-pattern-line: rgba(182, 54, 110, 0.035); }
+:root[data-theme="light"] .design-v22[data-interface-color="violet"] { --v22-accent: #6846ae; --v22-accent-strong: #54378f; --v22-secondary: #287ba7; --v22-on-accent: #ffffff; --v22-accent-soft: rgba(104, 70, 174, 0.1); --v22-secondary-soft: rgba(40, 123, 167, 0.09); --v22-pattern-line: rgba(104, 70, 174, 0.035); }
+:root[data-theme="light"] .design-v22[data-interface-color="mint"] { --v22-accent: #18795f; --v22-accent-strong: #12644e; --v22-secondary: #287ba7; --v22-on-accent: #ffffff; --v22-accent-soft: rgba(24, 121, 95, 0.1); --v22-secondary-soft: rgba(40, 123, 167, 0.09); --v22-pattern-line: rgba(24, 121, 95, 0.035); }
+:root[data-theme="light"] .design-v22[data-interface-color="amber"] { --v22-accent: #a86108; --v22-accent-strong: #874b05; --v22-secondary: #a43958; --v22-on-accent: #ffffff; --v22-accent-soft: rgba(168, 97, 8, 0.1); --v22-secondary-soft: rgba(164, 57, 88, 0.09); --v22-pattern-line: rgba(168, 97, 8, 0.035); }
+:root[data-theme="light"] .design-v22[data-interface-color="coral"] { --v22-accent: #ae443b; --v22-accent-strong: #8d312b; --v22-secondary: #247d75; --v22-on-accent: #ffffff; --v22-accent-soft: rgba(174, 68, 59, 0.1); --v22-secondary-soft: rgba(36, 125, 117, 0.09); --v22-pattern-line: rgba(174, 68, 59, 0.035); }
 
 .design-v22 .theme-atmosphere {
   background: var(--v22-page);
@@ -1634,6 +1595,96 @@
   -webkit-text-fill-color: currentColor;
 }
 
+/* Legacy utility colors are decorative accents, not subject colors. Keep red and green for answer states. */
+.design-v22 [class*="text-cyan-"],
+.design-v22 [class*="text-sky-"],
+.design-v22 [class*="text-blue-"],
+.design-v22 [class*="text-indigo-"],
+.design-v22 [class*="text-violet-"],
+.design-v22 [class*="text-fuchsia-"],
+.design-v22 [class*="text-pink-"],
+.design-v22 [class*="text-amber-"] {
+  color: var(--v22-accent-strong) !important;
+}
+
+.design-v22 [class*="bg-cyan-"],
+.design-v22 [class*="bg-sky-"],
+.design-v22 [class*="bg-blue-"],
+.design-v22 [class*="bg-indigo-"],
+.design-v22 [class*="bg-violet-"],
+.design-v22 [class*="bg-fuchsia-"],
+.design-v22 [class*="bg-pink-"],
+.design-v22 [class*="bg-amber-"] {
+  background-color: var(--v22-accent-soft) !important;
+}
+
+.design-v22 [class*="border-cyan-"],
+.design-v22 [class*="border-sky-"],
+.design-v22 [class*="border-blue-"],
+.design-v22 [class*="border-indigo-"],
+.design-v22 [class*="border-violet-"],
+.design-v22 [class*="border-fuchsia-"],
+.design-v22 [class*="border-pink-"],
+.design-v22 [class*="border-amber-"] {
+  border-color: color-mix(in srgb, var(--v22-accent) 44%, var(--v22-line)) !important;
+}
+
+.design-v22 [class*="fill-cyan-"],
+.design-v22 [class*="fill-sky-"],
+.design-v22 [class*="fill-blue-"],
+.design-v22 [class*="fill-indigo-"],
+.design-v22 [class*="fill-violet-"],
+.design-v22 [class*="fill-fuchsia-"],
+.design-v22 [class*="fill-pink-"],
+.design-v22 [class*="fill-amber-"] {
+  fill: var(--v22-accent-strong) !important;
+}
+
+/* src/index.css also defines light utility colours; this rule intentionally wins for a chosen palette. */
+:root[data-theme="light"] .design-v22 [class*="text-cyan-"],
+:root[data-theme="light"] .design-v22 [class*="text-sky-"],
+:root[data-theme="light"] .design-v22 [class*="text-blue-"],
+:root[data-theme="light"] .design-v22 [class*="text-indigo-"],
+:root[data-theme="light"] .design-v22 [class*="text-violet-"],
+:root[data-theme="light"] .design-v22 [class*="text-fuchsia-"],
+:root[data-theme="light"] .design-v22 [class*="text-pink-"],
+:root[data-theme="light"] .design-v22 [class*="text-amber-"] {
+  color: var(--v22-accent-strong) !important;
+}
+
+:root[data-theme="light"] .design-v22 [class*="bg-cyan-"],
+:root[data-theme="light"] .design-v22 [class*="bg-sky-"],
+:root[data-theme="light"] .design-v22 [class*="bg-blue-"],
+:root[data-theme="light"] .design-v22 [class*="bg-indigo-"],
+:root[data-theme="light"] .design-v22 [class*="bg-violet-"],
+:root[data-theme="light"] .design-v22 [class*="bg-fuchsia-"],
+:root[data-theme="light"] .design-v22 [class*="bg-pink-"],
+:root[data-theme="light"] .design-v22 [class*="bg-amber-"] {
+  background-color: var(--v22-accent-soft) !important;
+}
+
+:root[data-theme="light"] .design-v22 [class*="border-cyan-"],
+:root[data-theme="light"] .design-v22 [class*="border-sky-"],
+:root[data-theme="light"] .design-v22 [class*="border-blue-"],
+:root[data-theme="light"] .design-v22 [class*="border-indigo-"],
+:root[data-theme="light"] .design-v22 [class*="border-violet-"],
+:root[data-theme="light"] .design-v22 [class*="border-fuchsia-"],
+:root[data-theme="light"] .design-v22 [class*="border-pink-"],
+:root[data-theme="light"] .design-v22 [class*="border-amber-"] {
+  border-color: color-mix(in srgb, var(--v22-accent) 44%, var(--v22-line)) !important;
+}
+
+:root[data-theme="light"] .design-v22 [class*="fill-cyan-"],
+:root[data-theme="light"] .design-v22 [class*="fill-sky-"],
+:root[data-theme="light"] .design-v22 [class*="fill-blue-"],
+:root[data-theme="light"] .design-v22 [class*="fill-indigo-"],
+:root[data-theme="light"] .design-v22 [class*="fill-violet-"],
+:root[data-theme="light"] .design-v22 [class*="fill-fuchsia-"],
+:root[data-theme="light"] .design-v22 [class*="fill-pink-"],
+:root[data-theme="light"] .design-v22 [class*="fill-amber-"] {
+  fill: var(--v22-accent-strong) !important;
+}
+
 @keyframes v22-rise-in {
   from {
     opacity: 0;
@@ -1814,6 +1865,27 @@
   .design-v22 .v22-hero-actions .v22-button {
     height: 100%;
     width: 100%;
+  }
+
+  .design-v22 .v22-hero-action-learning .v22-button {
+    gap: 5px;
+    padding-left: 6px;
+    padding-right: 6px;
+    font-size: 0.66rem !important;
+    white-space: nowrap !important;
+    overflow-wrap: normal !important;
+    word-break: keep-all !important;
+  }
+
+  .design-v22 .v22-hero-action-learning .v22-button svg {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 14px;
+  }
+
+  .design-v22 .v22-hero-action-learning-label {
+    display: inline-block;
+    white-space: nowrap;
   }
 
   .design-v22 .v22-hero-action-exam {
@@ -2082,6 +2154,27 @@
     padding-left: 9px;
     padding-right: 9px;
     font-size: 0.78rem;
+  }
+
+  .design-v22 .v22-hero-action-learning .v22-button {
+    gap: 5px;
+    padding-left: 6px;
+    padding-right: 6px;
+    font-size: 0.66rem !important;
+    white-space: nowrap !important;
+    overflow-wrap: normal !important;
+    word-break: keep-all !important;
+  }
+
+  .design-v22 .v22-hero-action-learning .v22-button svg {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 14px;
+  }
+
+  .design-v22 .v22-hero-action-learning-label {
+    display: inline-block;
+    white-space: nowrap;
   }
 
   .design-v22 .v22-hero-stats {

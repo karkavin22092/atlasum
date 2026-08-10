@@ -57,9 +57,30 @@ const formatDateKey = (date = new Date()) =>
     timeZone: "Asia/Novosibirsk",
   }).format(date);
 
-const getLevel = (xp: number) => Math.max(1, Math.floor(xp / 250) + 1);
+const MAX_LEVEL = 30;
 
-const getXpThreshold = (level: number) => level * 250;
+const xpRequiredForNextLevel = (level: number) => {
+  const currentLevel = Math.max(1, Math.floor(level));
+  if (currentLevel === 1) return 250;
+  if (currentLevel === 2) return 500;
+  return 800 + (currentLevel - 3) * 300;
+};
+
+const getXpThreshold = (level: number) => {
+  const targetLevel = Math.min(MAX_LEVEL, Math.max(1, Math.floor(level)));
+  let requiredXp = 0;
+  for (let currentLevel = 1; currentLevel < targetLevel; currentLevel += 1) {
+    requiredXp += xpRequiredForNextLevel(currentLevel);
+  }
+  return requiredXp;
+};
+
+const getLevel = (xp: number) => {
+  const safeXp = Math.max(0, xp);
+  let level = 1;
+  while (level < MAX_LEVEL && safeXp >= getXpThreshold(level + 1)) level += 1;
+  return level;
+};
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -67,7 +88,7 @@ const ensureProfile = async (profileName?: string) => {
   const name = profileName?.trim() || "Гость";
   const id = slugify(name);
 
-  return prisma.profile.upsert({
+  const profile = await prisma.profile.upsert({
     where: { id },
     create: {
       id,
@@ -82,6 +103,10 @@ const ensureProfile = async (profileName?: string) => {
       name,
     },
   });
+  const level = getLevel(profile.xp);
+  return profile.level === level
+    ? profile
+    : prisma.profile.update({ where: { id: profile.id }, data: { level } });
 };
 
 const toProfile = (profile: {
@@ -96,7 +121,7 @@ const toProfile = (profile: {
   id: profile.id,
   name: profile.name,
   xp: profile.xp,
-  level: profile.level,
+  level: getLevel(profile.xp),
   streak: profile.streak,
   bestStreak: profile.bestStreak,
   lastActiveAt: profile.lastActiveAt ? profile.lastActiveAt.toISOString() : null,
@@ -163,16 +188,16 @@ const getProfileStats = async (profileId: string): Promise<ProfileStats> => {
   const weak = [...reviews.values()].filter((review) => review.timesAnswered > 0 && review.mastery < 0.45).length;
 
   const xp = profile?.xp ?? 0;
-  const level = profile?.level ?? getLevel(xp);
-  const nextLevelXp = getXpThreshold(level);
-  const levelStartXp = getXpThreshold(level - 1);
-  const levelProgress = nextLevelXp === levelStartXp ? 0 : clamp(((xp - levelStartXp) / (nextLevelXp - levelStartXp)) * 100, 0, 100);
+  const level = getLevel(xp);
+  const levelStartXp = getXpThreshold(level);
+  const nextLevelXp = level >= MAX_LEVEL ? levelStartXp : getXpThreshold(level + 1);
+  const levelProgress = level >= MAX_LEVEL ? 100 : clamp(((xp - levelStartXp) / (nextLevelXp - levelStartXp)) * 100, 0, 100);
 
   return {
     totalQuestionsAnswered: answered,
     totalCorrect: correct,
     accuracy: answered === 0 ? 0 : Math.round((correct / answered) * 1000) / 10,
-    xpPerLevel: 250,
+    xpPerLevel: level >= MAX_LEVEL ? 0 : nextLevelXp - levelStartXp,
     nextLevelXp,
     levelProgress,
     reviewDue,
@@ -243,7 +268,7 @@ const buildLeaderboard = async () => {
       name: profile.name,
       avatarUrl: null,
       xp: profile.xp,
-      level: profile.level,
+      level: getLevel(profile.xp),
       streak: profile.streak,
       bestStreak: profile.bestStreak,
       attempts,
@@ -331,7 +356,7 @@ const buildAchievements = async (profileId: string) => {
   await push("first-step", "Первый шаг", "Пройти первый тест", "Sparkles", totalAnswered >= 1);
   await push("hundred-correct", "Знаток", "Ответить правильно на 100 вопросов", "Award", totalCorrect >= 100);
   await push("streak-7", "Серия", "Поддержать серию из 7 дней", "Flame", profile.streak >= 7);
-  await push("level-5", "Продвинутый", "Достичь 5 уровня", "Medal", profile.level >= 5);
+  await push("level-5", "Продвинутый", "Достичь 5 уровня", "Medal", getLevel(profile.xp) >= 5);
   await push("hard-20", "Сложный путь", "Правильно решить 20 сложных вопросов", "ShieldCheck", hardCorrect >= 20);
   await push("topic-master", "Мастер тем", "Освоить не менее 10 тем", "Brain", masteredTopics >= 10);
 

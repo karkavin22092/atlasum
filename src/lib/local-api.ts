@@ -6,6 +6,7 @@ import { isDeletedAccountName } from "./deleted-accounts";
 import { hasLegacyQuestionMetadata, sanitizeQuestionText } from "@shared/question-text";
 import { createQuestionUniquenessState, tryAddUniqueQuestion, uniqueQuestions } from "@shared/question-uniqueness";
 import { emptyNashelingoProgress, mergeNashelingoProgress, syncNashelingoProgress } from "./nashelingo-progress";
+import { MAX_LEVEL, levelFromXp, xpToReachLevel } from "./utils";
 import type {
   AttemptResult,
   AttemptSubmission,
@@ -134,7 +135,7 @@ const rebuildProfileProgress = (profile: StoredProfile) => {
   profile.reviews = reviews;
   profile.activity = activity;
   profile.xp = xp;
-  profile.level = Math.floor(xp / 250) + 1;
+  profile.level = levelFromXp(xp);
   profile.streak = activeDates.length ? runningStreak : 0;
   profile.bestStreak = bestStreak;
   profile.lastActiveAt = attempts.at(-1)?.createdAt ?? null;
@@ -182,6 +183,17 @@ const removeLegacyCoinData = (database: LocalDatabase) => {
   return changed;
 };
 
+const normalizeProfileLevels = (database: LocalDatabase) => {
+  let changed = false;
+  Object.values(database.profiles).forEach((profile) => {
+    const level = levelFromXp(profile.xp);
+    if (profile.level === level) return;
+    profile.level = level;
+    changed = true;
+  });
+  return changed;
+};
+
 const readDatabase = (): LocalDatabase => {
   if (typeof window === "undefined") return emptyDatabase();
   try {
@@ -190,7 +202,8 @@ const readDatabase = (): LocalDatabase => {
     const removedAttempts = removeCorruptedAttempts(database);
     const removedLegacyQuestions = removeLegacyBuiltInOverrides(database);
     const removedLegacyCoins = removeLegacyCoinData(database);
-    const changed = deletedProfiles || removedAttempts || removedLegacyQuestions || removedLegacyCoins;
+    const normalizedLevels = normalizeProfileLevels(database);
+    const changed = deletedProfiles || removedAttempts || removedLegacyQuestions || removedLegacyCoins || normalizedLevels;
     if (changed) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(database));
     return database;
   } catch {
@@ -488,15 +501,16 @@ const getStats = (profile: StoredProfile): ProfileStats => {
   const totalCorrect = profile.attempts.reduce((sum, attempt) => sum + attempt.score, 0);
   const reviews = Object.values(profile.reviews);
   const now = Date.now();
-  const levelStart = (profile.level - 1) * 250;
-  const nextLevelXp = profile.level * 250;
+  const level = levelFromXp(profile.xp);
+  const levelStart = xpToReachLevel(level);
+  const nextLevelXp = level >= MAX_LEVEL ? levelStart : xpToReachLevel(level + 1);
   return {
     totalQuestionsAnswered,
     totalCorrect,
     accuracy: totalQuestionsAnswered ? Math.round((totalCorrect / totalQuestionsAnswered) * 1000) / 10 : 0,
-    xpPerLevel: 250,
+    xpPerLevel: level >= MAX_LEVEL ? 0 : nextLevelXp - levelStart,
     nextLevelXp,
-    levelProgress: Math.min(100, Math.max(0, ((profile.xp - levelStart) / 250) * 100)),
+    levelProgress: level >= MAX_LEVEL ? 100 : Math.min(100, Math.max(0, ((profile.xp - levelStart) / (nextLevelXp - levelStart)) * 100)),
     reviewDue: reviews.filter((review) => review.timesAnswered > 0 && (!review.nextReviewAt || new Date(review.nextReviewAt).getTime() <= now)).length,
     mastered: reviews.filter((review) => review.mastery >= 0.8).length,
     weak: reviews.filter((review) => review.timesAnswered > 0 && review.mastery < 0.45).length,
@@ -604,7 +618,7 @@ export const localApi = {
     const sharedProfile = leaderboard.find((entry) => entry.id === profile.id);
     if (sharedProfile && sharedProfile.xp > profile.xp) {
       profile.xp = sharedProfile.xp;
-      profile.level = sharedProfile.level;
+      profile.level = levelFromXp(sharedProfile.xp);
       profile.streak = sharedProfile.streak;
       profile.bestStreak = sharedProfile.bestStreak;
       profile.lastActiveAt = sharedProfile.lastActiveAt;
@@ -770,7 +784,7 @@ export const localApi = {
     profile.streak = lastDate === today ? Math.max(1, profile.streak) : lastDate === yesterday ? profile.streak + 1 : 1;
     profile.bestStreak = Math.max(profile.bestStreak, profile.streak);
     profile.xp += xpGained;
-    profile.level = Math.floor(profile.xp / 250) + 1;
+    profile.level = levelFromXp(profile.xp);
     profile.lastActiveAt = now.toISOString();
     const activity = profile.activity[today] ?? { attempts: 0, correct: 0, xp: 0 };
     profile.activity[today] = { attempts: activity.attempts + 1, correct: activity.correct + score, xp: activity.xp + xpGained };

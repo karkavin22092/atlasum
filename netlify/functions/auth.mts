@@ -1,11 +1,16 @@
 import { getStore } from "@netlify/blobs";
 
+const interfaceColors = ["ocean", "pink", "violet", "mint", "amber", "coral"] as const;
+type InterfaceColor = (typeof interfaceColors)[number];
+const isInterfaceColor = (value: unknown): value is InterfaceColor => interfaceColors.includes(value as InterfaceColor);
+
 type StoredUser = {
   id: string;
   name: string;
   email: string;
   passwordHash: string;
   avatarUrl?: string | null;
+  interfaceColor?: InterfaceColor;
   createdAt: string;
 };
 
@@ -49,7 +54,7 @@ const validateIdentity = (name: string, email: string) => {
   return "";
 };
 
-const createSharedUser = async ({ name, email, hash, createdAt, avatarUrl }: { name: string; email: string; hash: string; createdAt?: string; avatarUrl?: string | null }) => {
+const createSharedUser = async ({ name, email, hash, createdAt, avatarUrl, interfaceColor }: { name: string; email: string; hash: string; createdAt?: string; avatarUrl?: string | null; interfaceColor?: InterfaceColor }) => {
   const identityError = validateIdentity(name, email);
   if (identityError) return jsonError(identityError, 400);
   if (!/^[a-f0-9]{64}$/iu.test(hash)) return jsonError("Некорректные данные пароля", 400);
@@ -65,7 +70,10 @@ const createSharedUser = async ({ name, email, hash, createdAt, avatarUrl }: { n
   if (existingUser) {
     if (existingUser.passwordHash === hash && existingUser.name.toLowerCase() === name.toLowerCase()) {
       const migratedAvatar = avatarUrl && avatarUrl.startsWith("data:image/") && avatarUrl.length <= 350_000 ? avatarUrl : existingUser.avatarUrl ?? null;
-      const migratedUser = migratedAvatar !== existingUser.avatarUrl ? { ...existingUser, avatarUrl: migratedAvatar } : existingUser;
+      const migratedColor = isInterfaceColor(interfaceColor) ? interfaceColor : existingUser.interfaceColor ?? "ocean";
+      const migratedUser = migratedAvatar !== existingUser.avatarUrl || migratedColor !== existingUser.interfaceColor
+        ? { ...existingUser, avatarUrl: migratedAvatar, interfaceColor: migratedColor }
+        : existingUser;
       if (migratedUser !== existingUser) await users.setJSON(emailId, migratedUser);
       return authenticatedResponse(migratedUser);
     }
@@ -79,6 +87,7 @@ const createSharedUser = async ({ name, email, hash, createdAt, avatarUrl }: { n
     email,
     passwordHash: hash,
     avatarUrl: avatarUrl && avatarUrl.startsWith("data:image/") && avatarUrl.length <= 350_000 ? avatarUrl : null,
+    interfaceColor: isInterfaceColor(interfaceColor) ? interfaceColor : "ocean",
     createdAt: createdAt && !Number.isNaN(Date.parse(createdAt)) ? new Date(createdAt).toISOString() : new Date().toISOString(),
   };
   await Promise.all([
@@ -91,7 +100,7 @@ const createSharedUser = async ({ name, email, hash, createdAt, avatarUrl }: { n
 export default async (request: Request) => {
   try {
     if (request.method !== "POST") return new Response("Method not allowed", { status: 405, headers: { Allow: "POST" } });
-    const payload = await request.json() as { action?: string; name?: string; email?: string; password?: string; passwordHash?: string; createdAt?: string; authToken?: string; avatarUrl?: string | null };
+    const payload = await request.json() as { action?: string; name?: string; email?: string; password?: string; passwordHash?: string; createdAt?: string; authToken?: string; avatarUrl?: string | null; interfaceColor?: InterfaceColor };
     const action = String(payload.action ?? "");
     const email = normalizeEmail(payload.email);
 
@@ -136,6 +145,28 @@ export default async (request: Request) => {
       return Response.json(publicUser(updated));
     }
 
+    if (action === "update-interface-color") {
+      const token = String(payload.authToken ?? "").trim();
+      if (!token) return jsonError("Сессия не найдена", 401);
+      const session = await sessionsStore().get(await hashHex(token), { type: "json", consistency: "strong" }) as { userId?: string; email?: string; expiresAt?: string } | null;
+      if (!session?.userId || !session.expiresAt || Date.parse(session.expiresAt) <= Date.now()) return jsonError("Сессия истекла", 401);
+      if (!isInterfaceColor(payload.interfaceColor)) return jsonError("Выберите цвет из списка", 400);
+      const users = usersStore();
+      let key = session.email ? await emailKey(session.email) : "";
+      let user = key ? await users.get(key, { type: "json", consistency: "strong" }) as StoredUser | null : null;
+      if (!user) {
+        const listed = await users.list();
+        for (const item of listed.blobs) {
+          const candidate = await users.get(item.key, { type: "json", consistency: "strong" }) as StoredUser | null;
+          if (candidate?.id === session.userId) { key = item.key; user = candidate; break; }
+        }
+      }
+      if (!user || !key) return jsonError("Профиль не найден", 404);
+      const updated = { ...user, interfaceColor: payload.interfaceColor };
+      await users.setJSON(key, updated);
+      return Response.json(publicUser(updated));
+    }
+
     if (action === "migrate") {
       return createSharedUser({
         name: normalizeName(payload.name),
@@ -143,6 +174,7 @@ export default async (request: Request) => {
         hash: String(payload.passwordHash ?? "").toLowerCase(),
         createdAt: payload.createdAt,
         avatarUrl: payload.avatarUrl,
+        interfaceColor: payload.interfaceColor,
       });
     }
 
