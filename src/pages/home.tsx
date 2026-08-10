@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Button, GlassCard, Panel, StatCard, TitleBlock } from "@/components/ui";
-import { BookOpen, Brain, BriefcaseBusiness, CircleDollarSign, Gamepad2, Languages, Laptop2, LineChart, Map as MapIcon, Medal, ShieldCheck, Sparkles, Swords, Target, Trophy, UserRound } from "lucide-react";
+import { BookOpen, Brain, BriefcaseBusiness, CircleDollarSign, Gamepad2, Languages, Laptop2, LineChart, Map as MapIcon, ShieldCheck, Sparkles, Swords, Target } from "lucide-react";
 import type { AppPageProps } from "./types";
 import type { SubjectId } from "@shared/types";
 import { countLabel, formatXp, levelLabel } from "@/lib/utils";
@@ -182,7 +182,7 @@ export const HomePage = ({ meta }: AppPageProps) => {
         <StatCard label="Сложные" value={stats?.weak ?? 0} hint="Нужны повторные подходы" accent="from-amber-400 to-rose-500" />
       </div>
 
-      <Panel className="py-5">
+      <Panel className="v27-catalog-section py-5">
         <div className="space-y-4">
           <TitleBlock
             eyebrow="Каталог вопросов"
@@ -215,13 +215,13 @@ export const HomePage = ({ meta }: AppPageProps) => {
       </Panel>
 
       <div className="grid gap-6">
-        <Panel>
+        <Panel className="v27-mode-section">
           <TitleBlock
             eyebrow="Режимы"
             title="Выберите сценарий подготовки"
             description="Каждый режим использует локальную базу вопросов и статистику повторения."
           />
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="v27-mode-list grid gap-3 sm:grid-cols-2">
             {meta?.modes.map((mode) => (
               <Link key={mode.key} to={`/practice?mode=${mode.key}&subject=${selectedSubject}`}>
                 <GlassCard className="h-full transition hover:-translate-y-1 hover:border-cyan-300/20">
@@ -236,9 +236,9 @@ export const HomePage = ({ meta }: AppPageProps) => {
       </div>
 
       <div className="grid gap-6">
-        <Panel>
+        <Panel className="v27-game-section">
           <TitleBlock eyebrow="Игры" title="Мини-игры для закрепления" description="Тот же контент, но с другой скоростью и другой подачей." />
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="v27-game-list grid gap-3 sm:grid-cols-2">
             <Link to={`/games?subject=${selectedSubject}#duel`}>
               <GlassCard className="h-full border-cyan-300/20 bg-cyan-400/[0.06] transition hover:-translate-y-1 hover:border-cyan-300/40">
                 <div className="flex items-start justify-between gap-3">
@@ -262,53 +262,6 @@ export const HomePage = ({ meta }: AppPageProps) => {
           </div>
         </Panel>
 
-        <Panel>
-          <TitleBlock eyebrow="Рейтинг" title="Лидерборд и достижения" description="Личный прогресс и история результатов в одном месте." />
-          <div className="space-y-4">
-            <GlassCard>
-              <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
-                <Trophy className="h-4 w-4 text-amber-300" />
-                Топ студентов
-              </div>
-              <div className="space-y-2">
-                {meta?.leaderboard.length ? meta.leaderboard.map((entry) => (
-                  <div key={entry.id} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm">
-                    <div className="flex min-w-0 items-center gap-2 text-slate-200">
-                      <div className="grid h-7 w-7 shrink-0 place-items-center overflow-hidden rounded-full bg-white/10 text-[10px] font-semibold text-white">
-                        {entry.avatarUrl ? <img src={entry.avatarUrl} alt="" className="h-full w-full object-cover" /> : <UserRound className="h-3.5 w-3.5 text-slate-400" />}
-                      </div>
-                      <span className="text-slate-500">#{entry.rank}</span>
-                      <span className="truncate">{entry.name}</span>
-                    </div>
-                    <div className="text-slate-400">{formatXp(entry.xp)} XP</div>
-                  </div>
-                )) : (
-                  <div className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-center text-sm text-slate-400">
-                    Зарегистрированных участников пока нет.
-                  </div>
-                )}
-              </div>
-            </GlassCard>
-
-            <GlassCard>
-              <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
-                <Medal className="h-4 w-4 text-cyan-300" />
-                Достижения
-              </div>
-              <div className="space-y-2">
-                {meta?.achievements.length ? (
-                  meta.achievements.map((achievement) => (
-                    <div key={achievement.key} className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-100">
-                      {achievement.title}
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-sm text-slate-400">Пока нет открытых достижений. Начните с первого теста.</div>
-                )}
-              </div>
-            </GlassCard>
-          </div>
-        </Panel>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">

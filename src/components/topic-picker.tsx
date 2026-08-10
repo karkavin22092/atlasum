@@ -27,7 +27,7 @@ export const TopicPicker = ({
 }) => {
   const tone = subjectTone[subject];
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="v27-topic-picker flex flex-wrap gap-2">
       {topics.map((topic) => {
         const active = selected.includes(topic.title);
         const topicDisabled = topic.examOnly ? !allowExamOnly : disabled;

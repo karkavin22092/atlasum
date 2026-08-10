@@ -4,18 +4,18 @@ import { useTheme } from "./lib/theme";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./lib/api";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, Globe2, Lightbulb, LogIn, Mail, MessageCircle, MoonStar, Send, SunMedium, Sparkles, Trophy } from "lucide-react";
+import { Bell, Globe2, Lightbulb, LogIn, Mail, MessageCircle, MoonStar, Send, Sparkles, SunMedium, Trophy } from "lucide-react";
 import { HomePage } from "./pages/home";
 import { QUESTION_BANK_TOTAL, dashboardMeta, questionCountForTopic } from "@server/content";
 import type { DashboardMeta, NashelingoLevelProgress, NashelingoTheoryProgress, Profile, ProfileStats } from "@shared/types";
 import { useAuth } from "./lib/auth";
 import { getUnreadMessageSummary } from "./lib/chat";
-import { APP_VERSION } from "./lib/version";
+import { APP_NAME, APP_VERSION } from "./lib/version";
 import { getUnreadFeedbackCount, getUnreadNotificationCount } from "./lib/bugs";
 import { PRESENCE_POLL_MS, REALTIME_POLL_MS } from "./lib/realtime";
 import { isAdminUser } from "./lib/permissions";
 import { AvatarMenu } from "./components/avatar-menu";
-import { DESIGN_V22_ENABLED } from "./lib/design-version";
+import { DESIGN_V22_ENABLED, DESIGN_V27_ENABLED } from "./lib/design-version";
 
 const PracticePage = lazy(() => import("./pages/practice").then(({ PracticePage }) => ({ default: PracticePage })));
 const ReviewPage = lazy(() => import("./pages/review").then(({ ReviewPage }) => ({ default: ReviewPage })));
@@ -204,7 +204,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
 
   return (
     <div
-      className={`theme-shell min-h-screen text-slate-100${DESIGN_V22_ENABLED ? " design-v22" : ""}`}
+      className={`theme-shell min-h-screen text-slate-100${DESIGN_V22_ENABLED ? " design-v22" : ""}${DESIGN_V27_ENABLED ? " design-v27" : ""}`}
       data-subject={activeSubject}
     >
       <div className="fixed inset-0 -z-10 soft-grid opacity-35" />
@@ -218,7 +218,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-200/80 sm:tracking-[0.25em]">Examora</span>
+                <span className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-200/80 sm:tracking-[0.25em]">{APP_NAME}</span>
                 <span className="app-version rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-bold tracking-normal text-cyan-200">{APP_VERSION}</span>
               </div>
             </div>
@@ -341,7 +341,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
       <footer className={`v22-footer border-t border-white/10 ${user ? "pb-28 xl:pb-8" : "pb-8"}`}>
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-6 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <div>
-            <div className="text-sm font-semibold text-white">Создатель Examora · lonexnesss</div>
+            <div className="text-sm font-semibold text-white">Создатель {APP_NAME} · lonexnesss</div>
             <div className="mt-1 text-xs text-slate-500">Вопросы, предложения и обратная связь</div>
           </div>
           <div className="flex flex-wrap gap-x-5 gap-y-3 text-sm">

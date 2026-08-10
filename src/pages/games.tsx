@@ -30,13 +30,13 @@ export const GamesPage = ({ meta }: AppPageProps) => {
       </div>
 
       <Panel>
-        <div className="mb-5 grid gap-2 sm:grid-cols-4">
+        <div className="v27-subject-tabs mb-5 grid gap-2 sm:grid-cols-4">
           <button type="button" onClick={() => setSearchParams({ subject: "it-design" })} className={subject === "it-design" ? "rounded-2xl border border-cyan-300/40 bg-cyan-400/15 px-4 py-3 text-left text-white" : "rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-slate-300 transition hover:bg-white/10"}>Игры по ИТ и графике</button>
           <button type="button" onClick={() => setSearchParams({ subject: "management" })} className={subject === "management" ? "rounded-2xl border border-cyan-300/40 bg-cyan-400/15 px-4 py-3 text-left text-white" : "rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-slate-300 transition hover:bg-white/10"}>Игры по менеджменту</button>
           <button type="button" onClick={() => setSearchParams({ subject: "economics" })} className={subject === "economics" ? "rounded-2xl border border-emerald-300/40 bg-emerald-400/15 px-4 py-3 text-left text-white" : "rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-slate-300 transition hover:bg-white/10"}>Игры по экономике</button>
           <button type="button" onClick={() => setSearchParams({ subject: "english" })} className={subject === "english" ? "rounded-2xl border border-rose-300/40 bg-rose-400/15 px-4 py-3 text-left text-white" : "rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-slate-300 transition hover:bg-white/10"}>Игры по английскому</button>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="v27-game-catalog grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {games.map((game) => (
             <Link key={game.key} to={`/games/${game.key}?subject=${subject}`}>
               <GlassCard className="group h-full transition duration-200 hover:-translate-y-1 hover:border-cyan-300/20">

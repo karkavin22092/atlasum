@@ -30,7 +30,7 @@ export const LeaderboardPage = ({ meta, profileName }: AppPageProps) => (
           <div className="text-sm text-slate-400">Ваш профиль: {profileName}</div>
         </div>
       </div>
-      <div className="space-y-3">
+      <div className="v27-leaderboard-list space-y-3">
         {meta?.leaderboard.length ? meta.leaderboard.map((entry) => {
           const isCurrent = entry.name === profileName;
           const presence = getPresence(entry.lastSeenAt);

@@ -107,8 +107,8 @@ export const QuestionRenderer = ({ question, value, onChange, locked, hiddenOpti
                   disabled={locked}
                 >
                   <option value="">Выберите определение</option>
-                  {rightItems.map((right) => (
-                    <option key={right} value={right}>
+              {rightItems.map((right) => (
+                <option key={right} value={right}>
                       {right}
                     </option>
                   ))}
@@ -119,7 +119,7 @@ export const QuestionRenderer = ({ question, value, onChange, locked, hiddenOpti
         </GlassCard>
         <GlassCard className="space-y-3">
           <div className="text-sm font-medium text-slate-300">Определения</div>
-          {rightItems.map((right) => (
+              {rightItems.map((right) => (
             <div key={right} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">
               {right}
             </div>
@@ -345,7 +345,7 @@ export const QuestionRenderer = ({ question, value, onChange, locked, hiddenOpti
                 <img src={option.image} alt={option.text} className="h-full w-full object-contain" />
               </div>
             ) : null}
-            <div className="text-base font-medium">{option.text}</div>
+          <div className="text-base font-medium">{option.text}</div>
           </button>
         );
       })}

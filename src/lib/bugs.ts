@@ -58,14 +58,14 @@ const feedbackSubjectNames: Record<string, string> = {
 export const formatFeedbackPage = (pageUrl: string) => {
   if (!pageUrl) return "Страница не указана";
   try {
-    const url = new URL(pageUrl, "https://examora.local");
-    const pageName = feedbackPageNames[url.pathname] ?? "Страница Examora";
+    const url = new URL(pageUrl, "https://atlasum.local");
+    const pageName = feedbackPageNames[url.pathname] ?? "Страница Атласума";
     const subject = url.searchParams.get("subject");
     return subject && feedbackSubjectNames[subject]
       ? pageName + " · " + feedbackSubjectNames[subject]
       : pageName;
   } catch {
-    return "Страница Examora";
+    return "Страница Атласума";
   }
 };
 

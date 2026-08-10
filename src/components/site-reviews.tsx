@@ -240,7 +240,7 @@ export const SiteReviewsSection = () => {
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Отзывы пользователей</div>
-          <h2 className="mt-2 text-2xl font-semibold text-white sm:text-3xl">Что говорят о подготовке в Examora</h2>
+          <h2 className="mt-2 text-2xl font-semibold text-white sm:text-3xl">Что говорят о подготовке в Атласуме</h2>
         </div>
         <div className="flex items-center gap-3">
           <div className="text-3xl font-semibold text-white">{average ? average.toFixed(1) : "—"}</div>

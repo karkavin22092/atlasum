@@ -304,7 +304,7 @@ const generateLegacyEnglishMixedTenseQuestions = (): Question[] => Array.from({ 
     topic: englishTenseMixedTopic.title,
     difficulty: index < 60 ? "easy" : index < 165 ? "medium" : "hard",
     type: "single",
-    question: `Choose the correct tense in mixed exam sentence ${index + 1}: ${sentence}?`,
+      question: `Choose the correct verb form: ${sentence}?`,
     options,
     correct: options.find((option) => option.isCorrect)?.id ?? "option-1",
     explanation: `Нужно определить время по смыслу и маркеру «${safeMarker}». В варианте ${index + 1} правильна форма ${spec.title}: «${correct}».`,
@@ -381,11 +381,11 @@ const russianSentence = (spec: EnglishTenseSpec, subject: Subject, verb: Verb) =
   switch (spec.key) {
     case "present-simple": return `${text} обычно ${present} ${object}.`;
     case "present-continuous": return `${text} сейчас ${present} ${object}.`;
-    case "present-perfect": return `${text} ${form(russianVerb.perfect)} ${object}.`;
+    case "present-perfect": return `${text} уже ${form(russianVerb.perfect)} ${object}.`;
     case "present-perfect-continuous": return `${text} уже некоторое время ${present} ${object}.`;
     case "past-simple": return `${text} вчера ${form(russianVerb.past)} ${object}.`;
     case "past-continuous": return `${text} в тот момент ${form(russianVerb.past)} ${object}.`;
-    case "past-perfect": return `${text} ${form(russianVerb.perfect)} ${object} до другого события.`;
+    case "past-perfect": return `${text} уже ${form(russianVerb.perfect)} ${object} до того, как произошло другое событие.`;
     case "past-perfect-continuous": return `${text} до этого некоторое время ${form(russianVerb.past)} ${object}.`;
     case "future-simple": return `${text} завтра будет ${russianVerb.infinitive} ${object}.`;
     case "future-continuous": return `${text} завтра в это время будет ${russianVerb.infinitive} ${object}.`;
@@ -395,8 +395,14 @@ const russianSentence = (spec: EnglishTenseSpec, subject: Subject, verb: Verb) =
   }
 };
 
-const englishSentence = (spec: EnglishTenseSpec, subject: Subject, verb: Verb, marker = "") =>
-  `${subject.text} ${spec.form(verb, subject)} ${verb.object}${marker ? ` ${marker}` : ""}.`;
+const englishSentence = (spec: EnglishTenseSpec, subject: Subject, verb: Verb, marker = "") => {
+  const verbForm = spec.form(verb, subject);
+  if (marker === "already" && spec.key === "present-perfect") {
+    const [auxiliary, ...rest] = verbForm.split(" ");
+    return `${subject.text} ${auxiliary} already ${rest.join(" ")} ${verb.object}.`;
+  }
+  return `${subject.text} ${verbForm} ${verb.object}${marker ? ` ${marker}` : ""}.`;
+};
 
 const rotateWords = <T,>(items: T[], shift: number) => items.map((_, index) => items[(index + shift) % items.length]);
 
@@ -438,6 +444,7 @@ const translationMarker = (spec: EnglishTenseSpec) => {
   switch (spec.key) {
     case "present-simple": return "usually";
     case "present-continuous": return "now";
+    case "present-perfect": return "already";
     case "present-perfect-continuous": return "for some time";
     case "past-simple": return "yesterday";
     case "past-continuous": return "at that moment";
@@ -449,6 +456,21 @@ const translationMarker = (spec: EnglishTenseSpec) => {
     case "future-perfect-continuous": return "for some time by this time";
     default: return "";
   }
+};
+
+const markerTaskByTense: Record<string, { english: string; russian: string }> = {
+  "present-simple": { english: "usually", russian: "обычно" },
+  "present-continuous": { english: "right now", russian: "прямо сейчас" },
+  "present-perfect": { english: "already", russian: "уже" },
+  "present-perfect-continuous": { english: "for two hours", russian: "уже два часа" },
+  "past-simple": { english: "yesterday", russian: "вчера" },
+  "past-continuous": { english: "at that moment", russian: "в тот момент" },
+  "past-perfect": { english: "before the meeting started", russian: "до начала встречи" },
+  "past-perfect-continuous": { english: "for two hours before the test", russian: "два часа до теста" },
+  "future-simple": { english: "tomorrow", russian: "завтра" },
+  "future-continuous": { english: "at this time tomorrow", russian: "завтра в это время" },
+  "future-perfect": { english: "by Friday", russian: "к пятнице" },
+  "future-perfect-continuous": { english: "for two hours by Friday", russian: "уже два часа к пятнице" },
 };
 
 const buildTenseQuestion = (
@@ -470,9 +492,11 @@ const buildTenseQuestion = (
   const explanation = `${explanationLead}. ${explanationContext} маркер «${safeMarker}» и смысл фразы «${russian.slice(0, -1)}» требуют формы «${correctForm}».`;
   const taskOffset = [...spec.key].reduce((sum, char) => sum + char.charCodeAt(0), 0);
   const kind: TenseTaskKind = taskKinds[(index + taskOffset) % taskKinds.length];
-  const isMixed = topic.key === englishTenseMixedTopic.key;
-  const mixedLead = isMixed ? "In a mixed-tense context, " : "";
-  const instruction = (text: string) => `${mixedLead}${isMixed ? text.toLowerCase() : text}`;
+  const instruction = (text: string) => text;
+  const mixedContext = topic.key === englishTenseMixedTopic.key
+    ? ["During the workshop", "In the weekly report", "At the evening class", "Before the meeting", "On the project timeline"][index % 5]
+    : "";
+  const promptContext = mixedContext ? `${mixedContext}: ` : "";
   const common = {
     id,
     topic: topic.title,
@@ -486,19 +510,19 @@ const buildTenseQuestion = (
 
   if (kind === "choice") {
     const options = optionOrder(correctForm, spec.distractors(verb, subject), index + 1);
-    return { ...common, type: "single", question: `${instruction("Choose the correct verb form")}: ${subject.text} ___ ${verb.object} ${marker}?`, options, correct: options.find((option) => option.isCorrect)?.id ?? "option-1" } satisfies Question;
+    return { ...common, type: "single", question: `${promptContext}${instruction("Choose the correct verb form")}: ${subject.text} ___ ${verb.object} ${marker}?`, options, correct: options.find((option) => option.isCorrect)?.id ?? "option-1" } satisfies Question;
   }
 
   if (kind === "form-fill") {
-    return { ...common, type: "fill", question: `${instruction(`Complete the ${spec.title} sentence`)}: ${subject.text} ___ ${verb.object} ${marker}?`, options: [], correct: { prompt: "", answer: correctForm, acceptable: contractionVariants(correctForm) } } satisfies Question;
+    return { ...common, type: "fill", question: `${promptContext}${instruction(`Complete the ${spec.title} sentence`)}: ${subject.text} ___ ${verb.object} ${marker}?`, options: [], correct: { prompt: "", answer: correctForm, acceptable: contractionVariants(correctForm) } } satisfies Question;
   }
 
   if (kind === "ru-to-en") {
-    return { ...common, type: "fill", question: `${instruction("Translate into English")}: «${russian}»?`, options: [], correct: { prompt: "", answer: translationEnglish, acceptable: contractionVariants(translationEnglish) } } satisfies Question;
+    return { ...common, type: "fill", question: `${promptContext}${instruction("Translate into English")}: «${russian}»?`, options: [], correct: { prompt: "", answer: translationEnglish, acceptable: contractionVariants(translationEnglish) } } satisfies Question;
   }
 
   if (kind === "en-to-ru") {
-    return { ...common, type: "fill", question: `${instruction("Translate into Russian")}: “${translationEnglish}”?`, options: [], correct: { prompt: "", answer: russian, acceptable: [russian] } } satisfies Question;
+    return { ...common, type: "fill", question: `${promptContext}${instruction("Translate into Russian")}: “${translationEnglish}”?`, options: [], correct: { prompt: "", answer: russian, acceptable: [russian] } } satisfies Question;
   }
 
   if (kind === "already-yet" && spec.key === "present-perfect") {
@@ -507,7 +531,7 @@ const buildTenseQuestion = (
     return {
       ...common,
       type: "single",
-      question: `${instruction("Choose the word that completes the negative sentence")}: ${negativeSentence}?`,
+      question: `${promptContext}${instruction("Choose the word that completes the negative sentence")}: ${negativeSentence}?`,
       options,
       correct: options.find((option) => option.isCorrect)?.id ?? "option-1",
       explanation: `В отрицательной фразе «${subject.text} ${have(subject)} not ${verb.participle} ${verb.object}» слово yet ставится в конце и означает «ещё». Оно показывает, что действие «${verb.object}» пока не завершено.`,
@@ -515,8 +539,17 @@ const buildTenseQuestion = (
   }
 
   if (kind === "marker-choice" || kind === "already-yet") {
-    const options = optionOrder(marker, ["yesterday", "at the moment", "by Friday", "already"].filter((item) => item !== marker), index + 1);
-    return { ...common, type: "single", question: `${instruction("Choose the suitable time expression")}: ${subject.text} ${correctForm} ${verb.object} ___?`, options, correct: options.find((option) => option.isCorrect)?.id ?? "option-1" } satisfies Question;
+    const markerTask = markerTaskByTense[spec.key];
+    const distractors = ["yesterday", "at the moment", "by Friday", "already", "usually"].filter((item) => item !== markerTask.english).slice(0, 3);
+    const options = optionOrder(markerTask.english, distractors, index + 1);
+    return {
+      ...common,
+      type: "single",
+      question: `${promptContext}${instruction(`Choose the English time expression for «${markerTask.russian}»`)}: ${subject.text} ${correctForm} ${verb.object} ___?`,
+      options,
+      correct: options.find((option) => option.isCorrect)?.id ?? "option-1",
+      explanation: `Выражение «${markerTask.english}» означает «${markerTask.russian}» и даёт нужную подсказку для ${spec.title}. В теме «${topic.title}» фраза «${subject.text} ${correctForm} ${verb.object}» требует именно этот смысловой маркер, а остальные варианты передают другой контекст.`,
+    } satisfies Question;
   }
 
   const targetWords = uniqueSequenceTokens(index % 2 === 0 ? translationEnglish : russian);
@@ -525,7 +558,7 @@ const buildTenseQuestion = (
   return {
     ...common,
     type: "sequence",
-    question: `${instruction("Arrange the words into a correct")} ${index % 2 === 0 ? "English" : "Russian"} sentence from ${sourceText}?`,
+    question: `${promptContext}${instruction("Arrange the words into a correct")} ${index % 2 === 0 ? "English" : "Russian"} sentence from ${sourceText}?`,
     options: shuffledWords.map((text, optionIndex) => ({ id: `word-${optionIndex + 1}`, text })),
     correct: { items: shuffledWords, correctOrder: targetWords },
   } satisfies Question;

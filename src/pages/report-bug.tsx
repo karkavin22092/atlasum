@@ -134,7 +134,7 @@ export const ReportBugPage = ({ meta: _meta }: AppPageProps) => {
         <Panel className="grid min-h-80 place-items-center text-center">
           <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
             <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-400" />
-            <div className="mt-5 text-xl font-semibold text-white">Спасибо, что помогаете развивать Examora</div>
+            <div className="mt-5 text-xl font-semibold text-white">Спасибо, что помогаете развивать Атласум</div>
             <div className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-400">
               {kind === "improvement"
                 ? "Если администратор примет улучшение, вам придёт уведомление и начислится 300 XP."

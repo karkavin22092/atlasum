@@ -5,6 +5,7 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import App from "./app";
 import "./index.css";
 import "./design-2.2.css";
+import "./design-2.7.css";
 import { AuthProvider } from "./lib/auth";
 import { applyStoredTheme } from "./lib/theme";
 

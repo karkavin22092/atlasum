@@ -5,8 +5,8 @@ import { AtSign, LockKeyhole, MoonStar, Sparkles, SunMedium, UserRound } from "l
 import { Button, GlassCard } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
-import { APP_VERSION } from "@/lib/version";
-import { DESIGN_V22_ENABLED } from "@/lib/design-version";
+import { APP_NAME, APP_VERSION } from "@/lib/version";
+import { DESIGN_V22_ENABLED, DESIGN_V27_ENABLED } from "@/lib/design-version";
 
 export const AuthPage = () => {
   const { user, login, register } = useAuth();
@@ -39,7 +39,7 @@ export const AuthPage = () => {
   };
 
   return (
-    <div className={`theme-shell relative grid min-h-screen place-items-center overflow-hidden px-4 py-10 text-slate-100${DESIGN_V22_ENABLED ? " design-v22 v22-auth" : ""}`} data-subject="it-design">
+    <div className={`theme-shell relative grid min-h-screen place-items-center overflow-hidden px-4 py-10 text-slate-100${DESIGN_V22_ENABLED ? " design-v22 v22-auth" : ""}${DESIGN_V27_ENABLED ? " design-v27" : ""}`} data-subject="it-design">
       <div className="theme-atmosphere fixed inset-0 -z-20" />
       <div className="fixed inset-0 -z-10 soft-grid opacity-30" />
       <button
@@ -57,7 +57,7 @@ export const AuthPage = () => {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold uppercase tracking-[0.24em] text-cyan-200">Examora</span>
+              <span className="text-sm font-semibold uppercase tracking-[0.24em] text-cyan-200">{APP_NAME}</span>
               <span className="app-version rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-bold tracking-normal text-cyan-200">{APP_VERSION}</span>
             </div>
             <div className="text-xs text-slate-400">Подготовка к экзамену</div>
