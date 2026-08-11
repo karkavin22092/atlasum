@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, Check, CheckCheck, CircleAlert, Clock3, LoaderCircle, MessageCircle, RotateCcw, Send, SmilePlus, UserRound } from "lucide-react";
+import { ArrowLeft, Check, CheckCheck, CircleAlert, Clock3, LoaderCircle, LockKeyhole, MessageCircle, RotateCcw, Send, ShieldBan, SmilePlus, UserRound } from "lucide-react";
 import { BackButton, Button, GlassCard, Panel, TitleBlock } from "@/components/ui";
 import {
   getConversation,
@@ -17,6 +17,7 @@ import {
   type ChatMessage,
   type ConversationSummary,
 } from "@/lib/chat";
+import { getMessageAccess, updateMessageAccess, type MessageAccess } from "@/lib/message-access";
 import { useAuth } from "@/lib/auth";
 import { getPresence } from "@/lib/presence";
 import { formatXp } from "@/lib/utils";
@@ -49,6 +50,9 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [reactionTargetId, setReactionTargetId] = useState<string | null>(null);
   const [reactingTo, setReactingTo] = useState<string | null>(null);
+  const [messageAccess, setMessageAccess] = useState<MessageAccess | null>(null);
+  const [isUpdatingAccess, setIsUpdatingAccess] = useState(false);
+  const [requestConfirmation, setRequestConfirmation] = useState(false);
   const messagesViewportRef = useRef<HTMLDivElement>(null);
   const lastScrolledMessageIdRef = useRef("");
   const initialScrollCompleteRef = useRef(false);
@@ -56,6 +60,7 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const emojiToggleRef = useRef<HTMLButtonElement>(null);
   const reactionPickerRef = useRef<HTMLDivElement>(null);
+  const accessRequestVersionRef = useRef(0);
   const summariesByContact = new Map(conversationSummaries.map((summary) => [summary.contactId, summary]));
   const sortedContacts = [...contacts].sort((left, right) => {
     const leftLatest = summariesByContact.get(left.id)?.latest.createdAt ?? "";
@@ -94,6 +99,31 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
       document.removeEventListener("visibilitychange", refreshVisible);
     };
   }, [currentProfileId, user]);
+
+  useEffect(() => {
+    if (!recipientId || !user) {
+      setMessageAccess(null);
+      return;
+    }
+    let active = true;
+    let refreshing = false;
+    const refresh = async () => {
+      if (refreshing) return;
+      refreshing = true;
+      const version = ++accessRequestVersionRef.current;
+      try {
+        const next = await getMessageAccess(currentProfileId, recipientId, user.authToken ?? "");
+        if (active && version === accessRequestVersionRef.current) setMessageAccess(next);
+      } catch (caught) {
+        if (active) setError(caught instanceof Error ? caught.message : "Не удалось проверить доступ к сообщениям");
+      } finally {
+        refreshing = false;
+      }
+    };
+    void refresh();
+    const interval = window.setInterval(() => { if (!document.hidden) void refresh(); }, REALTIME_POLL_MS);
+    return () => { active = false; window.clearInterval(interval); };
+  }, [currentProfileId, recipientId, user]);
 
   useEffect(() => {
     if (!recipientId || !user) {
@@ -173,6 +203,10 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!recipient) return;
+    if (!messageAccess?.canWrite) {
+      setError(messageAccess?.blockedByMe ? "Сначала разблокируйте пользователя." : messageAccess?.blockedByOther ? "Вы были заблокированы этим пользователем." : "Сначала запросите разрешение на переписку.");
+      return;
+    }
     const text = draft.trim();
     if (!text) return;
     const pending = createPendingMessage(currentProfileId, recipient.id, text);
@@ -189,6 +223,35 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
       setError(caught instanceof Error ? caught.message : "Не удалось отправить сообщение");
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const changeAccess = async (action: "request" | "accept" | "decline" | "block" | "unblock") => {
+    if (!recipient || !user) return;
+    const version = ++accessRequestVersionRef.current;
+    if (action === "request") {
+      setMessageAccess((current) => current ? { ...current, status: "none", outgoingRequest: true, incomingRequest: false, canWrite: false } : {
+        userId: currentProfileId,
+        contactId: recipient.id,
+        status: "none",
+        outgoingRequest: true,
+        incomingRequest: false,
+        blockedByMe: false,
+        blockedByOther: false,
+        canWrite: false,
+      });
+    }
+    setIsUpdatingAccess(true);
+    setError("");
+    try {
+      const next = await updateMessageAccess(currentProfileId, recipient.id, user.authToken ?? "", action);
+      if (version === accessRequestVersionRef.current) setMessageAccess(next);
+      await queryClient.invalidateQueries({ queryKey: ["notifications", currentProfileId, user.authToken] });
+      await queryClient.invalidateQueries({ queryKey: ["unread-notifications"] });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Не удалось обновить доступ к сообщениям");
+    } finally {
+      setIsUpdatingAccess(false);
     }
   };
 
@@ -301,6 +364,16 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  {messageAccess?.canWrite || messageAccess?.blockedByMe ? (
+                    <Button
+                      variant={messageAccess.blockedByMe ? "secondary" : "ghost"}
+                      onClick={() => void changeAccess(messageAccess.blockedByMe ? "unblock" : "block")}
+                      disabled={isUpdatingAccess}
+                      className="hidden sm:inline-flex"
+                    >
+                      <ShieldBan className="h-4 w-4" />{messageAccess.blockedByMe ? "Разблокировать" : "Заблокировать"}
+                    </Button>
+                  ) : null}
                   <span className="relative flex h-2.5 w-2.5">
                     {recipientPresence.online ? <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" /> : null}
                     <span className={recipientPresence.online ? "relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400" : "relative inline-flex h-2.5 w-2.5 rounded-full bg-slate-500"} />
@@ -308,6 +381,17 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
                   <span className={recipientPresence.online ? "max-w-[45vw] break-words text-right text-[11px] font-medium leading-4 text-emerald-400 sm:max-w-52" : "max-w-[45vw] break-words text-right text-[11px] leading-4 text-slate-400 sm:max-w-52"}>{recipientPresence.label}</span>
                 </div>
               </div>
+
+              {!messageAccess?.canWrite ? (
+                <div className="border-b border-white/10 bg-white/5 px-4 py-3 sm:px-5">
+                  {messageAccess?.blockedByMe ? <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-300"><span>Вы заблокировали этого пользователя. Переписка недоступна для вас обоих.</span><Button variant="secondary" onClick={() => void changeAccess("unblock")} disabled={isUpdatingAccess}>Разблокировать</Button></div> : null}
+                  {messageAccess?.blockedByOther ? <div className="flex items-center gap-2 text-sm text-rose-300"><ShieldBan className="h-4 w-4 shrink-0" />Вы были заблокированы этим пользователем.</div> : null}
+                  {!messageAccess?.blockedByMe && !messageAccess?.blockedByOther && messageAccess?.outgoingRequest ? <div className="flex items-center gap-2 text-sm text-slate-300"><Clock3 className="h-4 w-4 text-cyan-300" />Запрос на переписку отправлен. Дождитесь решения пользователя.</div> : null}
+                  {!messageAccess?.blockedByMe && !messageAccess?.blockedByOther && messageAccess?.status === "declined" ? <div className="flex items-center gap-2 text-sm text-rose-300"><ShieldBan className="h-4 w-4 shrink-0" />Вам отказано в доступе пользователем.</div> : null}
+                  {!messageAccess?.blockedByMe && !messageAccess?.blockedByOther && messageAccess?.incomingRequest ? <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-300"><span>{recipient.name} хочет начать с вами переписку.</span><div className="flex gap-2"><Button onClick={() => void changeAccess("accept")} disabled={isUpdatingAccess}><Check className="h-4 w-4" />Разрешить</Button><Button variant="ghost" onClick={() => void changeAccess("decline")} disabled={isUpdatingAccess}>Отклонить</Button></div></div> : null}
+                  {!messageAccess?.blockedByMe && !messageAccess?.blockedByOther && messageAccess?.status !== "declined" && !messageAccess?.outgoingRequest && !messageAccess?.incomingRequest ? <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-300"><span>Чтобы написать {recipient.name}, сначала запросите разрешение на переписку.</span><Button onClick={() => setRequestConfirmation(true)} disabled={isUpdatingAccess}><LockKeyhole className="h-4 w-4" />Запросить доступ</Button></div> : null}
+                </div>
+              ) : null}
 
               <div ref={messagesViewportRef} className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-6 sm:py-5">
                 <div className="flex min-h-full flex-col justify-end gap-3">
@@ -473,6 +557,7 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
                     whileTap={{ scale: 0.9 }}
                     type="button"
                     onClick={() => setShowEmojiPicker((current) => !current)}
+                    disabled={!messageAccess?.canWrite}
                     className={showEmojiPicker
                       ? "chat-emoji-active grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-cyan-400/15 text-cyan-200"
                       : "grid h-11 w-11 shrink-0 place-items-center rounded-xl text-slate-400 transition hover:bg-white/10 hover:text-cyan-200"}
@@ -480,14 +565,14 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
                   >
                     <SmilePlus className="h-5 w-5" />
                   </motion.button>
-                  <textarea ref={textareaRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
+                  <textarea ref={textareaRef} value={draft} disabled={!messageAccess?.canWrite} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
                     if (event.key === "Enter" && !event.shiftKey) {
                       event.preventDefault();
                       event.currentTarget.form?.requestSubmit();
                     }
-                  }} maxLength={1000} rows={1} className="max-h-32 min-h-11 min-w-0 flex-1 resize-none bg-transparent px-3 py-2 text-sm text-white outline-none" placeholder="Сообщение или эмодзи..." />
+                  }} maxLength={1000} rows={1} className="max-h-32 min-h-11 min-w-0 flex-1 resize-none bg-transparent px-3 py-2 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-50" placeholder={messageAccess?.canWrite ? "Сообщение или эмодзи..." : "Переписка пока недоступна"} />
                   <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.94 }}>
-                    <Button type="submit" disabled={!draft.trim() || isSending} className="h-11 w-11 px-0" aria-label="Отправить сообщение">
+                    <Button type="submit" disabled={!messageAccess?.canWrite || !draft.trim() || isSending} className="h-11 w-11 px-0" aria-label="Отправить сообщение">
                       {isSending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                     </Button>
                   </motion.div>
@@ -508,6 +593,7 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
           )}
         </Panel>
       </div>
+      {requestConfirmation && recipient ? <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/70 p-4"><GlassCard className="w-full max-w-sm p-5"><h2 className="text-lg font-semibold text-white">Запросить разрешение?</h2><p className="mt-2 text-sm leading-6 text-slate-300">{recipient.name} получит уведомление и сможет разрешить или отклонить переписку.</p><div className="mt-5 flex justify-end gap-2"><Button variant="ghost" onClick={() => setRequestConfirmation(false)} disabled={isUpdatingAccess}>Отмена</Button><Button onClick={() => { setRequestConfirmation(false); void changeAccess("request"); }} disabled={isUpdatingAccess}>Отправить запрос</Button></div></GlassCard></div> : null}
     </div>
   );
 };

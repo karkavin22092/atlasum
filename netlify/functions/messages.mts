@@ -1,4 +1,5 @@
 import { getStore } from "@netlify/blobs";
+import { loadAccess, makeAccess, saveAccess } from "./message-access-core.mjs";
 
 type ChatMessage = {
   id: string;
@@ -13,6 +14,7 @@ type ChatMessage = {
 
 const REACTION_EMOJIS = ["👍", "❤️", "😂", "🔥", "👏", "🤔"];
 const DELETED_USER_IDS = new Set(["test"]);
+const ADMIN_ID = "lonexnesss";
 
 const messagesStore = () => getStore({ name: "design-tests-messages", consistency: "strong" });
 const inboxStore = () => getStore({ name: "design-tests-message-inbox", consistency: "strong" });
@@ -145,6 +147,16 @@ export default async (request: Request) => {
       if (!text || text.length > 1000) return jsonError("Некорректный текст сообщения", 400);
       if (!await requireParticipants(senderId, recipientId)) {
         return jsonError("Оба пользователя должны быть участниками рейтинга", 403);
+      }
+      let access = await loadAccess(senderId, recipientId);
+      if (access?.blockedBy.includes(senderId)) return jsonError("Сначала разблокируйте пользователя", 403);
+      if (senderId !== ADMIN_ID && access?.blockedBy.includes(recipientId)) return jsonError("Вы были заблокированы этим пользователем", 403);
+      if (senderId !== ADMIN_ID && (!access || (access.requests[senderId] !== "accepted" && access.requests[recipientId] !== "accepted"))) {
+        const existingConversation = await listConversation(senderId, recipientId);
+        if (!existingConversation.length) return jsonError("Сначала запросите разрешение на переписку", 403);
+        access = access ?? makeAccess(senderId, recipientId);
+        access = { ...access, requests: { ...access.requests, [senderId]: "accepted" }, updatedAt: new Date().toISOString() };
+        await saveAccess(access);
       }
 
       const deliveredAt = new Date().toISOString();

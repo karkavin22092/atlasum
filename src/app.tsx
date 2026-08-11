@@ -34,6 +34,8 @@ const WhatsNewPage = lazy(() => import("./pages/whats-new").then(({ WhatsNewPage
 const NashelingoPage = lazy(() => import("./pages/nashelingo").then(({ NashelingoPage }) => ({ default: NashelingoPage })));
 const NashelingoTopicPage = lazy(() => import("./pages/nashelingo-topic").then(({ NashelingoTopicPage }) => ({ default: NashelingoTopicPage })));
 const NashelingoLessonPage = lazy(() => import("./pages/nashelingo-lesson").then(({ NashelingoLessonPage }) => ({ default: NashelingoLessonPage })));
+const PrivacyPage = lazy(() => import("./pages/privacy").then(({ PrivacyPage }) => ({ default: PrivacyPage })));
+const BannedPage = lazy(() => import("./pages/banned").then(({ BannedPage }) => ({ default: BannedPage })));
 
 const DeferredPage = ({ children, meta, profileName }: { children: React.ReactElement; meta?: AppMeta; profileName?: string }) => (
   <Suspense fallback={<div className="grid min-h-56 place-items-center text-sm text-slate-400">Загружаем раздел...</div>}>
@@ -347,6 +349,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             <div className="mt-1 text-xs text-slate-500">Вопросы, предложения и обратная связь</div>
           </div>
           <div className="flex flex-wrap gap-x-5 gap-y-3 text-sm">
+            <Link to="/privacy" className="text-slate-300 transition hover:text-cyan-200">Политика конфиденциальности</Link>
             <a href="https://t.me/onyxnesss" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-slate-300 transition hover:text-cyan-200"><Send className="h-4 w-4" />@onyxnesss</a>
             <a href="https://vk.ru/lonexnessss" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-slate-300 transition hover:text-cyan-200"><Globe2 className="h-4 w-4" />ВКонтакте</a>
             <a href="mailto:lonexnesss@mail.ru" className="inline-flex items-center gap-2 text-slate-300 transition hover:text-cyan-200"><Mail className="h-4 w-4" />lonexnesss@mail.ru</a>
@@ -391,9 +394,15 @@ const RequireAuth = ({ children }: { children: ReactNode }) => {
   return <>{children}</>;
 };
 
+const BanGate = ({ children }: { children: ReactNode }) => {
+  const { user } = useAuth();
+  if (user?.bannedAt) return <Suspense fallback={null}><BannedPage /></Suspense>;
+  return <>{children}</>;
+};
+
 const App = () => {
   return (
-    <Routes>
+    <BanGate><Routes>
       <Route path="/" element={<AppShell><HomePage /></AppShell>} />
       <Route path="/practice" element={<RequireAuth><AppShell><DeferredPage><PracticePage /></DeferredPage></AppShell></RequireAuth>} />
       <Route path="/review" element={<RequireAuth><AppShell><DeferredPage><ReviewPage /></DeferredPage></AppShell></RequireAuth>} />
@@ -406,6 +415,7 @@ const App = () => {
       <Route path="/nashelingo/topic" element={<RequireAuth><AppShell><DeferredPage><NashelingoTopicPage /></DeferredPage></AppShell></RequireAuth>} />
       <Route path="/nashelingo/lesson" element={<RequireAuth><AppShell><DeferredPage><NashelingoLessonPage /></DeferredPage></AppShell></RequireAuth>} />
       <Route path="/whats-new" element={<AppShell><DeferredPage><WhatsNewPage /></DeferredPage></AppShell>} />
+      <Route path="/privacy" element={<AppShell><DeferredPage><PrivacyPage /></DeferredPage></AppShell>} />
       <Route path="/messages" element={<AppShell><DeferredPage><MessagesPage /></DeferredPage></AppShell>} />
       <Route path="/messages/:recipientId" element={<AppShell><DeferredPage><MessagesPage /></DeferredPage></AppShell>} />
       <Route path="/proposals" element={<AppShell><DeferredPage><BugsPage /></DeferredPage></AppShell>} />
@@ -415,7 +425,7 @@ const App = () => {
       <Route path="/report-bug" element={<Navigate to="/suggest" replace />} />
       <Route path="/auth" element={<DeferredPage><AuthPage /></DeferredPage>} />
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    </Routes></BanGate>
   );
 };
 

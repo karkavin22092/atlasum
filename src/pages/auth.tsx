@@ -17,6 +17,7 @@ export const AuthPage = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
@@ -25,9 +26,13 @@ export const AuthPage = () => {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
+    if (mode === "register" && !privacyAccepted) {
+      setError("Подтвердите согласие на обработку персональных данных.");
+      return;
+    }
     setPending(true);
     try {
-      if (mode === "register") await register(name, email, password);
+      if (mode === "register") await register(name, email, password, privacyAccepted);
       else await login(email, password);
       const destination = (location.state as { from?: string } | null)?.from ?? "/";
       navigate(destination, { replace: true });
@@ -46,7 +51,7 @@ export const AuthPage = () => {
         type="button"
         onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
         aria-label={theme === "dark" ? "Включить светлую тему" : "Включить тёмную тему"}
-        className="glass fixed right-4 top-4 grid h-11 w-11 place-items-center rounded-full"
+        className="v22-auth-theme-toggle glass fixed right-4 top-4 z-20 grid h-11 w-11 place-items-center rounded-full"
       >
         {theme === "dark" ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}
       </button>
@@ -106,8 +111,22 @@ export const AuthPage = () => {
                 <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} className="w-full bg-transparent py-3.5 outline-none" placeholder="Минимум 6 символов" required />
               </span>
             </label>
+            {mode === "register" ? (
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-xs leading-5 text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={privacyAccepted}
+                  onChange={(event) => setPrivacyAccepted(event.target.checked)}
+                  required
+                  className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-cyan-400"
+                />
+                <span>
+                  Я принимаю <Link to="/privacy" className="text-cyan-200 underline underline-offset-2">Политику конфиденциальности</Link> и даю согласие на обработку персональных данных.
+                </span>
+              </label>
+            ) : null}
             {error ? <div role="alert" className="rounded-2xl border border-rose-400/25 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
-            <Button type="submit" className="w-full py-3.5" disabled={pending}>
+            <Button type="submit" className="w-full py-3.5" disabled={pending || (mode === "register" && !privacyAccepted)}>
               {pending ? "Подождите..." : mode === "login" ? "Войти" : "Создать аккаунт"}
             </Button>
           </form>

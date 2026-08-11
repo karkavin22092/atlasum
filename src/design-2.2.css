@@ -1506,13 +1506,15 @@
 }
 
 .design-v22.v22-auth .v22-card::before {
-  content: "";
-  display: block;
-  width: 42px;
-  height: 4px;
-  margin: -2px 0 20px;
-  border-radius: 999px;
-  background: var(--v22-accent);
+  content: none;
+}
+
+.design-v22.v22-auth .v22-auth-theme-toggle {
+  position: fixed !important;
+  top: max(16px, env(safe-area-inset-top)) !important;
+  right: max(16px, env(safe-area-inset-right)) !important;
+  left: auto !important;
+  z-index: 50;
 }
 
 .design-v22 .rounded-3xl {

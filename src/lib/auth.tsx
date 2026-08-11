@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { isDeletedAccountName } from "./deleted-accounts";
+import { isDeletedAccountName, isReservedAccountName } from "./deleted-accounts";
 import { syncLocalReviewAvatar } from "./reviews";
 import { DEFAULT_INTERFACE_COLOR, type InterfaceColor } from "./interface-colors";
 
@@ -11,6 +11,8 @@ export type AuthUser = {
   authToken?: string;
   avatarUrl?: string | null;
   interfaceColor?: InterfaceColor;
+  bannedAt?: string;
+  banReason?: string;
 };
 
 type StoredUser = AuthUser & { passwordHash: string };
@@ -18,7 +20,7 @@ type StoredUser = AuthUser & { passwordHash: string };
 type AuthContextValue = {
   user: AuthUser | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string, privacyAccepted: boolean) => Promise<void>;
   logout: () => void;
   updateAvatar: (avatarUrl: string | null) => Promise<void>;
   updateInterfaceColor: (interfaceColor: InterfaceColor) => Promise<void>;
@@ -30,10 +32,14 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 class RemoteAuthError extends Error {
   status: number;
+  banned: boolean;
+  user: Partial<AuthUser>;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, result: Partial<AuthUser> & { banned?: boolean } = {}) {
     super(message);
     this.status = status;
+    this.banned = result.banned === true;
+    this.user = result;
   }
 }
 
@@ -84,7 +90,7 @@ const remoteAuth = async (payload: Record<string, unknown>) => {
     body: JSON.stringify(payload),
   });
   const result = await response.json().catch(() => ({})) as Partial<AuthUser> & { error?: string };
-  if (!response.ok) throw new RemoteAuthError(result.error ?? "Сервис авторизации временно недоступен", response.status);
+  if (!response.ok) throw new RemoteAuthError(result.error ?? "Сервис авторизации временно недоступен", response.status, result);
   return result as AuthUser;
 };
 
@@ -117,6 +123,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     })();
   }, []);
 
+  useEffect(() => {
+    if (!import.meta.env.PROD || !user?.authToken || user.bannedAt) return;
+    let active = true;
+    const verifySession = async () => {
+      try {
+        const refreshed = await remoteAuth({ action: "session", authToken: user.authToken });
+        if (active) setUser((current) => current?.id === user.id ? { ...refreshed, authToken: user.authToken } : current);
+      } catch (error) {
+        if (active && error instanceof RemoteAuthError && error.banned) {
+          setUser((current) => current?.id === user.id ? { ...current, ...error.user, authToken: user.authToken, bannedAt: error.user.bannedAt ?? new Date().toISOString() } : current);
+        }
+      }
+    };
+    void verifySession();
+    const interval = window.setInterval(() => { if (!document.hidden) void verifySession(); }, 15_000);
+    return () => { active = false; window.clearInterval(interval); };
+  }, [user?.authToken, user?.bannedAt, user?.id]);
+
   const login = async (email: string, password: string) => {
     const normalizedEmail = email.trim().toLowerCase();
     const passwordHash = await hashPassword(normalizedEmail, password);
@@ -127,6 +151,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         authenticatedUser = await remoteAuth({ action: "login", email: normalizedEmail, password });
       } catch (error) {
+        if (error instanceof RemoteAuthError && error.banned) {
+          setUser({ ...error.user, bannedAt: error.user.bannedAt ?? new Date().toISOString() } as AuthUser);
+          return;
+        }
         if (!(error instanceof RemoteAuthError) || error.status !== 404) throw error;
         if (!localUser || localUser.passwordHash !== passwordHash) {
           throw new Error("Аккаунт ещё не синхронизирован. Сначала откройте обновлённый сайт на устройстве, где создавали аккаунт.");
@@ -152,19 +180,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(authenticatedUser);
   };
 
-  const register = async (name: string, email: string, password: string) => {
+  const register = async (name: string, email: string, password: string, privacyAccepted: boolean) => {
     const normalizedName = name.trim();
     const normalizedEmail = email.trim().toLowerCase();
     if (normalizedName.length < 2) throw new Error("Имя должно содержать минимум 2 символа");
-    if (isDeletedAccountName(normalizedName)) throw new Error("Это имя удалено и больше недоступно");
+    if (isDeletedAccountName(normalizedName) || isReservedAccountName(normalizedName)) throw new Error("Это имя недоступно");
     if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) throw new Error("Введите корректную электронную почту");
     if (password.length < 6) throw new Error("Пароль должен содержать минимум 6 символов");
+    if (!privacyAccepted) throw new Error("Подтвердите согласие на обработку персональных данных.");
     const users = readUsers();
     if (!import.meta.env.PROD && users.some((item) => item.email === normalizedEmail)) throw new Error("Пользователь с такой почтой уже зарегистрирован");
     if (!import.meta.env.PROD && users.some((item) => item.name.toLowerCase() === normalizedName.toLowerCase())) throw new Error("Это имя уже занято");
 
     if (import.meta.env.PROD) {
-      const authenticatedUser = await remoteAuth({ action: "register", name: normalizedName, email: normalizedEmail, password });
+      let authenticatedUser: AuthUser;
+      try {
+        authenticatedUser = await remoteAuth({ action: "register", name: normalizedName, email: normalizedEmail, password, privacyAccepted });
+      } catch (error) {
+        if (error instanceof RemoteAuthError && error.banned) {
+          setUser({ ...error.user, authToken: undefined, bannedAt: error.user.bannedAt ?? new Date().toISOString() } as AuthUser);
+          return;
+        }
+        throw error;
+      }
       saveLocalUser(authenticatedUser, await hashPassword(normalizedEmail, password));
       setUser(authenticatedUser);
       return;
@@ -216,6 +254,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   return <AuthContext.Provider value={{ user, login, register, logout, updateAvatar, updateInterfaceColor }}>{children}</AuthContext.Provider>;
 };
+
+export const banAccount = async (userId: string, reason: string, authToken: string) => {
+  const response = await fetch("/.netlify/functions/auth", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "ban-user", userId, reason, authToken }),
+  });
+  const result = await response.json().catch(() => ({})) as { error?: string };
+  if (!response.ok) throw new Error(result.error ?? "Не удалось заблокировать пользователя");
+};
+
+export type BannedAccount = { id: string; name: string; bannedAt: string; banReason: string };
+
+const requestBanAdmin = async <T,>(action: "list-banned" | "unban-user", authToken: string, userId?: string) => {
+  const response = await fetch("/.netlify/functions/auth", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, authToken, userId }),
+  });
+  const result = await response.json().catch(() => ({})) as T & { error?: string };
+  if (!response.ok) throw new Error(result.error ?? "Не удалось обновить список блокировок");
+  return result;
+};
+
+export const getBannedAccounts = (authToken: string) => requestBanAdmin<BannedAccount[]>("list-banned", authToken);
+export const unbanAccount = (userId: string, authToken: string) => requestBanAdmin<{ ok: boolean }>("unban-user", authToken, userId);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);

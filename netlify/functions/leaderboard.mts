@@ -103,21 +103,22 @@ const cleanEntry = (value: Partial<LeaderboardEntry>): LeaderboardEntry | null =
   };
 };
 
-const listAvatars = async () => {
+const listUserStates = async () => {
   const users = usersStore();
   const { blobs } = await users.list();
-  const values = await Promise.all(blobs.map((blob) => users.get(blob.key, { type: "json", consistency: "strong" }) as Promise<{ id?: string; avatarUrl?: string | null } | null>));
-  return new Map(values.filter((user): user is { id: string; avatarUrl?: string | null } => Boolean(user?.id)).map((user) => [cleanUserId(user.id), cleanAvatar(user.avatarUrl)]));
+  const values = await Promise.all(blobs.map((blob) => users.get(blob.key, { type: "json", consistency: "strong" }) as Promise<{ id?: string; avatarUrl?: string | null; bannedAt?: string } | null>));
+  return new Map(values.filter((user): user is { id: string; avatarUrl?: string | null; bannedAt?: string } => Boolean(user?.id)).map((user) => [cleanUserId(user.id), { avatarUrl: cleanAvatar(user.avatarUrl), banned: Boolean(user.bannedAt) }]));
 };
 
 const listEntries = async () => {
   const leaderboard = store();
-  const [{ blobs }, avatars] = await Promise.all([leaderboard.list(), listAvatars()]);
+  const [{ blobs }, users] = await Promise.all([leaderboard.list(), listUserStates()]);
   const entries = await Promise.all(blobs.map((blob) => leaderboard.get(blob.key, { type: "json", consistency: "strong" })));
   return entries
     .map((entry) => cleanEntry((entry ?? {}) as Partial<LeaderboardEntry>))
     .filter((entry): entry is LeaderboardEntry => Boolean(entry))
-    .map((entry) => ({ ...entry, avatarUrl: avatars.get(entry.id) ?? entry.avatarUrl ?? null }))
+    .filter((entry) => !users.get(entry.id)?.banned)
+    .map((entry) => ({ ...entry, avatarUrl: users.get(entry.id)?.avatarUrl ?? entry.avatarUrl ?? null }))
     .sort((left, right) => right.xp - left.xp || left.name.localeCompare(right.name, "ru"))
     .map((entry, index) => ({ ...entry, rank: index + 1 }));
 };
