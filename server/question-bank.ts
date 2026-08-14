@@ -171,18 +171,18 @@ const shortExplanation = (first: string, second?: string) =>
 
 const explanationDetail = (concept: TopicConcept, variant: number) => {
   const details = [
-    concept.hint,
-    concept.scenario,
-    `Определяющий признак — «${concept.keyword}»`,
-    `Практический пример: ${cleanClause(concept.scenario)}`,
-    `На это значение указывает признак «${concept.keyword}»`,
-    `Отличительный ориентир — «${concept.keyword}»`,
-    `Смысл понятия раскрывает связь с признаком «${concept.keyword}»`,
-    `Пример «${cleanClause(concept.scenario)}» подтверждает это значение`,
-    `От близких понятий его отличает признак «${concept.keyword}»`,
-    `В определении важна характеристика «${concept.keyword}»`,
-    `Практическое проявление понятия: ${cleanClause(concept.scenario)}`,
-    `Подсказкой служит характеристика «${concept.keyword}»`,
+    `Пример: ${cleanClause(concept.scenario)}`,
+    `Так это работает на практике: ${cleanClause(concept.scenario)}`,
+    `В учебной ситуации это видно так: ${cleanClause(concept.scenario)}`,
+    `Именно это назначение показано в примере: ${cleanClause(concept.scenario)}`,
+    `Практический контекст: ${cleanClause(concept.scenario)}`,
+    `Этот пример раскрывает термин: ${cleanClause(concept.scenario)}`,
+    `Важна роль понятия в ситуации: ${cleanClause(concept.scenario)}`,
+    `Поэтому здесь подходит этот термин: ${cleanClause(concept.scenario)}`,
+    `Это не характеристика похожего понятия: ${cleanClause(concept.scenario)}`,
+    `Смысл термина проявляется в действии: ${cleanClause(concept.scenario)}`,
+    `В контексте задачи следует помнить: ${cleanClause(concept.scenario)}`,
+    `Проверка на примере: ${cleanClause(concept.scenario)}`,
   ];
   return details[variant % details.length];
 };
@@ -195,18 +195,18 @@ const conceptExplanation = (concept: TopicConcept, variant: number) =>
 
 const falseStatementExplanation = (concept: TopicConcept, secondary: TopicConcept, variant: number) => {
   const distinctions = [
-    `Приведённое определение относится к понятию «${secondary.term}», а не к «${concept.term}»`,
-    `В утверждении перепутаны «${concept.term}» и «${secondary.term}»`,
-    `Описание «${cleanClause(secondary.definition)}» раскрывает термин «${secondary.term}»`,
-    `Термин «${concept.term}» нельзя связывать с определением понятия «${secondary.term}»`,
-    `Указанный признак характеризует «${secondary.term}», поэтому утверждение неверно`,
-    `Определение взято у понятия «${secondary.term}» и не подходит к «${concept.term}»`,
-    `Смысл утверждения соответствует «${secondary.term}», а проверяется термин «${concept.term}»`,
-    `Здесь определение одного понятия ошибочно приписано другому`,
-    `Формулировка описывает «${secondary.term}» вместо «${concept.term}»`,
-    `Ошибка состоит в подмене значения «${concept.term}» значением «${secondary.term}»`,
-    `Признаки в утверждении принадлежат понятию «${secondary.term}»`,
-    `Определение и термин не совпадают: описание относится к «${secondary.term}»`,
+    `Описание в утверждении относится к «${secondary.term}», а не к «${concept.term}»`,
+    `В утверждении смешаны разные понятия: описан «${secondary.term}»`,
+    `Фраза раскрывает «${secondary.term}»: ${cleanClause(secondary.definition)}`,
+    `Для «${concept.term}» такое определение не подходит: оно относится к «${secondary.term}»`,
+    `Признак из утверждения характерен для «${secondary.term}», поэтому ответ «верно» был бы ошибкой`,
+    `Здесь под определение «${secondary.term}» подставили другой термин`,
+    `Проверяемый термин - «${concept.term}», но предложение описывает «${secondary.term}»`,
+    `Это неверное соответствие: определение принадлежит «${secondary.term}»`,
+    `Формулировка проверяет различие между «${concept.term}» и «${secondary.term}»`,
+    `У «${concept.term}» иное назначение, чем описано в утверждении`,
+    `В предложении назван «${concept.term}», но признаки взяты у «${secondary.term}»`,
+    `Сопоставление неверно: описание нужно отнести к «${secondary.term}»`,
   ];
   return shortExplanation(
     distinctions[variant % distinctions.length],
@@ -395,7 +395,9 @@ export const generateQuestionBank = (): Question[] => {
           break;
         }
         case "scenario": {
-          const scenarioClue = [concept.scenario, concept.hint, concept.definition]
+          // A hint such as "web protocol" is too vague to be a standalone task.
+          // Use the complete definition when the real example already names the answer.
+          const scenarioClue = [concept.scenario, concept.definition, concept.hint]
             .find((text) => !containsAnswerTerm(text, concept.term)) ?? concept.definition;
           const options = buildOptions(
             concept.term,
@@ -456,30 +458,38 @@ export const generateQuestionBank = (): Question[] => {
           break;
         }
         case "sequence": {
-          const steps = topic.process.slice(0, Math.min(5, topic.process.length));
-          const sequence = buildSequence(steps, seed);
-          const listedSteps = [...steps].sort((left, right) => left.localeCompare(right, "ru")).join(", ");
+          // Topic "process" fields were historically used as an artificial order for
+          // every concept. They are not always a real workflow, so asking the user to
+          // sort them teaches a false relationship. Keep the question count but turn
+          // this slot into an applied, answer-safe identification question.
+          const scenarioClue = [concept.scenario, concept.definition, concept.hint]
+            .find((text) => !containsAnswerTerm(text, concept.term)) ?? concept.definition;
+          const options = buildOptions(
+            concept.term,
+            otherConcepts.map((item) => item.term),
+            seed,
+          );
           question = {
             id,
             topic: topic.title,
             difficulty,
-            type: template,
+            type: "scenario",
             question: [
-              `В каком порядке должны выполняться этапы «${listedSteps}» при изучении понятия «${concept.term}»?`,
-              `Какова правильная последовательность действий «${listedSteps}» в контексте понятия «${concept.term}»?`,
-              `Как расположить от первого к последнему этапы «${listedSteps}», связанные с понятием «${concept.term}»?`,
-              `Какая последовательность верна для этапов «${listedSteps}» в задаче о понятии «${concept.term}»?`,
-              `В каком порядке следует расположить шаги «${listedSteps}» применительно к понятию «${concept.term}»?`,
+              `В ситуации «${scenarioClue}» какой термин подходит точнее всего?`,
+              `Какое понятие описывает ситуацию: «${scenarioClue}»?`,
+              `Как называется объект или действие в примере: «${scenarioClue}»?`,
+              `Какой термин нужно выбрать для ситуации: «${scenarioClue}»?`,
+              `В каком понятии отражён этот пример: «${scenarioClue}»?`,
             ][promptVariant],
-            options: sequence.options,
-            correct: sequence.correct,
+            options,
+            correct: getCorrectOptionId(options),
             explanation: shortExplanation(
-              `Процесс идёт от «${steps[0]}» к «${steps[steps.length - 1]}»: ${steps.join(" → ")}`,
-              `Для понятия «${concept.term}» ${cleanClause(explanationDetail(concept, promptOccurrence)).toLowerCase()}`,
+              `В примере описано понятие «${concept.term}»: ${cleanClause(concept.definition)}`,
+              explanationDetail(concept, promptOccurrence),
             ),
             source: topic.source,
-            tags: [...commonTags, "sequence"],
-            meta: { steps },
+            tags: [...commonTags, "scenario", "applied"],
+            meta: { concept: concept.term, replacesSequence: true },
           };
           break;
         }
@@ -501,10 +511,10 @@ export const generateQuestionBank = (): Question[] => {
 
       if (promptRound > 0) {
         const followUps = [
-          "Какой ответ будет наиболее точным в этой формулировке",
-          "Как следует решить это задание с опорой на определение",
-          "Какой ответ соответствует профессиональной терминологии",
-          "Какое решение учитывает смысл всех приведённых понятий",
+          `Вспомните практический контекст: ${cleanClause(concept.scenario)}`,
+          `Ориентируйтесь на назначение понятия: ${cleanClause(concept.definition)}`,
+          `Сопоставьте формулировку с примером: ${cleanClause(concept.scenario)}`,
+          `Проверьте, какое понятие описывает действие: ${cleanClause(concept.scenario)}`,
         ];
         question.question = `${question.question.slice(0, -1)}. ${followUps[(promptRound - 1) % followUps.length]}?`;
       }

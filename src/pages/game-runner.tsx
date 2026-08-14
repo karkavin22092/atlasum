@@ -22,7 +22,7 @@ const GAME_LABELS: Record<string, { title: string; mode: string; duration: numbe
   millionaire: { title: "Миллионер", mode: "random", duration: 0, questions: 15, subtitle: "15 вопросов с подсказками.", questionType: "single" },
   wheel: { title: "Колесо тем", mode: "random", duration: 0, questions: 8, subtitle: "Случайная тема и быстрый старт." },
   matching: { title: "Собери соответствия", mode: "topic", duration: 0, questions: 10, subtitle: "Соедините понятия и определения.", questionType: "matching" },
-  truth: { title: "Правда или ложь", mode: "random", duration: 30_000, questions: 18, subtitle: "Молниеносные верно/неверно.", questionType: "trueFalse" },
+  truth: { title: "Правда или ложь", mode: "random", duration: 0, questions: 18, subtitle: "Определите, верно или неверно утверждение.", questionType: "trueFalse" },
   puzzle: { title: "Пазл знаний", mode: "random", duration: 0, questions: 9, subtitle: "Правильные ответы открывают изображение." },
   memory: { title: "Memory", mode: "topic", duration: 0, questions: 8, subtitle: "Найдите пары терминов и определений.", questionType: "single" },
   timeline: { title: "Хронология", mode: "topic", duration: 0, questions: 6, subtitle: "Соберите этапы процесса.", questionType: "sequence" },
@@ -152,7 +152,8 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
   const correctlyAnswered = questions.filter((question) => isCorrectAnswer(question, answers[question.id])).length;
   const progress = questions.length ? (answered / questions.length) * 100 : 0;
   const hasActiveAttempt = questions.length > 0 && !submitted && !isAbandoning;
-  const timerQuestionIndex = gameId === "blitz" ? index : -1;
+  const isPerQuestionTimer = gameId === "blitz";
+  const timerQuestionIndex = isPerQuestionTimer ? index : -1;
 
   const startGame = () => {
     if (hasStarted) {
@@ -172,7 +173,7 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
 
   useEffect(() => {
     if (!game.duration || submitted) return;
-    if (gameId === "blitz") setTimeLeft(game.duration);
+    if (isPerQuestionTimer) setTimeLeft(game.duration);
     const timer = window.setInterval(() => {
       setTimeLeft((current) => {
         if (current <= 1000) {
@@ -183,11 +184,11 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
       });
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [game.duration, gameId, submitted, timerQuestionIndex]);
+  }, [game.duration, isPerQuestionTimer, submitted, timerQuestionIndex]);
 
   useEffect(() => {
     if (timeLeft === 0 && deck && !submitted && game.duration) {
-      if (gameId === "blitz" && current) {
+      if (isPerQuestionTimer && current) {
         const nextAnswers = hasAnswer(answers[current.id]) ? answers : { ...answers, [current.id]: "__timeout__" };
         setAnswers(nextAnswers);
         if (index < questions.length - 1) setIndex((currentIndex) => currentIndex + 1);
@@ -489,7 +490,7 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
 
       <AttemptExitNotice />
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className={`grid gap-4 ${gameId === "truth" ? "md:grid-cols-3" : "md:grid-cols-4"}`}>
         <GlassCard>
           <div className="text-xs uppercase tracking-[0.24em] text-slate-400">Раунд</div>
           <div className="mt-2 text-3xl font-semibold text-white">{game.title}</div>
@@ -503,12 +504,14 @@ export const GameRunnerPage = ({ meta, profileName }: AppPageProps) => {
           <div className="mt-2 text-3xl font-semibold text-white">{Math.round(progress)}%</div>
           <div className="mt-3"><ProgressBar value={progress} /></div>
         </GlassCard>
-        <GlassCard>
-          <div className="text-xs uppercase tracking-[0.24em] text-slate-400">Время</div>
-          <div className="mt-2 text-3xl font-semibold text-white">
-            {game.duration ? formatDuration(timeLeft) : "∞"}
-          </div>
-        </GlassCard>
+        {gameId !== "truth" ? (
+          <GlassCard>
+            <div className="text-xs uppercase tracking-[0.24em] text-slate-400">Время</div>
+            <div className="mt-2 text-3xl font-semibold text-white">
+              {game.duration ? formatDuration(timeLeft) : "∞"}
+            </div>
+          </GlassCard>
+        ) : null}
       </div>
 
       {gameId === "wheel" ? (
