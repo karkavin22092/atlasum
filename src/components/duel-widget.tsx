@@ -32,7 +32,7 @@ export const DuelWidget = ({ leaderboard }: { leaderboard: Array<{ id: string; n
   const duelsQuery = useQuery({
     queryKey,
     queryFn: () => getDuels(token),
-    enabled: Boolean(user && token),
+    enabled: Boolean(user),
     retry: 0,
     refetchInterval: REALTIME_POLL_MS,
     refetchIntervalInBackground: false,

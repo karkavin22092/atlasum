@@ -19,23 +19,21 @@ export const NotificationsPage = ({ meta: _meta, profileName }: AppPageProps) =>
   const userId = user?.id ?? "guest";
   const authToken = user?.authToken ?? "";
   const duelAction = async (id: string, action: "accept" | "decline") => {
-    if (!authToken) return;
     await (action === "accept" ? acceptDuel(authToken, id) : declineDuel(authToken, id));
-    await queryClient.invalidateQueries({ queryKey: ["notifications", userId, authToken] });
+    await queryClient.invalidateQueries({ queryKey: ["notifications", userId] });
     await queryClient.invalidateQueries({ queryKey: ["duels"] });
     if (action === "accept") navigate(`/duels/${id}`);
   };
   const messageAccessAction = async (contactId: string, action: "accept" | "decline") => {
-    if (!authToken) return;
     await updateMessageAccess(userId, contactId, authToken, action);
-    await queryClient.invalidateQueries({ queryKey: ["notifications", userId, authToken] });
+    await queryClient.invalidateQueries({ queryKey: ["notifications", userId] });
     await queryClient.invalidateQueries({ queryKey: ["unread-notifications"] });
     if (action === "accept") navigate(`/messages/${contactId}`);
   };
   const notificationsQuery = useQuery({
-    queryKey: ["notifications", userId, authToken],
+    queryKey: ["notifications", userId],
     queryFn: () => getNotifications(userId, authToken),
-    enabled: Boolean(user && authToken && userId !== "guest"),
+    enabled: Boolean(user && userId !== "guest"),
     retry: 0,
     refetchInterval: REALTIME_POLL_MS,
     refetchIntervalInBackground: false,
@@ -43,10 +41,10 @@ export const NotificationsPage = ({ meta: _meta, profileName }: AppPageProps) =>
   });
 
   useEffect(() => {
-    if (!user || !authToken || !notificationsQuery.data?.some((notification) => !notification.readAt && notification.type !== "duel-invite")) return;
+    if (!user || !notificationsQuery.data?.some((notification) => !notification.readAt && notification.type !== "duel-invite")) return;
     void markNotificationsRead(userId, authToken).then(async () => {
       const readAt = new Date().toISOString();
-      queryClient.setQueryData(["notifications", userId, authToken], (current: typeof notificationsQuery.data) =>
+      queryClient.setQueryData(["notifications", userId], (current: typeof notificationsQuery.data) =>
         current?.map((notification) => notification.readAt ? notification : { ...notification, readAt }));
       await queryClient.invalidateQueries({ queryKey: ["unread-notifications"] });
       await queryClient.invalidateQueries({ queryKey: ["meta", profileName] });

@@ -44,22 +44,21 @@ export const LeaderboardPage = ({ meta, profileName }: AppPageProps) => {
   const [banReason, setBanReason] = useState("Неподходящее имя в профиле");
   const [adminError, setAdminError] = useState("");
   const [adminPending, setAdminPending] = useState(false);
-  const bannedQuery = useQuery({ queryKey: ["banned-accounts", authToken], queryFn: () => getBannedAccounts(authToken), enabled: admin && Boolean(authToken), retry: 0 });
+  const bannedQuery = useQuery({ queryKey: ["banned-accounts"], queryFn: () => getBannedAccounts(authToken), enabled: admin, retry: 0 });
   const confirmBan = async () => {
-    if (!banTarget || !authToken) return;
+    if (!banTarget) return;
     setAdminPending(true); setAdminError("");
     try {
       await banAccount(banTarget.id, banReason, authToken);
       setBanTarget(null);
-      await Promise.all([queryClient.invalidateQueries({ queryKey: ["banned-accounts", authToken] }), queryClient.invalidateQueries({ queryKey: ["meta"] })]);
+      await Promise.all([queryClient.invalidateQueries({ queryKey: ["banned-accounts"] }), queryClient.invalidateQueries({ queryKey: ["meta"] })]);
     } catch (error) { setAdminError(error instanceof Error ? error.message : "Не удалось заблокировать пользователя"); } finally { setAdminPending(false); }
   };
   const restoreAccount = async (id: string) => {
-    if (!authToken) return;
     setAdminPending(true); setAdminError("");
     try {
       await unbanAccount(id, authToken);
-      await Promise.all([queryClient.invalidateQueries({ queryKey: ["banned-accounts", authToken] }), queryClient.invalidateQueries({ queryKey: ["meta"] })]);
+      await Promise.all([queryClient.invalidateQueries({ queryKey: ["banned-accounts"] }), queryClient.invalidateQueries({ queryKey: ["meta"] })]);
     } catch (error) { setAdminError(error instanceof Error ? error.message : "Не удалось разблокировать пользователя"); } finally { setAdminPending(false); }
   };
   return (

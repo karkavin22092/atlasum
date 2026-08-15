@@ -2,6 +2,7 @@ import { getStore } from "@netlify/blobs";
 import questionData from "../../data/questions.json";
 import { dashboardMeta } from "../../server/content";
 import { uniqueQuestions } from "../../shared/question-uniqueness";
+import { getSessionToken } from "./session-token.mjs";
 
 type SubjectId = "it-design" | "management" | "economics" | "english";
 type DuelStatus = "pending" | "active" | "finished" | "cancelled" | "declined";
@@ -78,7 +79,7 @@ const hashHex = async (value: string) => {
   return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
 };
 const getSessionUserId = async (request: Request) => {
-  const token = (request.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+  const token = getSessionToken(request);
   if (!token) return "";
   const session = await sessionsStore().get(await hashHex(token), { type: "json", consistency: "strong" }) as { userId?: string; expiresAt?: string } | null;
   if (!session?.userId || !session.expiresAt || Date.parse(session.expiresAt) <= Date.now()) return "";

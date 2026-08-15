@@ -36,6 +36,7 @@ const NashelingoTopicPage = lazy(() => import("./pages/nashelingo-topic").then((
 const NashelingoLessonPage = lazy(() => import("./pages/nashelingo-lesson").then(({ NashelingoLessonPage }) => ({ default: NashelingoLessonPage })));
 const PrivacyPage = lazy(() => import("./pages/privacy").then(({ PrivacyPage }) => ({ default: PrivacyPage })));
 const BannedPage = lazy(() => import("./pages/banned").then(({ BannedPage }) => ({ default: BannedPage })));
+const ShowcasePage = lazy(() => import("./pages/showcase").then(({ ShowcasePage }) => ({ default: ShowcasePage })));
 
 const DeferredPage = ({ children, meta, profileName }: { children: React.ReactElement; meta?: AppMeta; profileName?: string }) => (
   <Suspense fallback={<div className="grid min-h-56 place-items-center text-sm text-slate-400">Загружаем раздел...</div>}>
@@ -163,18 +164,18 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const unreadMessageCount = unreadMessagesQuery.data?.count ?? 0;
   const unreadLabel = unreadMessageCount > 99 ? "99+" : String(unreadMessageCount);
   const unreadNotificationsQuery = useQuery({
-    queryKey: ["unread-notifications", authenticatedUserId, authToken],
+    queryKey: ["unread-notifications", authenticatedUserId],
     queryFn: () => getUnreadNotificationCount(authenticatedUserId, authToken),
-    enabled: Boolean(user && authToken && authenticatedUserId !== "guest"),
+    enabled: Boolean(user && authenticatedUserId !== "guest"),
     retry: 0,
     refetchInterval: REALTIME_POLL_MS,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
   const unreadFeedbackQuery = useQuery({
-    queryKey: ["unread-feedback", authenticatedUserId, authToken],
+    queryKey: ["unread-feedback", authenticatedUserId],
     queryFn: () => getUnreadFeedbackCount(authenticatedUserId, authToken),
-    enabled: Boolean(admin && authToken && authenticatedUserId === "lonexnesss"),
+    enabled: Boolean(admin && authenticatedUserId === "lonexnesss"),
     retry: 0,
     refetchInterval: REALTIME_POLL_MS,
     refetchIntervalInBackground: false,
@@ -404,6 +405,7 @@ const App = () => {
   return (
     <BanGate><Routes>
       <Route path="/" element={<AppShell><HomePage /></AppShell>} />
+      <Route path="/showcase" element={<DeferredPage><ShowcasePage /></DeferredPage>} />
       <Route path="/practice" element={<RequireAuth><AppShell><DeferredPage><PracticePage /></DeferredPage></AppShell></RequireAuth>} />
       <Route path="/review" element={<RequireAuth><AppShell><DeferredPage><ReviewPage /></DeferredPage></AppShell></RequireAuth>} />
       <Route path="/games" element={<RequireAuth><AppShell><DeferredPage><GamesPage /></DeferredPage></AppShell></RequireAuth>} />

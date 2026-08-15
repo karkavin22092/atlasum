@@ -41,7 +41,8 @@ const request = async <T,>(token: string, init?: RequestInit, query = "") => {
   const response = await fetch(`/.netlify/functions/duels${query}`, {
     ...init,
     cache: "no-store",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...(init?.headers ?? {}) },
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(init?.headers ?? {}) },
   });
   const result = await response.json().catch(() => ({})) as T & { error?: string };
   if (!response.ok) throw new Error(result.error ?? "Не удалось синхронизировать игру");

@@ -246,7 +246,7 @@ export const MessagesPage = ({ meta }: AppPageProps) => {
     try {
       const next = await updateMessageAccess(currentProfileId, recipient.id, user.authToken ?? "", action);
       if (version === accessRequestVersionRef.current) setMessageAccess(next);
-      await queryClient.invalidateQueries({ queryKey: ["notifications", currentProfileId, user.authToken] });
+      await queryClient.invalidateQueries({ queryKey: ["notifications", currentProfileId] });
       await queryClient.invalidateQueries({ queryKey: ["unread-notifications"] });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Не удалось обновить доступ к сообщениям");

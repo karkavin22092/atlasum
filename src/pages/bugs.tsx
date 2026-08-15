@@ -18,9 +18,9 @@ export const BugsPage = ({ meta: _meta }: AppPageProps) => {
   const authToken = user?.authToken ?? "";
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const reportsQuery = useQuery({
-    queryKey: ["feedback-reports", adminId, authToken],
+    queryKey: ["feedback-reports", adminId],
     queryFn: () => getFeedbackReports(adminId, authToken),
-    enabled: allowed && Boolean(authToken),
+    enabled: allowed,
     retry: 0,
     refetchInterval: 15_000,
   });
@@ -41,7 +41,7 @@ export const BugsPage = ({ meta: _meta }: AppPageProps) => {
   });
 
   useEffect(() => {
-    if (!allowed || !authToken || !reportsQuery.data?.some((report) => !report.adminReadAt)) return;
+    if (!allowed || !reportsQuery.data?.some((report) => !report.adminReadAt)) return;
     void markFeedbackReportsRead(adminId, authToken).then(() => queryClient.invalidateQueries({ queryKey: ["unread-feedback"] }));
   }, [adminId, allowed, authToken, queryClient, reportsQuery.data]);
 

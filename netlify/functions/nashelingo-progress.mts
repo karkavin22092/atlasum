@@ -1,4 +1,5 @@
 import { getStore } from "@netlify/blobs";
+import { getSessionToken } from "./session-token.mjs";
 
 type SubjectId = "it-design" | "management" | "economics" | "english";
 
@@ -82,7 +83,7 @@ const mergeSnapshot = (current: ProgressSnapshot, incoming: ProgressSnapshot): P
 };
 
 const authenticatedUserId = async (request: Request) => {
-  const token = request.headers.get("authorization")?.replace(/^Bearer\s+/iu, "").trim() ?? "";
+  const token = getSessionToken(request);
   if (!token) return "";
   const session = await sessionsStore().get(await hashHex(token), { type: "json", consistency: "strong" }) as Session | null;
   return session?.userId && session.expiresAt && Date.parse(session.expiresAt) > Date.now() ? session.userId : "";

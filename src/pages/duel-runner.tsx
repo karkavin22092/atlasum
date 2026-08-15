@@ -31,7 +31,7 @@ export const DuelRunnerPage = ({ meta: _meta }: AppPageProps) => {
   const duelQuery = useQuery({
     queryKey: ["duel", duelId, token],
     queryFn: () => getDuel(token, duelId),
-    enabled: Boolean(token && duelId),
+    enabled: Boolean(user && duelId),
     retry: 0,
     refetchInterval: REALTIME_POLL_MS,
     refetchIntervalInBackground: false,

@@ -1,4 +1,5 @@
 import { getStore } from "@netlify/blobs";
+import { getSessionToken } from "./session-token.mjs";
 
 type FeedbackKind = "bug" | "improvement";
 
@@ -87,8 +88,7 @@ const hashHex = async (value: string) => {
 };
 
 const getSessionUserId = async (request: Request) => {
-  const authorization = request.headers.get("authorization") ?? "";
-  const token = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
+  const token = getSessionToken(request);
   if (!token) return "";
   const session = await sessionsStore().get(await hashHex(token), { type: "json", consistency: "strong" }) as {
     userId?: string;

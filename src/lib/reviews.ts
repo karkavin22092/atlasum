@@ -43,6 +43,7 @@ class ReviewRequestError extends Error {
 const request = async <T,>(init?: RequestInit, token?: string) => {
   const response = await fetch("/.netlify/functions/reviews", {
     ...init,
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),

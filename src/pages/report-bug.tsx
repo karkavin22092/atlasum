@@ -52,11 +52,11 @@ export const ReportBugPage = ({ meta: _meta }: AppPageProps) => {
   const selectedOption = feedbackOptions.find((option) => option.kind === kind)!;
 
   useEffect(() => {
-    if (!user?.authToken || isAdminUser(user)) return;
+    if (!user || isAdminUser(user)) return;
     let active = true;
     setCooldownUntil(0);
     setNow(Date.now());
-    getFeedbackCooldown(user.id, user.authToken)
+    getFeedbackCooldown(user.id, user.authToken ?? "")
       .then((cooldown) => {
         if (active && cooldown.nextAllowedAt) setCooldownUntil(Date.parse(cooldown.nextAllowedAt));
       })
@@ -79,10 +79,6 @@ export const ReportBugPage = ({ meta: _meta }: AppPageProps) => {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!user) return;
-    if (!user.authToken) {
-      setError("Аккаунт ещё синхронизируется. Подождите несколько секунд и попробуйте снова.");
-      return;
-    }
     setPending(true);
     setError("");
     try {
@@ -92,7 +88,7 @@ export const ReportBugPage = ({ meta: _meta }: AppPageProps) => {
         title,
         description,
         pageUrl: sourcePage,
-      }, user.authToken);
+      }, user.authToken ?? "");
       setCooldownUntil(Date.parse(report.nextAllowedAt));
       setNow(Date.now());
       setSent(true);

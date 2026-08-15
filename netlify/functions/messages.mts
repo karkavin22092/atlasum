@@ -1,5 +1,6 @@
 import { getStore } from "@netlify/blobs";
 import { loadAccess, makeAccess, saveAccess } from "./message-access-core.mjs";
+import { getSessionToken } from "./session-token.mjs";
 
 type ChatMessage = {
   id: string;
@@ -19,6 +20,7 @@ const ADMIN_ID = "lonexnesss";
 const messagesStore = () => getStore({ name: "design-tests-messages", consistency: "strong" });
 const inboxStore = () => getStore({ name: "design-tests-message-inbox", consistency: "strong" });
 const leaderboardStore = () => getStore({ name: "design-tests-leaderboard", consistency: "strong" });
+const sessionsStore = () => getStore({ name: "design-tests-auth-sessions", consistency: "strong" });
 
 const cleanUserId = (value: unknown) =>
   String(value ?? "").trim().toLowerCase().replace(/[^a-zа-я0-9-]+/giu, "-").slice(0, 80);
@@ -27,6 +29,18 @@ const conversationKey = (firstUserId: string, secondUserId: string) =>
   [firstUserId, secondUserId].sort((left, right) => left.localeCompare(right)).join("--");
 
 const jsonError = (message: string, status: number) => Response.json({ error: message }, { status });
+
+const hashHex = async (value: string) => {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+};
+
+const sessionUserId = async (request: Request) => {
+  const token = getSessionToken(request);
+  if (!token) return "";
+  const session = await sessionsStore().get(await hashHex(token), { type: "json", consistency: "strong" }) as { userId?: string; expiresAt?: string } | null;
+  return session?.userId && session.expiresAt && Date.parse(session.expiresAt) > Date.now() ? cleanUserId(session.userId) : "";
+};
 
 const normalizeStoredMessage = (value: ChatMessage): ChatMessage => ({
   ...value,
@@ -115,16 +129,19 @@ const markIncomingMessagesRead = async (viewerId: string, messages: ChatMessage[
 
 export default async (request: Request) => {
   try {
+    const actorId = await sessionUserId(request);
+    if (!actorId) return jsonError("Войдите в аккаунт заново", 401);
+
     if (request.method === "GET") {
       const url = new URL(request.url);
       const userId = cleanUserId(url.searchParams.get("userId"));
       if (userId) {
-        if (!await requireUser(userId)) return jsonError("Пользователь не найден в рейтинге", 403);
+        if (actorId !== userId || !await requireUser(userId)) return jsonError("Нет доступа к этим сообщениям", 403);
         return Response.json(await listInbox(userId));
       }
       const summariesFor = cleanUserId(url.searchParams.get("summariesFor"));
       if (summariesFor) {
-        if (!await requireUser(summariesFor)) return jsonError("Пользователь не найден в рейтинге", 403);
+        if (actorId !== summariesFor || !await requireUser(summariesFor)) return jsonError("Нет доступа к этим сообщениям", 403);
         return Response.json(await listConversationSummaries(summariesFor));
       }
       const firstUserId = cleanUserId(url.searchParams.get("firstUserId"));
@@ -133,7 +150,7 @@ export default async (request: Request) => {
       if (!await requireParticipants(firstUserId, secondUserId)) {
         return jsonError("Участники диалога не найдены в рейтинге", 403);
       }
-      if (viewerId !== firstUserId && viewerId !== secondUserId) return jsonError("Нельзя открыть чужой диалог", 403);
+      if (viewerId !== actorId || (viewerId !== firstUserId && viewerId !== secondUserId)) return jsonError("Нельзя открыть чужой диалог", 403);
       const conversation = await listConversation(firstUserId, secondUserId);
       return Response.json(await markIncomingMessagesRead(viewerId, conversation));
     }
@@ -144,6 +161,7 @@ export default async (request: Request) => {
       const recipientId = cleanUserId(payload.recipientId);
       const text = String(payload.text ?? "").trim();
       const clientId = String(payload.id ?? "").trim();
+      if (actorId !== senderId) return jsonError("Нельзя отправить сообщение от имени другого пользователя", 403);
       if (!text || text.length > 1000) return jsonError("Некорректный текст сообщения", 400);
       if (!await requireParticipants(senderId, recipientId)) {
         return jsonError("Оба пользователя должны быть участниками рейтинга", 403);
@@ -190,6 +208,7 @@ export default async (request: Request) => {
       const emoji = String(payload.emoji ?? "");
       const messageId = String(payload.id ?? "").trim();
       const createdAt = String(payload.createdAt ?? "").trim();
+      if (actorId !== userId) return jsonError("Нельзя изменить реакцию от имени другого пользователя", 403);
       if (!REACTION_EMOJIS.includes(emoji) || !messageId || !createdAt) return jsonError("Некорректная реакция", 400);
       if (userId !== senderId && userId !== recipientId) return jsonError("Нельзя изменить чужую реакцию", 403);
       if (!await requireParticipants(senderId, recipientId)) return jsonError("Участники диалога не найдены", 403);

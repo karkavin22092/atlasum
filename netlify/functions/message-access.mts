@@ -1,5 +1,6 @@
 import { getStore } from "@netlify/blobs";
 import { accessKey, cleanAccessUserId, loadAccess, makeAccess, saveAccess, type MessageAccessRecord } from "./message-access-core.mjs";
+import { getSessionToken } from "./session-token.mjs";
 
 type LeaderboardUser = { id: string; name?: string };
 type MessageNotification = {
@@ -25,8 +26,7 @@ const hashHex = async (value: string) => {
 };
 
 const sessionUserId = async (request: Request) => {
-  const authorization = request.headers.get("authorization") ?? "";
-  const token = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
+  const token = getSessionToken(request);
   if (!token) return "";
   const session = await sessionsStore().get(await hashHex(token), { type: "json", consistency: "strong" }) as { userId?: string; expiresAt?: string } | null;
   return session?.userId && session.expiresAt && Date.parse(session.expiresAt) > Date.now() ? cleanAccessUserId(session.userId) : "";

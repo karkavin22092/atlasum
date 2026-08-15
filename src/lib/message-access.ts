@@ -40,6 +40,7 @@ const request = async <T,>(method: "GET" | "POST" | "PATCH", userId: string, con
   const response = await fetch(`/.netlify/functions/message-access${search}`, {
     method,
     cache: "no-store",
+    credentials: "include",
     headers: { "Content-Type": "application/json", ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
     ...(method === "GET" ? {} : { body: JSON.stringify({ userId, contactId, action }) }),
   });

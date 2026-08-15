@@ -1,30 +1,11 @@
 import type { NashelingoLevelProgress, NashelingoTheoryProgress } from "@shared/types";
 
-type StoredSessionUser = {
-  id: string;
-  authToken?: string;
-};
-
 export type NashelingoProgressSnapshot = {
   theoryProgress: NashelingoTheoryProgress[];
   levelProgress: NashelingoLevelProgress[];
 };
 
-const USERS_KEY = "design-tests-users-v1";
-const SESSION_KEY = "design-tests-session-v1";
-
 const emptySnapshot = (): NashelingoProgressSnapshot => ({ theoryProgress: [], levelProgress: [] });
-
-const activeAuthToken = () => {
-  if (typeof window === "undefined") return "";
-  try {
-    const activeId = window.localStorage.getItem(SESSION_KEY);
-    const users = JSON.parse(window.localStorage.getItem(USERS_KEY) ?? "[]") as StoredSessionUser[];
-    return users.find((user) => user.id === activeId)?.authToken ?? "";
-  } catch {
-    return "";
-  }
-};
 
 const mergeByKey = <T extends { completedAt: string }>(
   values: T[],
@@ -55,15 +36,12 @@ export const mergeNashelingoProgress = (...snapshots: NashelingoProgressSnapshot
 
 export const syncNashelingoProgress = async (snapshot: NashelingoProgressSnapshot) => {
   if (!import.meta.env.PROD) return null;
-  const authToken = activeAuthToken();
-  if (!authToken) return null;
-
   try {
     const response = await fetch("/.netlify/functions/nashelingo-progress", {
       method: "POST",
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${authToken}`,
       },
       body: JSON.stringify(snapshot),
     });
